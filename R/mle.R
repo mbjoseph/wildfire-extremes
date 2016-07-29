@@ -27,17 +27,21 @@ profile_fit(estimates,
 
 profile_fit(estimates,
             param = 'logsigma',
-            range = c(5, 9),
+            range = c(5.5, 7.5),
             z = extremes$max_y)
+
+legend('top',
+       lty = c(1, 2, 0),
+       pch = c(NA, NA, 1),
+       col = c('black', 'blue', 'red'),
+       legend = c('NLL profile', '95% CI threshold', 'MLE'),
+       bty = 'n')
+
 
 profile_fit(estimates,
             param = 'xi',
-            range = c(-.3, .9),
+            range = c(-.3, .7),
             z = extremes$max_y)
-
-
-
-
 
 
 

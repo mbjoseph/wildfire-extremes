@@ -44,4 +44,6 @@ profile_fit <- function(fit, param, range, z, n = 1000) {
   cbind(par_range, nll_out) %>%
     plot(xlab = param, ylab = 'Negative log likelihood', type = 'l')
   points(x = mle[param], y = fit$value, col = 'red')
+  # draw line to delineate likelihood ratio based confidence intervals
+  abline(h = fit$value + qchisq(0.95, df = 1) / 2, lty = 2, col = 'blue')
 }
