@@ -59,4 +59,13 @@ extremes %>%
   ggplot(aes(x = n, y = min_y)) +
   geom_point() +
   xlab('Number of records in data') +
-  ylab('max(y)')
+  ylab('min(y)')
+
+extremes$max_y %>%
+  hist()
+
+plot(sort(extremes$max_y))
+
+hist(subset(d, y > 150)$y, breaks = 100)
+
+plot(sort(log(d$y)))
