@@ -1,22 +1,26 @@
 library(rgdal)
+library(maptools)
 library(dplyr)
+library(ggmap)
 library(foreign)
 library(purrr)
 library(tibble)
 
 ecoregions <- readOGR("data/us_eco_l4", 'us_eco_l4_no_st')
-ecoregions <- spTransform(ecoregions, CRS('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs'))
+ecoregions <- spTransform(ecoregions, CRS("+proj=laea +lat_0=45.5 +lon_0=-114.125 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"))
+ecoregions$id <- row.names(ecoregions)
+er_df <- fortify(ecoregions, region = 'id')
+er_df <- left_join(er_df, ecoregions@data, by = 'id')
 
 d <- read.dbf('data/mtbs/ShortWmtbs.dbf', as.is = TRUE)
 
 d <- d %>%
   filter(!(STATE %in% c('AK', 'PR', 'HI')))
-#  filter(STATE == 'ID')
 
 spd <- SpatialPointsDataFrame(coords = d[, c('LONGITUDE', 'LATITUDE')],
                               data = d,
                               proj4string = CRS('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs'))
-
+spd <- spTransform(spd, CRS(proj4string(ecoregions)))
 # get ecoregions for each point and merge into data frame
 d <- over(spd, ecoregions) %>%
   cbind(d) %>%
