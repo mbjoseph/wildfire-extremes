@@ -2,10 +2,10 @@ data {
   int n;
   int p;
   int y[n];
+  vector[n] log_offset;
   matrix[n, p] X;
-  matrix[n, n] B;
   matrix[n, n] D;
-  matrix[n, n] I;
+  matrix[n, n] W;
 }
 transformed data {
   vector[n] zeros;
@@ -19,7 +19,7 @@ parameters {
 }
 model {
   tau ~ normal(0, 5);
-  beta ~ normal(0, 1);
-  phi ~ multi_normal_prec(zeros, tau * D * (I - alpha * B));
-  y ~ poisson_log(X * beta + phi);
+  beta ~ normal(0, 10);
+  phi ~ multi_normal_prec(zeros, tau * (D - alpha * W));
+  y ~ poisson_log(X * beta + phi + log_offset);
 }
