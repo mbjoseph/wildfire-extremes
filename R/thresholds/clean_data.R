@@ -6,7 +6,12 @@ library(foreign)
 library(purrr)
 library(tibble)
 
-ecoregions <- readOGR("data", 'us_eco_l3')
+ecoregions <- readOGR("data/us_eco_l3", "us_eco_l3")
+
+simple_ecoregions = rgeos::gSimplify(ecoregions, tol = 1000, topologyPreserve = TRUE)
+ecoregions <- SpatialPolygonsDataFrame(simple_ecoregions, ecoregions@data)
+
+
 ecoregions <- spTransform(ecoregions, CRS("+proj=laea +lat_0=45.5 +lon_0=-114.125 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"))
 ecoregions$id <- row.names(ecoregions)
 er_df <- fortify(ecoregions, region = 'id')
@@ -22,7 +27,6 @@ spd <- SpatialPointsDataFrame(coords = d[, c('LONGITUDE', 'LATITUDE')],
                               data = d,
                               proj4string = CRS('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs'))
 spd <- spTransform(spd, CRS(proj4string(ecoregions)))
-# get ecoregions for each point and merge into data frame
 d <- over(spd, ecoregions) %>%
   cbind(d) %>%
   map_if(is.factor, as.character) %>%
