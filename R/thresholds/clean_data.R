@@ -6,11 +6,12 @@ library(foreign)
 library(purrr)
 library(tibble)
 
-ecoregions <- readOGR("data/us_eco_l4", 'us_eco_l4_no_st')
+ecoregions <- readOGR("data", 'us_eco_l3')
 ecoregions <- spTransform(ecoregions, CRS("+proj=laea +lat_0=45.5 +lon_0=-114.125 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"))
 ecoregions$id <- row.names(ecoregions)
 er_df <- fortify(ecoregions, region = 'id')
 er_df <- left_join(er_df, ecoregions@data, by = 'id')
+names(er_df) <- tolower(names(er_df))
 
 d <- read.dbf('data/mtbs/ShortWmtbs.dbf', as.is = TRUE)
 
@@ -28,3 +29,4 @@ d <- over(spd, ecoregions) %>%
   as_tibble()
 
 names(d) <- tolower(names(d))
+
