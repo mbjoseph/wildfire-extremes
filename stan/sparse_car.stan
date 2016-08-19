@@ -23,7 +23,7 @@ model {
   row_vector[n] phit_W; // phi' * W
 
   // priors on model parameters
-  beta ~ normal(0, 10);
+  beta ~ normal(-10, 10);
   tau ~ normal(0, 5);
 
   // CAR model using sparse MVn
@@ -46,4 +46,8 @@ model {
   for (i in 1:n) target += log1m(alpha * lambda[i]); // determinant
 
   y ~ poisson_log(X * beta + phi + log_offset);
+}
+generated quantities {
+  vector[n] log_mu;
+  log_mu = X * beta + phi + log_offset;
 }
