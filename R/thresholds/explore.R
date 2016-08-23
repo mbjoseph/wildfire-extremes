@@ -66,11 +66,12 @@ hist(log(d$fire_size), breaks = 100)
 # Create spatial neighbors ------------------------------------------------
 coords <- coordinates(ecoregions)
 Wpoly <- poly2nb(ecoregions)
-Wagg <- aggregate(Wpoly, ecoregions@data$US_L3NAME)
+
+Wagg <- aggregate(Wpoly, ecoregions@data$US_L4NAME)
 W <- nb2mat(Wagg, zero.policy = TRUE, style = 'B')
 
 n_fires <- d %>%
-  group_by(us_l3name) %>%
+  group_by(us_l4name) %>%
   summarize(n_fires = n())
 
 er_df <- left_join(er_df, n_fires)
@@ -78,9 +79,9 @@ er_df <- left_join(er_df, n_fires)
 # get area & num_neighbors for each ecoregion and add to data frame
 a_df <- data.frame(id = sapply(slot(ecoregions, "polygons"), slot, "ID"),
                    area = sapply(slot(ecoregions, "polygons"), slot, "area"),
-                   US_L3NAME = ecoregions@data$US_L3NAME,
+                   US_L4NAME = ecoregions@data$US_L4NAME,
                    stringsAsFactors = FALSE) %>%
-  group_by(US_L3NAME) %>%
+  group_by(US_L4NAME) %>%
   summarize(area = sum(area))
 a_df$n_neighbors <- rowSums(W)
 names(a_df) <- tolower(names(a_df))
