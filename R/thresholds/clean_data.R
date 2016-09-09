@@ -6,16 +6,16 @@ library(foreign)
 library(purrr)
 library(tibble)
 
-ecoregions <- readOGR("data/us_eco_l4", "us_eco_l4_no_st")
+ecoregions <- readOGR("data/us_eco_l3", "us_eco_l3")
 
-#simple_ecoregions = rgeos::gSimplify(ecoregions, tol = 1000, topologyPreserve = TRUE)
-#ecoregions <- SpatialPolygonsDataFrame(simple_ecoregions, ecoregions@data)
-
-# remove channel islands - they have no neighbors, only 2 fires
-ecoregions <- ecoregions[ecoregions$US_L4NAME != 'Southern Channel Islands' &
-                           ecoregions$US_L4NAME != 'Northern Channel Islands', ]
-
-ecoregions@data$US_L4NAME <- droplevels.factor(ecoregions@data$US_L4NAME)
+simple_ecoregions = rgeos::gSimplify(ecoregions, tol = 100, topologyPreserve = TRUE)
+ecoregions <- SpatialPolygonsDataFrame(simple_ecoregions, ecoregions@data)
+#
+# # remove channel islands - they have no neighbors, only 2 fires
+# ecoregions <- ecoregions[ecoregions$US_L3NAME != 'Southern Channel Islands' &
+#                            ecoregions$US_L3NAME != 'Northern Channel Islands', ]
+#
+# ecoregions@data$US_L3NAME <- droplevels.factor(ecoregions@data$US_L3NAME)
 
 ecoregions <- spTransform(ecoregions, CRS("+proj=laea +lat_0=45.5 +lon_0=-114.125 +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs"))
 ecoregions$id <- row.names(ecoregions)
@@ -39,3 +39,4 @@ d <- over(spd, ecoregions) %>%
 
 names(d) <- tolower(names(d))
 
+d <- subset(d, !is.na(us_l3name))
