@@ -36,12 +36,13 @@ er_df <- d %>%
   summarize(n_fires = n()) %>%
   right_join(er_df)
 
+
 # get area & num_neighbors for each ecoregion and add to data frame
 a_df <- data.frame(id = sapply(slot(ecoregions, "polygons"), slot, "ID"),
                    area = sapply(slot(ecoregions, "polygons"), slot, "area"),
-                   US_L3NAME = ecoregions@data$US_L3NAME,
+                   US_L4NAME = ecoregions@data$US_L4NAME,
                    stringsAsFactors = FALSE) %>%
-  group_by(US_L3NAME) %>%
+  group_by(US_L4NAME) %>%
   summarize(area = sum(area))
 a_df$n_neighbors <- rowSums(W)
 names(a_df) <- tolower(names(a_df))
