@@ -8,6 +8,10 @@ library(dplyr)
 library(viridis)
 library(tidyr)
 
+
+
+# Visualize yearly distributions ------------------------------------------
+
 d %>%
   ggplot(aes(x = discovery_, y = fire_size)) +
   geom_point() +
@@ -20,7 +24,7 @@ d %>%
             max_size = max(fire_size)) %>%
   gather(Measure, value, -fire_year) %>%
   ggplot(aes(x = fire_year, y = value, color = Measure)) +
-  geom_point(aes(x = fire_year, y = fire_size), data = d, inherit.aes = FALSE) +
+  geom_jitter(aes(x = fire_year, y = fire_size), data = d, inherit.aes = FALSE) +
   geom_line() +
   theme_minimal() +
   scale_y_log10()
@@ -40,9 +44,9 @@ er_df <- d %>%
 # get area & num_neighbors for each ecoregion and add to data frame
 a_df <- data.frame(id = sapply(slot(ecoregions, "polygons"), slot, "ID"),
                    area = sapply(slot(ecoregions, "polygons"), slot, "area"),
-                   US_L4NAME = ecoregions@data$US_L4NAME,
+                   US_L3NAME = ecoregions@data$US_L3NAME,
                    stringsAsFactors = FALSE) %>%
-  group_by(US_L4NAME) %>%
+  group_by(US_L3NAME) %>%
   summarize(area = sum(area))
 a_df$n_neighbors <- rowSums(W)
 names(a_df) <- tolower(names(a_df))

@@ -26,7 +26,7 @@ stan_d <- list(n = nrow(data_summary),
                W = W)
 
 m_init <- stan_model("stan/sparse_car.stan", auto_write = TRUE)
-m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3, iter = 2000)
+m_fit <- sampling(m_init, data = stan_d, cores = 2, chains = 2, iter = 2000)
 m_fit
 traceplot(m_fit)
 
@@ -74,7 +74,7 @@ stan_d <- list(n = nrow(data_summary),
                year = data_summary$year)
 
 m_init <- stan_model("stan/2-varying-slope.stan", auto_write = TRUE)
-m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3, iter = 3000)
+m_fit <- sampling(m_init, data = stan_d, cores = 2, chains = 2, iter = 3000)
 m_fit
 traceplot(m_fit, pars = c("beta", "tau_phi", 'tau_phi1', "gamma"))
 plot(m_fit, pars = "phi")
