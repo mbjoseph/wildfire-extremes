@@ -66,7 +66,7 @@ transformed data {
 }
 
 parameters {
-  vector[p] beta;
+  real alpha0;
   vector[J] phi1;
   vector[J] phi_diff[n_year - 1];
   real<lower = 0> tau_phi;
@@ -78,13 +78,12 @@ transformed parameters {
   vector[J] phi[n_year];
   vector[n] log_lambda;
 
-  phi[1] = phi1;
+  phi[1] = phi1 + alpha0;
   for (i in 2:n_year) {
     phi[i] = phi[i - 1] * gamma + phi_diff[i - 1];
   }
 
-
-  log_lambda = X * beta + log_offset;
+  log_lambda = log_offset;
   for (i in 1:n) {
     log_lambda[i] = log_lambda[i] + phi[year[i]][reg[i]];
   }
@@ -95,7 +94,7 @@ model {
   for (i in 1:(n_year-1)) {
     phi_diff[i] ~ sparse_iar(tau_phi, W_sparse, D_sparse, J, W_n);
   }
-  beta ~ normal(0, 1);
+  alpha0 ~ normal(0, 1);
   tau_phi1 ~ gamma(2, 2);
   tau_phi ~ gamma(2, 2);
   y ~ poisson_log(log_lambda);

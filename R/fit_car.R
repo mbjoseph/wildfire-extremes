@@ -76,11 +76,11 @@ stan_d <- list(n = nrow(data_summary),
 m_init <- stan_model("stan/2-varying-slope.stan", auto_write = TRUE)
 m_fit <- sampling(m_init, data = stan_d, cores = 2, chains = 2, iter = 3000)
 m_fit
-traceplot(m_fit, pars = c("beta", "tau_phi", 'tau_phi1', "gamma"))
+traceplot(m_fit, pars = c("alpha0", "tau_phi", 'tau_phi1', "gamma"))
 plot(m_fit, pars = "phi")
 
-
-
+offset_precip <- extracted_precip %>%
+  mutate(fire_year = fire_year + 1)
 
 st <- m_fit %>%
   rstan::extract() %>%
@@ -94,6 +94,59 @@ st %>%
   geom_line()
 
 
+
+
+st %>%
+  full_join(data_summary) %>%
+  ungroup() %>%
+  full_join(extracted_precip) %>%
+  ggplot(aes(x = mean_precip, y = mean, color = us_l3name)) +
+  theme(legend.position = "none") +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle("Precip in year t")
+
+st %>%
+  full_join(data_summary) %>%
+  ungroup() %>%
+  full_join(offset_precip) %>%
+  ggplot(aes(x = mean_precip, y = mean, color = us_l3name)) +
+  theme(legend.position = "none") +
+  geom_smooth(method = "lm", se = FALSE) +
+  ggtitle("Precip in year t - 1")
+
+
+cor_df <- st %>%
+  full_join(data_summary) %>%
+  ungroup() %>%
+  full_join(extracted_precip) %>%
+  arrange(us_l3name) %>%
+  group_by(us_l3name) %>%
+  summarize(year_t = cor(mean, mean_precip, use = "pairwise.complete.obs"))
+
+cor_df <- st %>%
+  full_join(data_summary) %>%
+  ungroup() %>%
+  full_join(offset_precip) %>%
+  arrange(us_l3name) %>%
+  group_by(us_l3name) %>%
+  summarize(year_tm1 = cor(mean, mean_precip, use = "pairwise.complete.obs")) %>%
+  full_join(cor_df) %>%
+  gather(key = Parameter, value = Correlation, -us_l3name)
+
+cor_df %>%
+  full_join(er_df) %>%
+  ggplot(aes(long, lat, group = group)) +
+  geom_polygon(aes(fill = Correlation)) +
+  coord_equal() +
+  facet_wrap(~ Parameter) +
+  scale_fill_gradient2() +
+  theme_map +
+  ggtitle("Correlation between mean annual precip and ST random effect")
+
+cor_df %>%
+  spread(key = Parameter, value = Correlation) %>%
+  ggplot(aes(x = year_t, y = year_tm1)) +
+  geom_point()
 
 st %>%
   full_join(data_summary) %>%

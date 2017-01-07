@@ -1,14 +1,14 @@
+library(tidyverse)
 library(rgdal)
 library(maptools)
-library(dplyr)
 library(ggmap)
 library(foreign)
 library(purrr)
-library(tibble)
+library(raster)
 
 # load ecoregion data
 level <- 3
-ecoregions <- readOGR(paste0("data/us_eco_l", level),
+ecoregions <- readOGR(paste0("data/raw/us_eco_l", level),
                       paste0("us_eco_l", level))
 
 # Simplify the polygons for faster plotting & reproject ----------------------
@@ -26,7 +26,7 @@ er_df <- left_join(er_df, ecoregions@data, by = 'id') %>%
 names(er_df) <- tolower(names(er_df))
 
 # Read short and mtbs fire data & merge with ecoregions ----------------------
-d <- read.dbf('data/mtbs/ShortWmtbs.dbf', as.is = TRUE) %>%
+d <- read.dbf('data/raw/mtbs/ShortWmtbs.dbf', as.is = TRUE) %>%
   filter(!(STATE %in% c('AK', 'PR', 'HI')))
 
 d <- SpatialPointsDataFrame(coords = d[, c('LONGITUDE', 'LATITUDE')],
@@ -38,5 +38,47 @@ d <- SpatialPointsDataFrame(coords = d[, c('LONGITUDE', 'LATITUDE')],
   as_tibble() %>%
   filter(!is.na(US_L3NAME))
 names(d) <- tolower(names(d))
+
+
+
+## Fetch mean annual precip at fire locations --------------------------
+
+# create a raster brick of mean precip and save as a GeoTIFF
+precip_d <- read_csv("data/processed/cleaned-precip.csv")
+precip_raster <- list()
+years <- 1991:max(d$fire_year)
+for (i in seq_along(years)) {
+  spg <- precip_d %>%
+    filter(year == years[i]) %>%
+    dplyr::select(longitude, latitude, mean_precip)
+  coordinates(spg) <- ~longitude + latitude
+  gridded(spg) <- TRUE
+  precip_raster[[i]] <- raster(spg)
+}
+names(precip_raster) <- years
+precip_raster <- brick(precip_raster)
+projection(precip_raster) <- CRS("+init=epsg:4326")
+precip_raster <- projectRaster(precip_raster, crs = CRS(wgs84))
+
+# compute the mean of the mean annual precip for each ecoregion X year
+extracted_precip <- raster::extract(precip_raster,
+                y = ecoregions, fun = mean, df = TRUE, sp = TRUE) %>%
+  tbl_df() %>%
+  dplyr::select(US_L3NAME, Shape_Area, starts_with("X")) %>%
+  gather(key = year, value = mean_precip, -US_L3NAME, -Shape_Area) %>%
+  mutate(year = gsub("X", "", x = year),
+         year = as.numeric(year)) %>%
+  group_by(US_L3NAME, year) %>%
+  # next line computes a weighted average across all polygons in an ecoregion
+  summarize(mean_precip = sum(Shape_Area * mean_precip, na.rm = TRUE) / sum(Shape_Area, na.rm = TRUE)) %>%
+  mutate(fire_year = year) %>%
+  dplyr::select(-year) %>%
+  ungroup()
+
+names(extracted_precip) <- tolower(names(extracted_precip))
+
+extracted_precip %>%
+  ggplot(aes(x = fire_year, y = mean_precip, group = us_l3name)) +
+  geom_line(alpha = .5)
 
 rm(list = c("level", "wgs84"))
