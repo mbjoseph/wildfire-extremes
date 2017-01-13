@@ -8,10 +8,7 @@ library(dplyr)
 library(viridis)
 library(tidyr)
 
-
-
-# Visualize yearly distributions ------------------------------------------
-
+# Visualize yearly fire size distributions ----------------------------
 d %>%
   ggplot(aes(x = discovery_, y = fire_size)) +
   geom_point() +
@@ -74,6 +71,9 @@ ggplot(er_df, aes(long, lat, group = group)) +
   scale_fill_viridis() +
   theme_map
 
+
+# Visualize the fire density in each ecoregion ----------------------------
+
 ggplot(er_df, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = lfd), color = NA) +
   coord_equal() +
@@ -84,3 +84,62 @@ ggplot(er_df, aes(long, lat, group = group)) +
 all_ers <- er_df %>%
   group_by(us_l3name) %>%
   summarize(area = unique(area))
+
+
+# Visualize precip data ---------------------------------------------------
+
+precip %>%
+  ggplot(aes(x = fire_year, y = same_year_precip, group = us_l3name)) +
+  geom_line(alpha = .5)
+
+precip %>%
+  ggplot() +
+  aes(x = same_year_precip, y = last_year_precip) +
+  geom_point()
+
+precip %>%
+  right_join(d) %>%
+  ggplot(aes(x = same_year_precip, y = fire_size)) +
+  scale_y_log10() +
+  geom_smooth(method = "lm", aes(group = us_l3name), se = FALSE)
+
+precip %>%
+  right_join(d) %>%
+  ggplot(aes(x = last_year_precip, y = fire_size)) +
+  scale_y_log10() +
+  geom_smooth(method = "lm", aes(group = us_l3name), se = FALSE)
+
+precip %>%
+  dplyr::select(-last_year_precip) %>%
+  spread(fire_year, same_year_precip) %>%
+  left_join(er_df) %>%
+  dplyr::select(us_l3name, starts_with("1"), starts_with("2"),
+                long, lat, group) %>%
+  gather(year, precip, -us_l3name, -long, -lat, -group) %>%
+  ggplot(aes(long, lat, group = group)) +
+  geom_polygon(aes(fill = precip), color = NA) +
+  coord_equal() +
+  labs(x = "Longitude", y = "Latitude") +
+  scale_fill_viridis("Mean precipitation") +
+  theme_map +
+  facet_wrap(~ year)
+
+
+
+# Visualize PDSI data -----------------------------------------------------
+
+pdsi %>%
+  ggplot(aes(x = fire_year, y = same_year_pdsi, group = us_l3name)) +
+  geom_line()
+
+pdsi %>%
+  full_join(precip) %>%
+  ggplot(aes(x = same_year_precip, y = same_year_pdsi)) +
+  geom_point()
+
+pdsi %>%
+  right_join(d) %>%
+  ggplot(aes(x = same_year_pdsi, y = fire_size)) +
+  scale_y_log10() +
+  geom_point(alpha = .1) +
+  geom_smooth(method = "lm", aes(group = us_l3name), se = FALSE)
