@@ -19,6 +19,8 @@ ecoregions <- ecoregions %>%
   SpatialPolygonsDataFrame(ecoregions@data) %>%
   spTransform(CRS(wgs84))
 
+plot(ecoregions)
+
 # Create a data frame from ecoregion data ---------------------------------
 ecoregions$id <- row.names(ecoregions)
 er_df <- fortify(ecoregions, region = 'id')

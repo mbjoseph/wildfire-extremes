@@ -1,19 +1,10 @@
 source('R/clean_data.R')
-library(ggplot2)
 library(scales)
 library(gridExtra)
 library(spdep)
-library(raster)
-library(dplyr)
 library(viridis)
-library(tidyr)
 
 # Visualize yearly fire size distributions ----------------------------
-d %>%
-  ggplot(aes(x = discovery_, y = fire_size)) +
-  geom_point() +
-  scale_y_log10()
-
 d %>%
   group_by(fire_year) %>%
   summarize(mean_size = mean(fire_size),
@@ -73,7 +64,6 @@ ggplot(er_df, aes(long, lat, group = group)) +
 
 
 # Visualize the fire density in each ecoregion ----------------------------
-
 ggplot(er_df, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = lfd), color = NA) +
   coord_equal() +
@@ -108,21 +98,6 @@ precip %>%
   ggplot(aes(x = last_year_precip, y = fire_size)) +
   scale_y_log10() +
   geom_smooth(method = "lm", aes(group = us_l3name), se = FALSE)
-
-precip %>%
-  dplyr::select(-last_year_precip) %>%
-  spread(fire_year, same_year_precip) %>%
-  left_join(er_df) %>%
-  dplyr::select(us_l3name, starts_with("1"), starts_with("2"),
-                long, lat, group) %>%
-  gather(year, precip, -us_l3name, -long, -lat, -group) %>%
-  ggplot(aes(long, lat, group = group)) +
-  geom_polygon(aes(fill = precip), color = NA) +
-  coord_equal() +
-  labs(x = "Longitude", y = "Latitude") +
-  scale_fill_viridis("Mean precipitation") +
-  theme_map +
-  facet_wrap(~ year)
 
 
 
