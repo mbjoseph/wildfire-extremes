@@ -84,17 +84,22 @@ parameters {
   vector[2] mu_sd;
   vector<lower = 0>[2] sd_sd;
   vector<lower = -1, upper = 1>[2] gamma;
-  vector<lower = 0, upper = 1>[2] alpha;
+  vector<lower = 0, upper = 1>[4] alpha;
 
   vector[J] phi_yR[n_year];
   vector<lower = 0>[n_year] sigma_phi_y;
 
+  real z0;
   real<lower = 0> sigma_z;
   vector[J] phi_zR[n_year];
   vector<lower = 0>[n_year] sigma_phi_z;
   vector[n_year] z_tR;
-  real mu_z_t;
   real<lower = 0> sigma_z_t;
+  vector[J] z_jR;
+  real<lower = 0> sigma_z_j;
+  vector[J] beta_phi_yR;
+  real mu_beta_phi;
+  real<lower = 0> sigma_beta_phi;
 }
 
 transformed parameters {
@@ -103,12 +108,17 @@ transformed parameters {
   vector[n] log_lambda;
   vector[nz] mu_z;
   vector[n_year] z_t;
+  vector[J] z_j;
+  vector[J] beta_phi_y;
+
+  beta_phi_y = beta_phi_yR * sigma_beta_phi + mu_beta_phi;
 
   phi_y[, 1] = phi_yR[1] * sigma_phi_y[1];
   phi_z[, 1] = phi_zR[1] * sigma_phi_z[1];
   for (i in 2:n_year) {
     phi_y[, i] = gamma[1] * phi_y[, i - 1] + sigma_phi_y[i] * phi_yR[i];
-    phi_z[, i] = gamma[2] * phi_z[, i - 1] + sigma_phi_z[i] * phi_zR[i];
+    phi_z[, i] = gamma[2] * phi_z[, i - 1] + sigma_phi_z[i] * phi_zR[i]
+                  + beta_phi_y .* phi_y[, i];
   }
 
   log_lambda = log_offset;
@@ -116,12 +126,15 @@ transformed parameters {
     log_lambda[i] = log_lambda[i] + phi_y[reg[i], year[i]];
   }
 
-  z_t = mu_z_t + z_tR * sigma_z_t;
+
+  // expected value for fire burn area
+  z_t = z_tR * sigma_z_t;
+  z_j = z_jR * sigma_z_j;
 
   for (i in 1:nz) {
     mu_z[i] = phi_z[reg_z[i], year_z[i]];
   }
-  mu_z = mu_z + z_t[year_z];
+  mu_z = mu_z + z0 +  z_t[year_z] + z_j[reg_z];
 }
 
 model {
@@ -137,8 +150,13 @@ model {
   sigma_phi_z ~ lognormal(mu_sd[2], sd_sd[2]);
   sigma_z ~ lognormal(0, 1);
   z_tR ~ normal(0, 1);
-  mu_z_t ~ normal(0, 5);
+  z_jR ~ sparse_car(alpha[3], W_sparse, D_sparse, lambda, J, W_n);
+  z0 ~ normal(0, 5);
   sigma_z_t ~ lognormal(0, 1);
+  sigma_z_j ~ lognormal(0, 1);
+  beta_phi_yR ~ sparse_car(alpha[4], W_sparse, D_sparse, lambda, J, W_n);
+  mu_beta_phi ~ normal(0, 1);
+  sigma_beta_phi ~ lognormal(0, 1);
 
   y ~ poisson_log(log_lambda);
 

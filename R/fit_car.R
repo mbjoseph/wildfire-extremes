@@ -2,7 +2,6 @@
 library(rstan)
 library(shinystan)
 library(lme4)
-library(gganimate)
 source('R/explore.R')
 
 # get count data
@@ -17,8 +16,6 @@ data_summary <- d %>%
            fill = list(n_fires = 0)) %>%
   full_join(all_ers) %>%
   mutate(cyear = c(scale(fire_year)),
-         freg = factor(us_l3name),
-         reg = as.numeric(freg),
          year = fire_year + 1 - min(fire_year))
 
 # get fire size data
@@ -50,18 +47,22 @@ stan_d <- list(n = nrow(data_summary),
 
 
 m_init <- stan_model("stan/spatiotemporal-scale-free.stan", auto_write = TRUE)
-m_fit <- sampling(m_init, data = stan_d, cores = 4, chains = 4,
-                  iter = 2000, init_r = .01,
+m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3,
+                  iter = 1000, init_r = .01,
                   pars = c("sigma_phi_z", "sigma_phi_y", "mu_sd", "sd_sd", "gamma",
                            "phi_z", "phi_y", "phi_zR", "phi_yR", "sigma_z",
-                           "z_t", "mu_z_t", "sigma_z_t", "alpha"))
+                           "z_t", "z_j", "z0", "sigma_z_t", "sigma_z_j", "alpha",
+                           "beta_phi_y", "mu_beta_phi", "sigma_beta_phi"))
 traceplot(m_fit, pars = "sigma_phi_z")
 traceplot(m_fit, pars = "sigma_phi_y")
 traceplot(m_fit, pars = c("mu_sd", "sd_sd"))
 traceplot(m_fit, pars = "gamma")
-traceplot(m_fit, pars = c("mu_z_t", "sigma_z", "sigma_z_t"))
+traceplot(m_fit, pars = c("z0", "sigma_z", "sigma_z_t", "sigma_z_j"))
 traceplot(m_fit, pars = "z_t")
 traceplot(m_fit, pars = "alpha")
+traceplot(m_fit, pars = c("mu_beta_phi", "sigma_beta_phi"))
+
+post <- rstan::extract(m_fit)
 
 plot(m_fit, pars = "phi_zR") +
   coord_flip()
@@ -70,6 +71,10 @@ plot(m_fit, pars = "phi_zR") +
 plot(m_fit, pars = "phi_yR") +
   coord_flip()
 
+plot(m_fit, pars = "phi_y") +
+  coord_flip()
+
+plot(m_fit, pars = "beta_phi_y")
 
 
 # visualize spatiotemporal random effects
@@ -111,29 +116,79 @@ st_z <- m_fit %>%
 st_z %>%
   ggplot(aes(x = year, y = exp(median), group = reg)) +
   geom_line() +
-  scale_y_log10()
+  scale_y_log10() +
+#  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)), alpha = .03) +
+  theme_minimal()
 
+
+
+m_fit %>%
+  rstan::extract() %>%
+  `[[`("z_t") %>%
+  reshape2::melt(varnames = c("iter", "year")) %>%
+  group_by(year) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975)) %>%
+  ggplot(aes(x = year + 1991, y = median)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = .5) +
+  theme_minimal() +
+  xlab("Year") +
+  ylab("Year-specific adjustment")
+
+
+# Visualize link between fire occurrence and burn area
+beta_phi_y <- m_fit %>%
+  rstan::extract() %>%
+  `[[`("beta_phi_y") %>%
+  reshape2::melt(varnames = c("iter", "reg")) %>%
+  group_by(reg) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975)) %>%
+  mutate(over_zero = lo < 0 & hi > 0)
+
+beta_phi_y %>%
+  left_join(all_ers) %>%
+  ggplot(aes(y = reorder(us_l3name, median), x = median, color = over_zero)) +
+  geom_point() +
+  geom_segment(aes(x = lo, xend = hi, yend = reorder(us_l3name, median))) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  ylab("Ecoregion") +
+  xlab("Effect of fire occurence on burn area")
 
 full_join(st_y, st_z) %>%
   ungroup() %>%
   dplyr::select(-lo, -hi) %>%
   spread(key = par, value = median) %>%
-  ggplot(aes(x = y, y = z, color = factor(reg))) +
+  left_join(all_ers) %>%
+  ggplot(aes(x = y, y = z)) +
   xlab("Fire occurrence effects") +
   ylab("Fire burn area effects") +
-  stat_smooth(method = "lm", alpha = .1) +
+  geom_point(alpha = .6) +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  facet_wrap(~us_l3name)
 
-# animated version
-p <- full_join(st_y, st_z) %>%
-  ungroup() %>%
-  dplyr::select(-lo, -hi) %>%
-  spread(key = par, value = median) %>%
-  ggplot(aes(x = y, y = z, color = factor(reg), frame = year)) +
-  xlab("Fire occurrence effects") +
-  ylab("Fire burn area effects") +
-  geom_point() +
-  theme_minimal() +
-  theme(legend.position = "none")
-gganimate(p, filename = "out.gif")
+
+beta_phi_y %>%
+  left_join(all_ers) %>%
+  full_join(er_df) %>%
+  ggplot(aes(x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = median), color = NA) +
+  coord_equal() +
+  labs(x = "Longitude", y = "Latitude") +
+  scale_fill_viridis("Effect of fire density on burn area") +
+  theme_map
+
+beta_phi_y %>%
+  left_join(all_ers) %>%
+  full_join(er_df) %>%
+  ggplot(aes(x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = hi - lo), color = NA) +
+  coord_equal() +
+  labs(x = "Longitude", y = "Latitude") +
+  scale_fill_viridis("Uncertainty in effect of\nfire density on burn area") +
+  theme_map
