@@ -16,7 +16,10 @@ data_summary <- d %>%
            fill = list(n_fires = 0)) %>%
   full_join(all_ers) %>%
   mutate(cyear = c(scale(fire_year)),
-         year = fire_year + 1 - min(fire_year))
+         year = fire_year + 1 - min(fire_year),
+         freg = factor(us_l3name,
+                       levels = levels(factor(all_ers$us_l3name))),
+         reg = as.numeric(freg))
 
 # get fire size data
 fire_sizes <- d %>%
@@ -34,7 +37,7 @@ stan_d <- list(n = nrow(data_summary),
                J = max(data_summary$reg),
                reg = data_summary$reg,
                t = data_summary$cyear,
-               log_offset = log(data_summary$area),
+               log_offset = log(all_ers$area),
                W_n = sum(W) / 2,
                W = W,
                n_year = length(unique(data_summary$year)),
@@ -47,22 +50,27 @@ stan_d <- list(n = nrow(data_summary),
 
 
 m_init <- stan_model("stan/spatiotemporal-scale-free.stan", auto_write = TRUE)
-m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3,
-                  iter = 1000, init_r = .01,
+m_fit <- sampling(m_init, data = stan_d, cores = 4, chains = 4,
+                  iter = 400, init_r = .001,
                   pars = c("sigma_phi_z", "sigma_phi_y", "mu_sd", "sd_sd", "gamma",
                            "phi_z", "phi_y", "phi_zR", "phi_yR", "sigma_z",
                            "z_t", "z_j", "z0", "sigma_z_t", "sigma_z_j", "alpha",
-                           "beta_phi_y", "mu_beta_phi", "sigma_beta_phi"))
+                           "beta_phi_y", "mu_beta_phi", "sigma_beta_phi",
+                           "zmax_new", "y_new", "log_lambda_new", "mu_z_new", "skew"))
 traceplot(m_fit, pars = "sigma_phi_z")
 traceplot(m_fit, pars = "sigma_phi_y")
 traceplot(m_fit, pars = c("mu_sd", "sd_sd"))
 traceplot(m_fit, pars = "gamma")
-traceplot(m_fit, pars = c("z0", "sigma_z", "sigma_z_t", "sigma_z_j"))
+traceplot(m_fit, pars = c("z0", "sigma_z_t", "sigma_z_j"))
 traceplot(m_fit, pars = "z_t")
 traceplot(m_fit, pars = "alpha")
+traceplot(m_fit, pars = "sigma_z")
 traceplot(m_fit, pars = c("mu_beta_phi", "sigma_beta_phi"))
 
-post <- rstan::extract(m_fit)
+
+
+traceplot(m_fit, pars = c("skew[1]", "skew[2]"))
+plot(m_fit, pars = "skew")
 
 plot(m_fit, pars = "phi_zR") +
   coord_flip()
@@ -75,6 +83,62 @@ plot(m_fit, pars = "phi_y") +
   coord_flip()
 
 plot(m_fit, pars = "beta_phi_y")
+
+
+# compare observed numbers to predicted
+m_fit %>%
+  rstan::extract() %>%
+  `[[`("y_new") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975)) %>%
+  mutate(par = "y_new") %>%
+  full_join(data_summary) %>%
+  ggplot(aes(x = fire_year)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi),
+              alpha = .5, color = NA, fill = "dodgerblue") +
+  geom_line(aes(y = median), color = "dodgerblue") +
+  geom_point(aes(y = n_fires)) +
+  facet_wrap(~ us_l3name) +
+  scale_y_log10() +
+  theme_minimal()
+
+
+
+# Posterior predictive check for maxima -----------------------------------
+maxima <- fire_sizes %>%
+  group_by(us_l3name, fire_year) %>%
+  summarize(zmax = max(log(fire_size))) %>%
+  full_join(data_summary)
+
+ppc_max <- m_fit %>%
+  rstan::extract() %>%
+  `[[`("zmax_new") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  filter(!is.infinite(value)) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975)) %>%
+  full_join(maxima)
+
+ppc_max %>%
+  ggplot(aes(x = fire_year, group = reg)) +
+  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
+              alpha = .05, fill = "dodgerblue") +
+  geom_line(aes(y = exp(median)), alpha = .4) +
+  theme_minimal()
+
+ppc_max %>%
+  ggplot(aes(x = fire_year)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi),
+              alpha = .5, fill = "dodgerblue") +
+  geom_line(aes(y = median), color = "dodgerblue") +
+  geom_point(aes(y = zmax)) +
+  theme_minimal() +
+  facet_wrap(~us_l3name)
 
 
 # visualize spatiotemporal random effects

@@ -73,9 +73,7 @@ ggplot(er_df, aes(long, lat, group = group)) +
 
 all_ers <- er_df %>%
   group_by(us_l3name) %>%
-  summarize(area = unique(area)) %>%
-  mutate(freg = factor(us_l3name),
-         reg = as.numeric(freg))
+  summarize(area = unique(area))
 
 
 # Visualize precip data ---------------------------------------------------
