@@ -1,7 +1,5 @@
 # CAR models --------------------------------------------------------------
 library(rstan)
-library(shinystan)
-library(lme4)
 source('R/explore.R')
 
 # get count data
@@ -31,6 +29,8 @@ fire_sizes <- d %>%
          year = fire_year + 1 - min(fire_year)) %>%
   arrange(us_l3name, fire_year)
 
+
+
 stan_d <- list(n = nrow(data_summary),
                x = data_summary$cyear,
                y = data_summary$n_fires,
@@ -40,37 +40,39 @@ stan_d <- list(n = nrow(data_summary),
                log_offset = log(all_ers$area),
                W_n = sum(W) / 2,
                W = W,
-               n_year = length(unique(data_summary$year)),
+               n_year = length(unique(data_summary$year)) + 5,
                year = data_summary$year,
                nz = nrow(fire_sizes),
                z = log(fire_sizes$fire_size),
                reg_z = fire_sizes$reg,
                year_z = fire_sizes$year)
 
-
-
 m_init <- stan_model("stan/spatiotemporal-scale-free.stan", auto_write = TRUE)
-m_fit <- sampling(m_init, data = stan_d, cores = 4, chains = 4,
-                  iter = 400, init_r = .001,
-                  pars = c("sigma_phi_z", "sigma_phi_y", "mu_sd", "sd_sd", "gamma",
+
+m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3,
+                  iter = 100, init_r = .001,
+                  pars = c("sigma_phi_z", "sigma_phi_y", "mu_sd", "sd_sd",
+                           "gamma",
                            "phi_z", "phi_y", "phi_zR", "phi_yR", "sigma_z",
-                           "z_t", "z_j", "z0", "sigma_z_t", "sigma_z_j", "alpha",
+                           "z_j", "z0", "sigma_z_j",
+                           "alpha",
                            "beta_phi_y", "mu_beta_phi", "sigma_beta_phi",
-                           "zmax_new", "y_new", "log_lambda_new", "mu_z_new", "skew"))
+                           "zmax_new", "y_new", "log_lambda_new", "mu_z_new",
+                           "area_burned"))
+
+
+# Evaluate convergence ----------------------------------------------------
+
 traceplot(m_fit, pars = "sigma_phi_z")
 traceplot(m_fit, pars = "sigma_phi_y")
 traceplot(m_fit, pars = c("mu_sd", "sd_sd"))
 traceplot(m_fit, pars = "gamma")
-traceplot(m_fit, pars = c("z0", "sigma_z_t", "sigma_z_j"))
-traceplot(m_fit, pars = "z_t")
+traceplot(m_fit, pars = c("z0", "sigma_z_j"))
 traceplot(m_fit, pars = "alpha")
 traceplot(m_fit, pars = "sigma_z")
 traceplot(m_fit, pars = c("mu_beta_phi", "sigma_beta_phi"))
 
 
-
-traceplot(m_fit, pars = c("skew[1]", "skew[2]"))
-plot(m_fit, pars = "skew")
 
 plot(m_fit, pars = "phi_zR") +
   coord_flip()
@@ -117,28 +119,29 @@ ppc_max <- m_fit %>%
   rstan::extract() %>%
   `[[`("zmax_new") %>%
   reshape2::melt(varnames = c("iter", "reg", "year")) %>%
-  filter(!is.infinite(value)) %>%
+  filter(value > 0) %>%
   group_by(year, reg) %>%
   summarize(median = median(value),
             lo = quantile(value, 0.025),
             hi = quantile(value, 0.975)) %>%
-  full_join(maxima)
+  full_join(maxima) %>%
+  mutate(Projected = year > length(unique(data_summary$year)))
 
 ppc_max %>%
-  ggplot(aes(x = fire_year, group = reg)) +
+  ggplot(aes(x = year, group = reg)) +
   geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
               alpha = .05, fill = "dodgerblue") +
   geom_line(aes(y = exp(median)), alpha = .4) +
   theme_minimal()
 
 ppc_max %>%
-  ggplot(aes(x = fire_year)) +
-  geom_ribbon(aes(ymin = lo, ymax = hi),
-              alpha = .5, fill = "dodgerblue") +
-  geom_line(aes(y = median), color = "dodgerblue") +
-  geom_point(aes(y = zmax)) +
+  ggplot(aes(x = year)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi, fill = Projected),
+              alpha = .5) +
+  geom_line(aes(y = median, color = Projected)) +
+  geom_point(aes(y = zmax), size = .5) +
   theme_minimal() +
-  facet_wrap(~us_l3name)
+  facet_wrap(~ reg)
 
 
 # visualize spatiotemporal random effects
