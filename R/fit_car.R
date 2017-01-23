@@ -49,8 +49,8 @@ stan_d <- list(n = nrow(data_summary),
 
 m_init <- stan_model("stan/spatiotemporal-scale-free.stan", auto_write = TRUE)
 
-m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3,
-                  iter = 100, init_r = .001,
+m_fit <- sampling(m_init, data = stan_d, cores = 2, chains = 2,
+                  iter = 400, init_r = .001,
                   pars = c("sigma_phi_z", "sigma_phi_y", "mu_sd", "sd_sd",
                            "gamma",
                            "phi_z", "phi_y", "phi_zR", "phi_yR", "sigma_z",
@@ -135,13 +135,95 @@ ppc_max %>%
   theme_minimal()
 
 ppc_max %>%
-  ggplot(aes(x = year)) +
+  ggplot(aes(x = year + min(data_summary$fire_year) - 1)) +
   geom_ribbon(aes(ymin = lo, ymax = hi, fill = Projected),
               alpha = .5) +
   geom_line(aes(y = median, color = Projected)) +
   geom_point(aes(y = zmax), size = .5) +
   theme_minimal() +
+  facet_wrap(~ reg, scales = "free")
+
+
+# Posterior predictive check for burn area --------------------------------
+burn_areas <- fire_sizes %>%
+  group_by(us_l3name, fire_year) %>%
+  summarize(zsum = sum(log(fire_size))) %>%
+  full_join(data_summary)
+
+ppc_sum <- m_fit %>%
+  rstan::extract() %>%
+  `[[`("area_burned") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  filter(value > 0) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975)) %>%
+  full_join(burn_areas) %>%
+  mutate(Projected = year > length(unique(data_summary$year)))
+
+ppc_sum %>%
+  ggplot(aes(x = year, group = reg)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi),
+              alpha = .05, fill = "dodgerblue") +
+  geom_line(aes(y = median), alpha = .4) +
+  theme_minimal() +
+  scale_y_log10()
+
+
+ppc_sum %>%
+  filter(!Projected) %>%
+  ggplot(aes(x = year + min(data_summary$fire_year) - 1)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi),
+              alpha = .5, fill = "dodgerblue") +
+  geom_line(aes(y = median)) +
+  geom_point(aes(y = zsum), size = .5) +
+  theme_minimal() +
+  facet_wrap(~ reg, scales = "free")
+
+
+
+st_y <- m_fit %>%
+  rstan::extract() %>%
+  `[[`("log_lambda_new") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975)) %>%
+  mutate(par = "log_lambda")
+
+
+st_y %>%
+  ggplot(aes(x = year, y = median, group = reg)) +
+  geom_line()
+
+
+st_z <- m_fit %>%
+  rstan::extract() %>%
+  `[[`("mu_z_new") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975)) %>%
+  mutate(par = "mu_z")
+
+st_z %>%
+  ggplot(aes(x = year, y = median, group = reg)) +
+  geom_line()
+
+
+full_join(st_y, st_z) %>%
+  dplyr::select(-lo, -hi) %>%
+  spread(par, median) %>%
+  ggplot(aes(x = log_lambda, y = mu_z, group = reg, color = year)) +
+  geom_path() +
+  scale_color_viridis() +
+  theme_minimal() +
   facet_wrap(~ reg)
+
+
 
 
 # visualize spatiotemporal random effects
