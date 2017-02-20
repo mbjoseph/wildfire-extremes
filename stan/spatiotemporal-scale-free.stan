@@ -81,7 +81,6 @@ transformed data {
 }
 
 parameters {
-  vector[2] mu_sd;
   vector<lower = 0>[2] sd_sd;
   vector<lower = -1, upper = 1>[2] gamma;
   vector<lower = 0, upper = 1>[5] alpha;
@@ -144,11 +143,10 @@ model {
     phi_zR[i] ~ sparse_car(alpha[2], W_sparse, D_sparse, lambda, J, W_n);
   }
 
-  sigma_phi_y ~ lognormal(mu_sd[1], sd_sd[1]);
-  mu_sd ~ normal(0, 1);
-  sd_sd ~ lognormal(0, 1);
+  sd_sd ~ normal(0, 1);
+  sigma_phi_y ~ normal(0, sd_sd[1]);
+  sigma_phi_z ~ normal(0, sd_sd[2]);
 
-  sigma_phi_z ~ lognormal(mu_sd[2], sd_sd[2]);
   z_jR ~ sparse_car(alpha[3], W_sparse, D_sparse, lambda, J, W_n);
   z0 ~ normal(0, 5);
   sigma_z_j ~ normal(0, 1);
