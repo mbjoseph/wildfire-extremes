@@ -58,6 +58,7 @@ m_fit %>%
   theme_minimal() +
   xlab("Year") +
   ylab("Number of fires")
+ggsave("fig/ppc-n.pdf", width = 20, height = 10)
 
 
 
@@ -100,6 +101,7 @@ ppc_max %>%
   facet_wrap(~ region) +
   xlab("Year") +
   ylab("Maximum burn area")
+ggsave("fig/ppc-max-burn-area.pdf", width = 20, height = 10)
 
 
 # Posterior predictive check for burn area --------------------------------
@@ -135,7 +137,7 @@ ppc_sum %>%
          region = regions[reg]) %>%
   ggplot(aes(x = year, fill = Projected)) +
   geom_ribbon(aes(ymin = lo, ymax = hi),
-              alpha = .5, fill = "dodgerblue") +
+              alpha = .5) +
   geom_line(aes(y = median)) +
   geom_point(aes(y = zsum), size = .5) +
   theme_minimal() +
@@ -143,6 +145,7 @@ ppc_sum %>%
   scale_y_log10() +
   xlab("Year") +
   ylab("Total burn area")
+ggsave("fig/ppc-tot-burn-area.pdf", width = 20, height = 10)
 
 
 
@@ -261,7 +264,11 @@ beta_phi_y %>%
   geom_vline(xintercept = 0, linetype = "dashed") +
   theme_minimal() +
   ylab("Ecoregion") +
-  xlab("Effect of fire occurence on burn area")
+  xlab("Effect of fire occurence on burn area") +
+  scale_color_brewer(palette = "Set1")
+ggsave("fig/n-y-coupling.pdf", width = 8, height = 10)
+
+
 
 full_join(st_y, st_z) %>%
   ungroup() %>%
@@ -288,6 +295,8 @@ beta_phi_y %>%
   labs(x = "Longitude", y = "Latitude") +
   scale_fill_viridis("Effect of fire density on burn area") +
   theme_map
+ggsave("fig/n-y-coupling-map.pdf", width = 12, height = 7)
+
 
 beta_phi_y %>%
   mutate(us_l3name = regions[reg]) %>%
@@ -299,3 +308,45 @@ beta_phi_y %>%
   labs(x = "Longitude", y = "Latitude") +
   scale_fill_viridis("Uncertainty in effect of\nfire density on burn area") +
   theme_map
+
+
+
+# Plot spatiotemporal effects  --------------------------------------------
+m_fit %>%
+  rstan::extract() %>%
+  `[[`("phi_y") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value)) %>%
+  mutate(us_l3name = regions[reg],
+         fire_year = year + min_year - 1) %>%
+  ungroup %>%
+  full_join(er_df) %>%
+  ggplot(aes(x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = median), color = NA) +
+  coord_equal() +
+  labs(x = "Longitude", y = "Latitude") +
+  scale_fill_viridis("Expected fire density") +
+  theme_map +
+  facet_wrap(~ fire_year)
+ggsave("fig/n-spatiotemporal.png", width = 20, height = 15)
+
+
+m_fit %>%
+  rstan::extract() %>%
+  `[[`("mu_z_new") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value)) %>%
+  mutate(us_l3name = regions[reg],
+         fire_year = year + min_year - 1) %>%
+  ungroup %>%
+  full_join(er_df) %>%
+  ggplot(aes(x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill = median), color = NA) +
+  coord_equal() +
+  labs(x = "Longitude", y = "Latitude") +
+  scale_fill_viridis("Expected fire size") +
+  theme_map +
+  facet_wrap(~ fire_year)
+ggsave("fig/y-spatiotemporal.png", width = 20, height = 15)
