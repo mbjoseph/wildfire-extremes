@@ -180,7 +180,10 @@ st_z %>%
 
 jd <- full_join(st_y, st_z) %>%
   dplyr::select(-lo, -hi) %>%
-  spread(par, median)
+  spread(par, median) %>%
+  ungroup %>%
+  mutate(year = year + min_year - 1,
+        region = regions[reg])
 
 jd %>%
   ggplot(aes(x = log_lambda, y = mu_z, group = reg, color = fire_year)) +
@@ -189,7 +192,10 @@ jd %>%
   theme_minimal() +
   facet_wrap(~ reg)
 
-scatterD3(jd$log_lambda, jd$mu_z, col_var = factor(jd$reg))
+scatterD3(jd$log_lambda, jd$mu_z, col_var = jd$region,
+          lab = as.character(jd$year),
+          xlab = "log(E(number of fires))",
+          ylab = "E(log(fire size))")
 
 # visualize spatiotemporal random effects
 st_y <- m_fit %>%
@@ -235,23 +241,6 @@ st_z %>%
   theme_minimal()
 
 
-
-m_fit %>%
-  rstan::extract() %>%
-  `[[`("z_t") %>%
-  reshape2::melt(varnames = c("iter", "year")) %>%
-  group_by(year) %>%
-  summarize(median = median(value),
-            lo = quantile(value, 0.025),
-            hi = quantile(value, 0.975)) %>%
-  ggplot(aes(x = year + 1991, y = median)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = .5) +
-  theme_minimal() +
-  xlab("Year") +
-  ylab("Year-specific adjustment")
-
-
 # Visualize link between fire occurrence and burn area
 beta_phi_y <- m_fit %>%
   rstan::extract() %>%
@@ -264,6 +253,7 @@ beta_phi_y <- m_fit %>%
   mutate(over_zero = lo < 0 & hi > 0)
 
 beta_phi_y %>%
+  mutate(us_l3name = regions[reg]) %>%
   left_join(all_ers) %>%
   ggplot(aes(y = reorder(us_l3name, median), x = median, color = over_zero)) +
   geom_point() +
@@ -277,6 +267,7 @@ full_join(st_y, st_z) %>%
   ungroup() %>%
   dplyr::select(-lo, -hi) %>%
   spread(key = par, value = median) %>%
+  mutate(us_l3name = regions[reg]) %>%
   left_join(all_ers) %>%
   ggplot(aes(x = y, y = z)) +
   xlab("Fire occurrence effects") +
@@ -288,6 +279,7 @@ full_join(st_y, st_z) %>%
 
 
 beta_phi_y %>%
+  mutate(us_l3name = regions[reg]) %>%
   left_join(all_ers) %>%
   full_join(er_df) %>%
   ggplot(aes(x = long, y = lat, group = group)) +
@@ -298,6 +290,7 @@ beta_phi_y %>%
   theme_map
 
 beta_phi_y %>%
+  mutate(us_l3name = regions[reg]) %>%
   left_join(all_ers) %>%
   full_join(er_df) %>%
   ggplot(aes(x = long, y = lat, group = group)) +
