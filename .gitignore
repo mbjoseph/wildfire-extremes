@@ -26,3 +26,5 @@ vignettes/*.pdf
 *.DS_Store
 *.rds
 out.gif
+*.pdf
+

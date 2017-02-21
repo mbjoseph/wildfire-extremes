@@ -1,0 +1,87 @@
+---
+title: "Spatiotemporal fire extremes"
+author: "Max Joseph"
+date: "February 20, 2017"
+output: beamer_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+# Traditional EVT
+
+Assumes "long" sequences of values 
+
+(e.g., lots of $N$ in a year)
+
+![](https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/GevDensity_2.svg/630px-GevDensity_2.svg.png)
+
+# Metastastical EVT
+
+Developed for short sequences of values 
+
+- number of data points is *random*
+- parameters governing the distribution of size are *random*
+
+$$\zeta(z) = \sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta$$
+
+# Fire extremes
+
+Small $N$ $\rightarrow$ traditional EVT fails
+
+**Idea**
+
+Model the following random variables:
+
+- number of fires
+- size of each fire
+
+**Inference on extremes**
+
+Use fancy technique: *posterior predictive distribution*
+
+# High level model overview
+
+**Two responses**
+
+1. Number of fires
+2. Fire size (each fire)
+
+**Spatiotemporal random effects**
+
+- areal model (US L3 EPA ecoregions)
+- sparse conditional autoregressive spatial dependence
+- AR1 temporal dependence
+
+# Current status
+
+1. Model has been fit and formulated
+2. Posterior predictive checks for
+
+- number of fires
+- size of maximum fire
+- total burn area
+
+# Current results
+
+1. Posterior checks
+2. Spatiotemporal visualizations
+
+(plots)
+
+# What we're missing
+
+1. Fire ecologists
+1. Science!
+
+- explanatory variables for number of fires and burn area
+- must be summarized at the ecoregion level
+
+# Ideal covariates
+
+1. Rasters (can be summarized at different levels)
+2. Model outputs (can project forward to make predictions)
+3. Public data
+4. Easily accessible
+5. Known to affect either number of ignitions or burn area
