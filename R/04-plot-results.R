@@ -1,6 +1,7 @@
-fit_model <- FALSE
-source("R/fit_car.R")
-
+library(rstan)
+library(scatterD3)
+source("R/01-clean_data.R")
+source("R/02-explore.R")
 
 m_fit <- readRDS("m_fit.rds")
 
@@ -10,28 +11,25 @@ regions <- levels(data_summary$freg)
 
 # Evaluate convergence ----------------------------------------------------
 
-# traceplot(m_fit, pars = "sigma_phi_z")
-# traceplot(m_fit, pars = "sigma_phi_y")
-# traceplot(m_fit, pars = c("sd_sd"))
-# traceplot(m_fit, pars = "gamma")
-# traceplot(m_fit, pars = c("z0", "sigma_z_j"))
-# traceplot(m_fit, pars = "alpha")
-# traceplot(m_fit, pars = "sigma_z")
-# traceplot(m_fit, pars = c("mu_beta_phi", "sigma_beta_phi"))
-#
-#
-#
-# plot(m_fit, pars = "phi_zR") +
-#   coord_flip()
-#
-#
-# plot(m_fit, pars = "phi_yR") +
-#   coord_flip()
-#
-# plot(m_fit, pars = "phi_y") +
-#   coord_flip()
-#
-# plot(m_fit, pars = "beta_phi_y")
+traceplot(m_fit, pars = "sigma_phi_z")
+traceplot(m_fit, pars = "sigma_phi_y")
+traceplot(m_fit, pars = c("sd_sd"))
+traceplot(m_fit, pars = "gamma")
+traceplot(m_fit, pars = c("z0"))
+traceplot(m_fit, pars = "alpha")
+traceplot(m_fit, pars = "sigma_z")
+traceplot(m_fit, pars = c("mu_beta_phi", "sigma_beta_phi"))
+
+plot(m_fit, pars = "phi_zR") +
+  coord_flip()
+
+plot(m_fit, pars = "phi_yR") +
+  coord_flip()
+
+plot(m_fit, pars = "phi_y") +
+  coord_flip()
+
+traceplot(m_fit, pars = "beta_phi_y")
 
 
 # compare observed numbers to predicted
@@ -149,7 +147,7 @@ ggsave("fig/ppc-tot-burn-area.pdf", width = 20, height = 10)
 
 
 
-# Visualize spatiotemporal random effects ---------------------------------
+# Visualize posterior predictions ---------------------------------
 st_y <- m_fit %>%
   rstan::extract() %>%
   `[[`("log_lambda_new") %>%
@@ -163,7 +161,10 @@ st_y <- m_fit %>%
 
 st_y %>%
   ggplot(aes(x = fire_year, y = median, group = us_l3name)) +
-  geom_line()
+  geom_line() +
+  xlab("Year") +
+  ylab("log(Expected fire density)")
+
 
 st_z <- m_fit %>%
   rstan::extract() %>%
@@ -178,7 +179,10 @@ st_z <- m_fit %>%
 
 st_z %>%
   ggplot(aes(x = fire_year, y = median, group = us_l3name)) +
-  geom_line()
+  geom_line() +
+  xlab("Year") +
+  ylab("log(Expected fire size)")
+
 
 
 jd <- full_join(st_y, st_z) %>%
@@ -193,7 +197,10 @@ jd %>%
   geom_path() +
   scale_color_viridis() +
   theme_minimal() +
-  facet_wrap(~ reg)
+  facet_wrap(~ region) +
+  ylab("log(Expected fire size)") +
+  xlab("log(Expected fire density)")
+
 
 scatterD3(jd$log_lambda, jd$mu_z, col_var = jd$region,
           lab = as.character(jd$year),
@@ -214,15 +221,23 @@ st_y <- m_fit %>%
 
 st_y %>%
   ggplot(aes(x = year, y = exp(median), group = reg)) +
-  geom_line() +
-  scale_y_log10()
+  geom_line(alpha = .8) +
+  theme_minimal() +
+  scale_y_log10() +
+  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)), alpha = .03) +
+  xlab("Year") +
+  ylab("Spatiotemporal adjustment: fire density")
 
 st_y %>%
   full_join(data_summary) %>%
   ungroup() %>%
   ggplot(aes(x = exp(median), y = n_fires / (area))) +
   geom_point() +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed")
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  xlab("Predicted fire density") +
+  ylab("Observed fire density") +
+  scale_x_log10() +
+  scale_y_log10()
 
 
 st_z <- m_fit %>%
@@ -240,8 +255,10 @@ st_z %>%
   ggplot(aes(x = year, y = exp(median), group = reg)) +
   geom_line() +
   scale_y_log10() +
-  #  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)), alpha = .03) +
-  theme_minimal()
+  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)), alpha = .03) +
+  theme_minimal() +
+  xlab("Year") +
+  ylab("Spatiotemporal adjustment: burn area")
 
 
 # Visualize link between fire occurrence and burn area
@@ -264,25 +281,10 @@ beta_phi_y %>%
   geom_vline(xintercept = 0, linetype = "dashed") +
   theme_minimal() +
   ylab("Ecoregion") +
-  xlab("Effect of fire occurence on burn area") +
+  xlab("Relationship between fire density and mean burn area") +
   scale_color_brewer(palette = "Set1")
 ggsave("fig/n-y-coupling.pdf", width = 8, height = 10)
 
-
-
-full_join(st_y, st_z) %>%
-  ungroup() %>%
-  dplyr::select(-lo, -hi) %>%
-  spread(key = par, value = median) %>%
-  mutate(us_l3name = regions[reg]) %>%
-  left_join(all_ers) %>%
-  ggplot(aes(x = y, y = z)) +
-  xlab("Fire occurrence effects") +
-  ylab("Fire burn area effects") +
-  geom_point(alpha = .6) +
-  theme_minimal() +
-  theme(legend.position = "none") +
-  facet_wrap(~us_l3name)
 
 
 beta_phi_y %>%
@@ -293,7 +295,7 @@ beta_phi_y %>%
   geom_polygon(aes(fill = median), color = NA) +
   coord_equal() +
   labs(x = "Longitude", y = "Latitude") +
-  scale_fill_viridis("Effect of fire density on burn area") +
+  scale_fill_viridis("Relationship between\nfire density and\nmean burn area") +
   theme_map
 ggsave("fig/n-y-coupling-map.pdf", width = 12, height = 7)
 
@@ -304,9 +306,11 @@ beta_phi_y %>%
   full_join(er_df) %>%
   ggplot(aes(x = long, y = lat, group = group)) +
   geom_polygon(aes(fill = hi - lo), color = NA) +
+  geom_polygon(fill = NA, color = "black", alpha = .1, size = .1) +
   coord_equal() +
   labs(x = "Longitude", y = "Latitude") +
-  scale_fill_viridis("Uncertainty in effect of\nfire density on burn area") +
+  scale_fill_viridis("Uncertainty in\ndensity-burn area\nrelationsihp",
+                     option = "A") +
   theme_map
 
 
@@ -350,3 +354,65 @@ m_fit %>%
   theme_map +
   facet_wrap(~ fire_year)
 ggsave("fig/y-spatiotemporal.png", width = 20, height = 15)
+
+
+
+# Create animated GIF of results ------------------------------------------
+years <- unique(d$fire_year) %>% sort
+post_counts <- m_fit %>%
+  rstan::extract() %>%
+  `[[`("phi_y") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value)) %>%
+  mutate(us_l3name = regions[reg],
+         fire_year = year + min_year - 1) %>%
+  ungroup %>%
+  full_join(er_df)
+
+for (i in seq_along(years)) {
+  p <- post_counts %>%
+    filter(year == i) %>%
+    ggplot(aes(x = long, y = lat, group = group)) +
+    geom_polygon(aes(fill = median), color = NA) +
+    coord_equal() +
+    labs(x = "Longitude", y = "Latitude") +
+    scale_fill_viridis("Expected fire density",
+                       limits = c(min(post_counts$median),
+                                  max(post_counts$median))) +
+    theme_map +
+    ggtitle(paste(years[i]))
+  ggsave(filename = paste0("density-", years[i], ".png"), plot = p)
+}
+
+
+
+
+
+post_size <- m_fit %>%
+  rstan::extract() %>%
+  `[[`("mu_z_new") %>%
+  reshape2::melt(varnames = c("iter", "reg", "year")) %>%
+  group_by(year, reg) %>%
+  summarize(median = median(value)) %>%
+  mutate(us_l3name = regions[reg],
+         fire_year = year + min_year - 1) %>%
+  ungroup %>%
+  full_join(er_df)
+
+
+for (i in seq_along(years)) {
+  p <- post_size %>%
+    filter(year == i) %>%
+    ggplot(aes(x = long, y = lat, group = group)) +
+    geom_polygon(aes(fill = median), color = NA) +
+    coord_equal() +
+    labs(x = "Longitude", y = "Latitude") +
+    scale_fill_viridis("Expected fire size",
+                       limits = c(min(post_size$median),
+                                  max(post_size$median))) +
+    theme_map +
+    ggtitle(paste(years[i]))
+  ggsave(filename = paste0("size-", years[i], ".png"), plot = p)
+}
+

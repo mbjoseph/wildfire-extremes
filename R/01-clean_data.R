@@ -6,7 +6,9 @@ library(foreign)
 library(purrr)
 library(raster)
 
-# load ecoregion data
+# load EPA level 3 ecoregion data
+# accessible from:
+# https://www.epa.gov/eco-research/level-iii-and-iv-ecoregions-continental-united-states
 level <- 3
 ecoregions <- readOGR(paste0("data/raw/us_eco_l", level),
                       paste0("us_eco_l", level))
@@ -27,6 +29,8 @@ er_df <- left_join(er_df, ecoregions@data, by = 'id') %>%
 names(er_df) <- tolower(names(er_df))
 
 # Read short and mtbs fire data & merge with ecoregions ----------------------
+# Data from:
+# http://www.mtbs.gov/nationalregional/pointdata.html
 mtbs <- readOGR('data/raw/mtbs_fod_pts_data/', 'mtbs_fod_pts_20160401') %>%
   subset(!(STATE %in% c("AK", "PR", "HI"))) %>%
   spTransform(CRS(wgs84))

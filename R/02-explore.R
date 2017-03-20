@@ -1,4 +1,3 @@
-source('R/clean_data.R')
 library(scales)
 library(gridExtra)
 library(spdep)
@@ -29,7 +28,7 @@ er_df <- d %>%
   right_join(er_df)
 
 
-# get area & num_neighbors for each ecoregion and add to data frame
+## Add area & num_neighbors to data frame -------------------------------
 a_df <- data.frame(id = sapply(slot(ecoregions, "polygons"), slot, "ID"),
                    area = sapply(slot(ecoregions, "polygons"), slot, "area"),
                    US_L3NAME = ecoregions@data$US_L3NAME,
@@ -41,8 +40,16 @@ names(a_df) <- tolower(names(a_df))
 
 er_df <- left_join(er_df, a_df) %>%
   mutate(fire_den = n_fires / area,
-         lfd = log(n_fires) - log(area))
+         log_fire_density = log(n_fires) - log(area))
 
+# get area of each ecoregion
+all_ers <- er_df %>%
+  group_by(us_l3name) %>%
+  summarize(area = unique(area))
+
+
+
+# Visualize number of neighbors --------------------------------------
 theme_map <- theme(axis.line = element_blank(),
                    axis.text.x = element_blank(),
                    axis.text.y = element_blank(),
@@ -56,8 +63,7 @@ theme_map <- theme(axis.line = element_blank(),
                    plot.background = element_blank())
 
 ggplot(er_df, aes(long, lat, group = group)) +
-  geom_polygon(aes(fill = n_neighbors)) +
-  geom_polygon(color = 'black', alpha = .1, size = .1) +
+  geom_polygon(aes(fill = n_neighbors), color = NA) +
   coord_equal() +
   scale_fill_viridis() +
   theme_map
@@ -65,12 +71,36 @@ ggplot(er_df, aes(long, lat, group = group)) +
 
 # Visualize the fire density in each ecoregion ----------------------------
 ggplot(er_df, aes(long, lat, group = group)) +
-  geom_polygon(aes(fill = lfd), color = NA) +
+  geom_polygon(aes(fill = log_fire_density), color = NA) +
   coord_equal() +
   labs(x = "Longitude", y = "Latitude") +
   scale_fill_viridis("log(Fire density)") +
   theme_map
 
-all_ers <- er_df %>%
-  group_by(us_l3name) %>%
-  summarize(area = unique(area))
+# get count data (number of fires in each ecoregion X year)
+data_summary <- d %>%
+  group_by(us_l3name, fire_year) %>%
+  summarize(n_fires = n()) %>%
+  left_join(a_df) %>%
+  full_join(all_ers) %>%
+  ungroup() %>%
+  dplyr::select(-area, -n_neighbors) %>%
+  complete(us_l3name, fire_year,
+           fill = list(n_fires = 0)) %>%
+  full_join(all_ers) %>%
+  mutate(cyear = c(scale(fire_year)),
+         year = fire_year + 1 - min(fire_year),
+         freg = factor(us_l3name,
+                       levels = levels(factor(all_ers$us_l3name))),
+         reg = as.numeric(freg))
+
+# get fire size data
+fire_sizes <- d %>%
+  dplyr::select(us_l3name, fire_year, fire_size) %>%
+  mutate(cyear = c(scale(fire_year)),
+         freg = factor(us_l3name,
+                       levels = levels(data_summary$freg)),
+         reg = as.numeric(freg),
+         year = fire_year + 1 - min(fire_year)) %>%
+  arrange(us_l3name, fire_year)
+

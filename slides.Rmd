@@ -2,48 +2,132 @@
 title: "Spatiotemporal fire extremes"
 author: "Max Joseph"
 date: "February 20, 2017"
-output: beamer_presentation
+output: 
+  beamer_presentation:
+    colortheme: crane
+    fonttheme: structurebold
+in_header:
+- \usepackage{xcolor}
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
-# Traditional EVT
+# Traditional extreme value theory
 
-Assumes "long" sequences of values 
+- **Block maxima**
 
-(e.g., lots of $N$ in a year)
+- **Peaks over threshold**
 
-![](https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/GevDensity_2.svg/630px-GevDensity_2.svg.png)
+# Traditional extreme value theory
 
-# Metastastical EVT
+- **Block maxima**
+
+- **Peaks over threshold**
+
+Both require large $N$
+
+
+# How to study extremes with small $N$?
+
+**"Metastastical EVT"**
 
 Developed for short sequences of values 
 
-- number of data points is *random*
+- $N$ is *random*
 - parameters governing the distribution of size are *random*
 
-$$\zeta(z) = \sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta$$
+$$P(Z \leq z) = \sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta$$
 
-# Fire extremes
+# Breaking down the MEV equation
 
-Small $N$ $\rightarrow$ traditional EVT fails
+$$\color{red}{P(Z \leq z)} = \color{black} {\sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta}$$
 
-**Idea**
+- $P(Z \leq z)$: the probability of a maximum $Z$ less than or equal to a value $z$
 
-Model the following random variables:
+
+# Breaking down the MEV equation
+
+$$ \color{black} {P(Z \leq z) = \sum_n \int_\beta} \color{red}{F(z; n, \beta)} \color{black}{f(n, \beta) d \beta}$$
+
+- $F(z; n, \beta)$: probability that $Z$ doesn't exceed $z$ for a specific number of events $n$ and specific parameter values $\beta$
+
+# Breaking down the MEV equation
+
+$$\color{black} {P(Z \leq z) = \sum_n \int_\beta F(z; n, \beta)} \color{red}{f(n, \beta)} \color{black} {d \beta}$$
+
+- $f(n, \beta)$: probability of $n$ and $\beta$
+
+
+
+# Breaking down the MEV equation
+
+$$\color{black} {P(Z \leq z) =} \color{red}{\sum_n \int_\beta} \color{black} {F(z; n, \beta) f(n, \beta)} \color{red}{d \beta}$$
+
+- sum over $n$, integral over $\beta$: marginalizes over $n$ and $\beta$
+
+
+# Why is the MEV approach useful?
+
+**Traditional extreme value theory**
+
+- Assume large sample size
+
+**Metastatistical extreme value theory**
+
+- Treat sample size as random
+- Allow inference even when $n$ is small
+
+# Why is the MEV approach interesting? 
+
+It's essentially the Bayesian **posterior predictive distribution**
+
+$$[\tilde{y} \mid y] = \int_\theta [\tilde{y} \mid \theta] [\theta \mid y] d \theta$$
+
+- probability of new data given observed data
+
+# Why does it matter that MEV = posterior predictive distribution
+
+**Generalizes** the MEV approach
+
+- we can make inference on future data
+- we can make inference on functions of future data
+
+# Why does it matter that MEV = posterior predictive distribution
+
+
+**Different kinds of extremes**
+
+- sizes of single fires
+- number of fires
+- total burn area in a region/state/country
+- rates of change among years for any of ^
+
+# Why does it matter that MEV = posterior predictive distribution
+
+
+**Other predictions**
+
+- future changes in fire phenology
+- future changes in human vs. lightning started fires
+- future changes in ignitions/burn area due to WUI expansion
+
+# MEV approach for fire extremes
+
+We have two random variables:
 
 - number of fires
 - size of each fire
 
 **Inference on extremes**
 
-Use fancy technique: *posterior predictive distribution*
+Use *posterior predictive distribution* / *MEV* approach
+
 
 # High level model overview
 
-**Two responses**
+**Multivariate response**
 
 1. Number of fires
 2. Fire size (each fire)
@@ -51,12 +135,14 @@ Use fancy technique: *posterior predictive distribution*
 **Spatiotemporal random effects**
 
 - areal model (US L3 EPA ecoregions)
-- sparse conditional autoregressive spatial dependence
-- AR1 temporal dependence
+- multivariate sparse CAR spatial dependence
+- AR1 spatiotemporal dependence
+
+
 
 # Current status
 
-1. Model has been fit and formulated
+1. "Simple" model has been fit/run
 2. Posterior predictive checks for
 
 - number of fires
@@ -70,18 +156,22 @@ Use fancy technique: *posterior predictive distribution*
 
 (plots)
 
+
 # What we're missing
 
-1. Fire ecologists
-1. Science!
+Fire ecology
 
 - explanatory variables for number of fires and burn area
-- must be summarized at the ecoregion level
+- summarizable at the ecoregion level
+- any quirks with MTBS data?
+- any detection bias among years?
+
 
 # Ideal covariates
 
-1. Rasters (can be summarized at different levels)
+1. Rasters (can be summarized at different areal units)
 2. Model outputs (can project forward to make predictions)
 3. Public data
 4. Easily accessible
 5. Known to affect either number of ignitions or burn area
+6. Processed in R or Python

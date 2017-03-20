@@ -1,10 +1,9 @@
 functions {
   /**
-  * Return the log probability of a proper conditional autoregressive (CAR) prior
-  * with a sparse representation for the adjacency matrix
+  * Return the log probability of a proper scale free conditional autoregressive
+  * (CAR) prior with a sparse representation for the adjacency matrix
   *
   * @param phi Vector containing the parameters with a CAR prior
-  * @param tau Precision parameter for the CAR prior (real)
   * @param alpha Dependence (usually spatial) parameter for the CAR prior (real)
   * @param W_sparse Sparse representation of adjacency matrix (int array)
   * @param n Length of phi (int)
@@ -83,19 +82,20 @@ transformed data {
 parameters {
   vector<lower = 0>[2] sd_sd;
   vector<lower = -1, upper = 1>[2] gamma;
-  vector<lower = 0, upper = 1>[5] alpha;
+  vector<lower = 0, upper = 1>[3] alpha;
 
   vector[J] phi_yR[n_year];
   vector<lower = 0>[n_year] sigma_phi_y;
 
   real z0;
-  vector[J] sigma_z_raw;
+
+  // regional variance
+  vector<lower = 0>[J] sigma_z;
   real mu_sigma_z;
   real<lower = 0> sigma_sigma_z;
+
   vector[J] phi_zR[n_year];
   vector<lower = 0>[n_year] sigma_phi_z;
-  vector[J] z_jR;
-  real<lower = 0> sigma_z_j;
   vector[J] beta_phi_yR;
   real mu_beta_phi;
   real<lower = 0> sigma_beta_phi;
@@ -107,9 +107,7 @@ transformed parameters {
   matrix[J, n_year] phi_z;
   vector[n] log_lambda;
   vector[nz] mu_z;
-  vector[J] z_j;
   vector[J] beta_phi_y;
-  vector<lower = 0>[J] sigma_z;
 
   beta_phi_y = beta_phi_yR * sigma_beta_phi + mu_beta_phi;
 
@@ -125,16 +123,10 @@ transformed parameters {
     log_lambda[i] = log_offset[reg[i]] + phi_y[reg[i], year[i]];
   }
 
-  // expected value for fire burn area
-  z_j = z_jR * sigma_z_j;
-
   for (i in 1:nz) {
     mu_z[i] = phi_z[reg_z[i], year_z[i]];
   }
-  mu_z = mu_z + z0 + z_j[reg_z];
-
-  // spatially varying standard deviation
-  sigma_z = exp(sigma_z_raw * sigma_sigma_z + mu_sigma_z);
+  mu_z = mu_z + z0;
 }
 
 model {
@@ -147,15 +139,13 @@ model {
   sigma_phi_y ~ normal(0, sd_sd[1]);
   sigma_phi_z ~ normal(0, sd_sd[2]);
 
-  z_jR ~ sparse_car(alpha[3], W_sparse, D_sparse, lambda, J, W_n);
   z0 ~ normal(0, 5);
-  sigma_z_j ~ normal(0, 1);
-  beta_phi_yR ~ sparse_car(alpha[4], W_sparse, D_sparse, lambda, J, W_n);
+  beta_phi_yR ~ sparse_car(alpha[3], W_sparse, D_sparse, lambda, J, W_n);
   mu_beta_phi ~ normal(0, 1);
-  sigma_beta_phi ~ normal(0, 1);
-  sigma_z_raw ~ sparse_car(alpha[5], W_sparse, D_sparse, lambda, J, W_n);
+  sigma_beta_phi ~ lognormal(0, 1);
+  sigma_z ~ lognormal(mu_sigma_z, sigma_sigma_z);
   mu_sigma_z ~ normal(0, 1);
-  sigma_sigma_z ~ normal(0, 1);
+  sigma_sigma_z ~ normal(0, .1);
 
   y ~ poisson_log(log_lambda);
 
@@ -175,7 +165,7 @@ generated quantities {
       area_burned[j, i] = 0;
       zmax_new[j, i] = 0;
       log_lambda_new[j, i] = log_offset[j] + phi_y[j, i];
-      mu_z_new[j, i] = phi_z[j, i] + z0 + z_j[j];
+      mu_z_new[j, i] = phi_z[j, i] + z0;
       y_new[j, i] = poisson_log_rng(log_lambda_new[j, i]);
       if (y_new[j, i] > 0) {
       { // simulate fire sizes
