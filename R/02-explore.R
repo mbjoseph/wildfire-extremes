@@ -2,6 +2,12 @@ library(scales)
 library(gridExtra)
 library(spdep)
 library(viridis)
+library(tidyverse)
+
+source("R/01-clean_data.R")
+
+prcp <- read_csv("data/processed/cmip_precip.csv")
+
 
 # Visualize yearly fire size distributions ----------------------------
 d %>%
@@ -11,9 +17,15 @@ d %>%
             max_size = max(fire_size)) %>%
   gather(Measure, value, -fire_year) %>%
   ggplot(aes(x = fire_year, y = value, color = Measure)) +
-  geom_jitter(aes(x = fire_year, y = fire_size), data = d, inherit.aes = FALSE) +
+  geom_count(aes(x = fire_year, y = fire_size), data = d, inherit.aes = FALSE) +
   geom_line() +
   theme_minimal() +
+  scale_y_log10()
+
+# Visualize yearly precip
+prcp %>%
+  ggplot(aes(fire_year, prcp, group = us_l3name)) +
+  geom_line() +
   scale_y_log10()
 
 
@@ -50,32 +62,32 @@ all_ers <- er_df %>%
 
 
 # Visualize number of neighbors --------------------------------------
-theme_map <- theme(axis.line = element_blank(),
-                   axis.text.x = element_blank(),
-                   axis.text.y = element_blank(),
-                   axis.ticks = element_blank(),
-                   axis.title.x = element_blank(),
-                   axis.title.y = element_blank(),
-                   panel.background = element_blank(),
-                   panel.border = element_blank(),
-                   panel.grid.major = element_blank(),
-                   panel.grid.minor = element_blank(),
-                   plot.background = element_blank())
+# theme_map <- theme(axis.line = element_blank(),
+#                    axis.text.x = element_blank(),
+#                    axis.text.y = element_blank(),
+#                    axis.ticks = element_blank(),
+#                    axis.title.x = element_blank(),
+#                    axis.title.y = element_blank(),
+#                    panel.background = element_blank(),
+#                    panel.border = element_blank(),
+#                    panel.grid.major = element_blank(),
+#                    panel.grid.minor = element_blank(),
+#                    plot.background = element_blank())
 
-ggplot(er_df, aes(long, lat, group = group)) +
-  geom_polygon(aes(fill = n_neighbors), color = NA) +
-  coord_equal() +
-  scale_fill_viridis() +
-  theme_map
-
-
-# Visualize the fire density in each ecoregion ----------------------------
-ggplot(er_df, aes(long, lat, group = group)) +
-  geom_polygon(aes(fill = log_fire_density), color = NA) +
-  coord_equal() +
-  labs(x = "Longitude", y = "Latitude") +
-  scale_fill_viridis("log(Fire density)") +
-  theme_map
+# ggplot(er_df, aes(long, lat, group = group)) +
+#   geom_polygon(aes(fill = n_neighbors), color = NA) +
+#   coord_equal() +
+#   scale_fill_viridis() +
+#   theme_map
+#
+#
+# # Visualize the fire density in each ecoregion ----------------------------
+# ggplot(er_df, aes(long, lat, group = group)) +
+#   geom_polygon(aes(fill = log_fire_density), color = NA) +
+#   coord_equal() +
+#   labs(x = "Longitude", y = "Latitude") +
+#   scale_fill_viridis("log(Fire density)") +
+#   theme_map
 
 # get count data (number of fires in each ecoregion X year)
 data_summary <- d %>%
@@ -92,7 +104,8 @@ data_summary <- d %>%
          year = fire_year + 1 - min(fire_year),
          freg = factor(us_l3name,
                        levels = levels(factor(all_ers$us_l3name))),
-         reg = as.numeric(freg))
+         reg = as.numeric(freg)) %>%
+  left_join(prcp)
 
 # get fire size data
 fire_sizes <- d %>%
@@ -102,5 +115,29 @@ fire_sizes <- d %>%
                        levels = levels(data_summary$freg)),
          reg = as.numeric(freg),
          year = fire_year + 1 - min(fire_year)) %>%
-  arrange(us_l3name, fire_year)
+  arrange(us_l3name, fire_year) %>%
+  left_join(prcp)
 
+
+data_summary %>%
+  ggplot(aes(prcp, n_fires / area, color = us_l3name)) +
+  geom_point() +
+  theme_minimal() +
+  scale_y_log10() +
+  scale_x_log10() +
+  stat_smooth(method = "lm", se = FALSE) +
+  theme(legend.position = "none") +
+  xlab("Average precipitation") +
+  ylab("Fire density")
+
+
+fire_sizes %>%
+  ggplot(aes(prcp, fire_size, color = us_l3name)) +
+  geom_point(alpha = .4) +
+  theme_minimal() +
+  scale_y_log10() +
+  scale_x_log10() +
+  stat_smooth(method = "lm", se = FALSE) +
+  theme(legend.position = "none") +
+  xlab("Average precipitation") +
+  ylab("Burn area")
