@@ -48,10 +48,6 @@ data {
   vector[nz] z;       // log fire sizes
   int<lower = 1, upper = J> reg_z[nz];       // ecoregion index
   int<lower = 1, upper = n_year> year_z[nz];
-
-  // precip
-  vector[nz] prcp_z;
-  vector[n] prcp_y;
 }
 
 transformed data {
@@ -85,30 +81,20 @@ transformed data {
 
 parameters {
   vector<lower = 0>[2] sd_sd;
-  vector[J] gammaR[2];
-  vector<lower =0>[2] sd_gamma;
-  vector[2] mu_gamma;
-  vector<lower = 0, upper = 1>[7] alpha;
+  vector<lower = 0, upper = 1>[2] gamma;
+  vector<lower = 0, upper = 1>[2] alpha;
 
   vector[J] phi_yR[n_year];
   vector<lower = 0>[n_year] sigma_phi_y;
 
+  real y0;
   real z0;
-
-  // regional variance
-  vector<lower = 0>[J] sigma_z;
-  real mu_sigma_z;
-  real<lower = 0> sigma_sigma_z;
+  real<lower = 0> sigma_z;
 
   vector[J] phi_zR[n_year];
   vector<lower = 0>[n_year] sigma_phi_z;
-  vector[J] beta_phi_yR;
-  real mu_beta_phi;
-  real<lower = 0> sigma_beta_phi;
 
-  vector[J] beta_prcpR[2];
-  vector<lower = 0>[2] sigma_prcp;
-  vector[2] mu_prcp;
+  real beta_phi_y;
 }
 
 transformed parameters {
@@ -116,34 +102,27 @@ transformed parameters {
   matrix[J, n_year] phi_z;
   vector[n] log_lambda;
   vector[nz] mu_z;
-  vector[J] beta_phi_y;
-  vector[J] gamma[2];
-  vector[J] beta_prcp[2];
 
-  for (i in 1:2) {
-    gamma[i] = gammaR[i] * sd_gamma[i] + mu_gamma[i];
-    beta_prcp[i] = beta_prcpR[i] * sigma_prcp[i] + mu_prcp[i];
-  }
+  phi_y[, 1] = y0 + phi_yR[1] * sigma_phi_y[1];
+  phi_z[, 1] = z0 + phi_zR[1] * sigma_phi_z[1];
 
-  beta_phi_y = beta_phi_yR * sigma_beta_phi + mu_beta_phi;
-
-  phi_y[, 1] = phi_yR[1] * sigma_phi_y[1];
-  phi_z[, 1] = phi_zR[1] * sigma_phi_z[1];
-  for (i in 2:n_year) {
-    phi_y[, i] = gamma[1] .* phi_y[, i - 1] + sigma_phi_y[i] * phi_yR[i];
-    phi_z[, i] = gamma[2] .* phi_z[, i - 1] + sigma_phi_z[i] * phi_zR[i]
-                  + beta_phi_y .* phi_y[, i];
+  {
+    vector[J] delta_y;
+    for (i in 2:n_year) {
+      delta_y = sigma_phi_y[i] * phi_yR[i];
+      phi_y[, i] = gamma[1] * phi_y[, i - 1] + delta_y;
+      phi_z[, i] = gamma[2] * phi_z[, i - 1] + sigma_phi_z[i] * phi_zR[i]
+                    + beta_phi_y * delta_y;
+    }
   }
 
   for (i in 1:n) {
     log_lambda[i] = log_offset[reg[i]] + phi_y[reg[i], year[i]];
   }
-  log_lambda = log_lambda + beta_prcp[1][reg] .* prcp_y;
 
   for (i in 1:nz) {
     mu_z[i] = phi_z[reg_z[i], year_z[i]];
   }
-  mu_z = mu_z + z0 + beta_prcp[2][reg_z] .* prcp_z;
 }
 
 model {
@@ -156,55 +135,39 @@ model {
   sigma_phi_y ~ normal(0, sd_sd[1]);
   sigma_phi_z ~ normal(0, sd_sd[2]);
 
+  y0 ~ normal(0, 1);
   z0 ~ normal(0, 5);
-  beta_phi_yR ~ sparse_car(alpha[3], W_sparse, D_sparse, lambda, J, W_n);
-  mu_beta_phi ~ normal(0, 1);
-  sigma_beta_phi ~ lognormal(0, 1);
-  sigma_z ~ lognormal(mu_sigma_z, sigma_sigma_z);
-  mu_sigma_z ~ normal(0, 1);
-  sigma_sigma_z ~ normal(0, .1);
+  sigma_z ~ normal(0, 1);
 
-  for (i in 1:2) {
-    gammaR[i] ~ sparse_car(alpha[3 + i], W_sparse, D_sparse, lambda, J, W_n);
-  }
-  mu_gamma ~ normal(0, 1);
-  sd_gamma ~ normal(0, 1);
-
-  for (i in 1:2) beta_prcpR[i] ~ sparse_car(alpha[5 + i], W_sparse, D_sparse, lambda, J, W_n);
-  sigma_prcp ~ normal(0, 1);
-  mu_prcp ~ normal(0, 1);
-
-
-
+  beta_phi_y ~ normal(0, 1);
 
   y ~ poisson_log(log_lambda);
-
-  z ~ normal(mu_z, sigma_z[reg_z]);
+  z ~ normal(mu_z, sigma_z);
 }
-//
-// generated quantities {
-//   matrix[J, n_year] log_lambda_new;
-//   matrix[J, n_year] mu_z_new;
-//   int y_new[J, n_year];
-//   matrix[J, n_year] zmax_new;
-//   matrix[J, n_year] area_burned;
-//
-//   // draw parameters for each ecoregion X year
-//   for (i in 1:n_year) {
-//     for (j in 1:J) {
-//       area_burned[j, i] = 0;
-//       zmax_new[j, i] = 0;
-//       log_lambda_new[j, i] = log_offset[j] + phi_y[j, i];
-//       mu_z_new[j, i] = phi_z[j, i] + z0;
-//       y_new[j, i] = poisson_log_rng(log_lambda_new[j, i]);
-//       if (y_new[j, i] > 0) {
-//       { // simulate fire sizes
-//         vector[y_new[j, i]] z_new;
-//         for (k in 1:y_new[j, i]) z_new[k] = normal_rng(mu_z_new[j, i], sigma_z[j]);
-//         zmax_new[j, i] = max(z_new);
-//         area_burned[j, i] = sum(z_new);
-//       }
-//       }
-//     }
-//   }
-// }
+
+generated quantities {
+  matrix[J, n_year] log_lambda_new;
+  matrix[J, n_year] mu_z_new;
+  int y_new[J, n_year];
+  matrix[J, n_year] zmax_new;
+  matrix[J, n_year] area_burned;
+
+  // draw parameters for each ecoregion X year
+  for (i in 1:n_year) {
+    for (j in 1:J) {
+      area_burned[j, i] = 0;
+      zmax_new[j, i] = 0;
+      log_lambda_new[j, i] = log_offset[j] + phi_y[j, i];
+      mu_z_new[j, i] = phi_z[j, i];
+      y_new[j, i] = poisson_log_rng(log_lambda_new[j, i]);
+      if (y_new[j, i] > 0) {
+      { // simulate fire sizes
+        vector[y_new[j, i]] z_new;
+        for (k in 1:y_new[j, i]) z_new[k] = normal_rng(mu_z_new[j, i], sigma_z);
+        zmax_new[j, i] = max(z_new);
+        area_burned[j, i] = sum(z_new);
+      }
+      }
+    }
+  }
+}

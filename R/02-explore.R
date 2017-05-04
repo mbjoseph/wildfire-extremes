@@ -3,29 +3,40 @@ library(gridExtra)
 library(spdep)
 library(viridis)
 library(tidyverse)
+library(lubridate)
 
 source("R/01-clean_data.R")
 
-prcp <- read_csv("data/processed/cmip_precip.csv")
-
-
 # Visualize yearly fire size distributions ----------------------------
-d %>%
-  group_by(fire_year) %>%
+ymd <- d %>%
+  group_by(fire_year, fire_mon) %>%
   summarize(mean_size = mean(fire_size),
             median_size = median(fire_size),
             max_size = max(fire_size)) %>%
-  gather(Measure, value, -fire_year) %>%
-  ggplot(aes(x = fire_year, y = value, color = Measure)) +
-  geom_count(aes(x = fire_year, y = fire_size), data = d, inherit.aes = FALSE) +
-  geom_line() +
-  theme_minimal() +
+  ungroup %>%
+  tidyr::complete(fire_year, fire_mon,
+           fill = list(mean_size = NA,
+                       median_size = NA,
+                       max_size = NA)) %>%
+  mutate(yearmonth = paste(fire_year,
+                           sprintf("%02d", fire_mon),
+                           sep = "_")) %>%
+  dplyr::select(-fire_year, -fire_mon) %>%
+  mutate(num_ym = as.numeric(factor(yearmonth))) %>%
+  gather(Measure, value, -yearmonth, -num_ym) %>%
+  separate(yearmonth, c("year", "month"))
+
+
+ymd %>%
+  ggplot(aes(x = num_ym, y = value)) +
+  geom_path() +
+  facet_wrap(~ Measure) +
   scale_y_log10()
 
-# Visualize yearly precip
-prcp %>%
-  ggplot(aes(fire_year, prcp, group = us_l3name)) +
-  geom_line() +
+ymd %>%
+  ggplot(aes(x = month, y = value, group = year)) +
+  geom_path() +
+  facet_wrap(~ Measure) +
   scale_y_log10()
 
 
@@ -91,53 +102,59 @@ all_ers <- er_df %>%
 
 # get count data (number of fires in each ecoregion X year)
 data_summary <- d %>%
-  group_by(us_l3name, fire_year) %>%
+  group_by(us_l3name, fire_year, fire_mon) %>%
   summarize(n_fires = n()) %>%
   left_join(a_df) %>%
   full_join(all_ers) %>%
   ungroup() %>%
   dplyr::select(-area, -n_neighbors) %>%
-  complete(us_l3name, fire_year,
+  complete(us_l3name, fire_year, fire_mon,
            fill = list(n_fires = 0)) %>%
   full_join(all_ers) %>%
   mutate(cyear = c(scale(fire_year)),
          year = fire_year + 1 - min(fire_year),
          freg = factor(us_l3name,
                        levels = levels(factor(all_ers$us_l3name))),
-         reg = as.numeric(freg)) %>%
-  left_join(prcp)
+         reg = as.numeric(freg),
+         num_ym = as.numeric(factor(paste(fire_year,
+                                          sprintf("%02d", fire_mon)))))
+
+ymdf <- data_summary %>%
+  distinct(fire_year, fire_mon, num_ym)
+
 
 # get fire size data
 fire_sizes <- d %>%
-  dplyr::select(us_l3name, fire_year, fire_size) %>%
+  dplyr::select(us_l3name, fire_year, fire_mon, fire_size) %>%
   mutate(cyear = c(scale(fire_year)),
          freg = factor(us_l3name,
                        levels = levels(data_summary$freg)),
          reg = as.numeric(freg),
          year = fire_year + 1 - min(fire_year)) %>%
-  arrange(us_l3name, fire_year) %>%
-  left_join(prcp)
+  arrange(us_l3name, fire_year, fire_mon) %>%
+  left_join(ymdf)
 
 
 data_summary %>%
-  ggplot(aes(prcp, n_fires / area, color = us_l3name)) +
-  geom_point() +
-  theme_minimal() +
+  ggplot(aes(fire_mon, n_fires / area, group = year)) +
+  geom_path(alpha = .5) +
   scale_y_log10() +
-  scale_x_log10() +
-  stat_smooth(method = "lm", se = FALSE) +
-  theme(legend.position = "none") +
-  xlab("Average precipitation") +
-  ylab("Fire density")
+  facet_wrap(~ us_l3name)
 
+data_summary %>%
+  ggplot(aes(num_ym, n_fires / area)) +
+  geom_path(alpha = .5) +
+  scale_y_log10() +
+  facet_wrap(~ us_l3name)
 
 fire_sizes %>%
-  ggplot(aes(prcp, fire_size, color = us_l3name)) +
-  geom_point(alpha = .4) +
-  theme_minimal() +
+  ggplot(aes(fire_mon, fire_size, group = year)) +
+  geom_point(alpha = .5) +
   scale_y_log10() +
-  scale_x_log10() +
-  stat_smooth(method = "lm", se = FALSE) +
-  theme(legend.position = "none") +
-  xlab("Average precipitation") +
-  ylab("Burn area")
+  facet_wrap(~ us_l3name)
+
+fire_sizes %>%
+  ggplot(aes(num_ym, fire_size, group = year)) +
+  geom_point(alpha = .5) +
+  scale_y_log10() +
+  facet_wrap(~ us_l3name)

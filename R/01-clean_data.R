@@ -80,5 +80,8 @@ d <- mtbs %>%
 
 names(d) <- tolower(names(d))
 
+lower_year <- min(d$fire_year) - 1
+upper_year <- max(d$fire_year) + 1
+
 # clean up
 rm(list = c("mtbs", "explore_short"))
