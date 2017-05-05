@@ -8,8 +8,6 @@ ecoregion_shp <- readOGR(ecoregion_prefix, "us_eco_l3")
 prcp_years <- substring(names(rstack), first = 37, last = 40) %>%
   as.numeric
 
-lower_year <- min(d$fire_year)
-upper_year <- max(d$fire_year)
 
 # subset precip data to relevant years
 rstack <- subset(rstack, which(prcp_years >= lower_year & prcp_years <= upper_year))
@@ -31,6 +29,10 @@ joined_prcp <- ecoregion_shp %>%
   ungroup
 
 names(joined_prcp) <- tolower(names(joined_prcp))
+
+joined_prcp <- joined_prcp %>%
+  mutate(prcp_lag1 = prcp[match(fire_year - 1, fire_year)]) %>%
+  na.omit
 
 # save as a csv file
 write_csv("data/processed/cmip_precip.csv", x = joined_prcp)
