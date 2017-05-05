@@ -7,10 +7,11 @@ library(foreign)
 library(purrr)
 library(RSQLite)
 
+
 source("R/00-fetch-data.R")
 
 # Read fire data ----------------------
-mtbs <- readOGR(mtbs_prefix, 'mtbs_fod_pts_20160401')
+mtbs <- readOGR(mtbs_prefix, 'mtbs_fod_pts_20170501')
 
 explore_short <- FALSE
 if (explore_short) {
