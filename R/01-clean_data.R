@@ -80,6 +80,10 @@ d <- mtbs %>%
 
 names(d) <- tolower(names(d))
 
+# subsetting for testing
+d <- d %>%
+  filter(fire_year > 1989, fire_year < 2000)
+
 lower_year <- min(d$fire_year) - 1
 upper_year <- max(d$fire_year) + 1
 

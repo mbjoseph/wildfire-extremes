@@ -141,12 +141,6 @@ data_summary %>%
   scale_y_log10() +
   facet_wrap(~ us_l3name)
 
-data_summary %>%
-  ggplot(aes(num_ym, n_fires / area)) +
-  geom_path(alpha = .5) +
-  scale_y_log10() +
-  facet_wrap(~ us_l3name)
-
 fire_sizes %>%
   ggplot(aes(fire_mon, fire_size, group = year)) +
   geom_point(alpha = .5) +
