@@ -25,13 +25,13 @@ if (!file.exists(ecoregion_shp)) {
 # MTBS fire data ----------------------------------------------------------
 
 mtbs_prefix <- file.path(raw_prefix, "mtbs_fod_pts_data")
-mtbs_shp <- file.path(mtbs_prefix, 'mtbs_fod_pts_20160401.shp')
+mtbs_shp <- file.path(mtbs_prefix, 'mtbs_fod_pts_20170501.shp')
 
 if (!file.exists(mtbs_shp)) {
-  loc <- "http://www.mtbs.gov/MTBS_Uploads/data/composite_data/fod_pt_shapefile/mtbs_fod_pts_data.tar.gz"
-  dest <- paste0(mtbs_prefix, ".tar.gz")
+  loc <- "http://www.mtbs.gov/MTBS_Uploads/data/composite_data/fod_pt_shapefile/mtbs_fod_pts_data.zip"
+  dest <- paste0(mtbs_prefix, ".zip")
   download.file(loc, dest)
-  untar(dest, exdir = mtbs_prefix)
+  unzip(dest, exdir = mtbs_prefix)
   unlink(dest)
   assert_that(file.exists(mtbs_shp))
 }
