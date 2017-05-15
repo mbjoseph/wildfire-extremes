@@ -26,17 +26,17 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 - **Peaks over threshold**
 
-Both require large $N$
+Both require large $n$
 
 
-# How to study extremes with small $N$?
+# How to study extremes with small $n$?
 
 **"Metastastical EVT"**
 
 Developed for short sequences of values 
 
-- $N$ is *random*
-- parameters governing the distribution of size are *random*
+- $n$ is *random*
+- parameters $\beta$ are *random*
 
 $$P(Z \leq z) = \sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta$$
 
@@ -44,14 +44,14 @@ $$P(Z \leq z) = \sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta$$
 
 $$\color{red}{P(Z \leq z)} = \color{black} {\sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta}$$
 
-- $P(Z \leq z)$: the probability of a maximum $Z$ less than or equal to a value $z$
+- $P(Z \leq z)$: probability of a maximum $Z <$ a value $z$
 
 
 # Breaking down the MEV equation
 
 $$ \color{black} {P(Z \leq z) = \sum_n \int_\beta} \color{red}{F(z; n, \beta)} \color{black}{f(n, \beta) d \beta}$$
 
-- $F(z; n, \beta)$: probability that $Z$ doesn't exceed $z$ for a specific number of events $n$ and specific parameter values $\beta$
+- $F(z; n, \beta)$: probability $Z < z$ for a specific $n$ and $\beta$
 
 # Breaking down the MEV equation
 
@@ -81,7 +81,7 @@ $$\color{black} {P(Z \leq z) =} \color{red}{\sum_n \int_\beta} \color{black} {F(
 
 # Why is the MEV approach interesting? 
 
-It's essentially the Bayesian **posterior predictive distribution**
+It's the Bayesian **posterior predictive distribution**
 
 $$[\tilde{y} \mid y] = \int_\theta [\tilde{y} \mid \theta] [\theta \mid y] d \theta$$
 
@@ -89,40 +89,29 @@ $$[\tilde{y} \mid y] = \int_\theta [\tilde{y} \mid \theta] [\theta \mid y] d \th
 
 # Why does it matter that MEV = posterior predictive distribution
 
-**Generalizes** the MEV approach
+**Generalizes** the MEV approach to infer:
 
-- we can make inference on future data
-- we can make inference on functions of future data
+- distribution of future data
+- distribution(s) of functions of future data
+
 
 # Why does it matter that MEV = posterior predictive distribution
 
-
-**Different kinds of extremes**
+**We can study different kinds of extremes**
 
 - sizes of single fires
 - number of fires
 - total burn area in a region/state/country
-- rates of change among years for any of ^
+- rates of change among years/across space for any ^
+
 
 # Why does it matter that MEV = posterior predictive distribution
 
+**We can predict other interesting things**
 
-**Other predictions**
-
-- future changes in fire phenology
-- future changes in human vs. lightning started fires
-- future changes in ignitions/burn area due to WUI expansion
-
-# MEV approach for fire extremes
-
-We have two random variables:
-
-- number of fires
-- size of each fire
-
-**Inference on extremes**
-
-Use *posterior predictive distribution* / *MEV* approach
+- changes in fire phenology
+- changes in human vs. lightning started fires
+- changes in ignitions/burn area due to WUI expansion
 
 
 # High level model overview
@@ -161,13 +150,14 @@ Use *posterior predictive distribution* / *MEV* approach
 
 Fire ecology
 
-- explanatory variables for number of fires and burn area
-- summarizable at the ecoregion level
+- explanatory variables
 - any quirks with MTBS data?
-- any detection bias among years?
+- detection bias across years?
 
 
 # Ideal covariates
+
+Drivers of **ignition** and/or **burn area**
 
 1. Rasters (can be summarized at different areal units)
 2. Model outputs (can project forward to make predictions)

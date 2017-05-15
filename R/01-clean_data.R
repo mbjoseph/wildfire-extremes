@@ -13,47 +13,6 @@ source("R/00-fetch-data.R")
 # Read fire data ----------------------
 mtbs <- readOGR(mtbs_prefix, 'mtbs_fod_pts_20170501')
 
-explore_short <- FALSE
-if (explore_short) {
-  # Exploration to explore whether to merge mtbs & short data ----------
-  mtbs_df <- mtbs %>%
-    as.data.frame() %>%
-    tbl_df
-  names(mtbs_df) <- tolower(names(mtbs_df))
-  mtbs_df <- mtbs_df %>%
-    rename(mtbs_id = fire_id,
-           mtbs_fire_name = firename,
-           latitude = lat,
-           longitude = long,
-           fire_size = r_acres)
-
-  short <- dbConnect(RSQLite::SQLite(), short_sqlite) %>%
-    dbGetQuery('select * from fires') %>%
-    dplyr::select(-shape) %>%
-    tbl_df
-
-  # select relevant columns from each
-  mtbs_df <- mtbs_df %>%
-    select(mtbs_id, mtbs_fire_name, fire_year, fire_size, longitude, latitude) %>%
-    mutate(source = "mtbs")
-
-  short <- short %>%
-    mutate(source = "short") %>%
-    select(objectid, fire_name, mtbs_id, mtbs_fire_name, fire_size, fire_year,
-           source, longitude, latitude)
-
-  full_join(mtbs_df, short) %>%
-    filter(fire_year >= min(short$fire_year),
-           fire_size > 1000,
-           !duplicated(mtbs_id)) %>%
-    ggplot(aes(fire_size, color = source)) +
-    geom_density() +
-    scale_x_log10()
-  # Looks like short hardly adds any large fires - they're mostly on the
-  # smaller side. If we care about extremes and longer term temporal patterns,
-  # it may be worth using MTBS only.
-}
-
 ## load EPA level 3 ecoregion data ------------------------------------------
 ecoregions <- readOGR(ecoregion_prefix, "us_eco_l3")
 
