@@ -21,4 +21,10 @@ for (i in seq_along(maca_types)) {
 
 r <- stack(rlist)
 
-writeRaster(r, "data/processed/maca.tif")
+
+# subset to only keep relevant years
+to_exclude <- c(1970:1983, 2016:2025)
+for (i in seq_along(to_exclude)) {
+  keep <- grep(pattern = to_exclude[i], x = names(r), invert = TRUE, value = TRUE)
+  r <- subset(r, keep)
+}

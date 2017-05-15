@@ -27,6 +27,16 @@ er_df <- left_join(er_df, ecoregions@data, by = 'id') %>%
   as_tibble()
 names(er_df) <- tolower(names(er_df))
 
+# Load MACA climate data
+source("R/process-maca.R")
+r <- projectRaster(r, crs = CRS(proj4string(ecoregions)))
+
+maca <- raster::extract(r, ecoregions, fun = mean)
+
+
+
+
+
 # overlay mtbs fire data onto ecoregion shapefile
 d <- mtbs %>%
   spTransform(CRS(proj4string(ecoregions))) %>%
