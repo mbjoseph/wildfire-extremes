@@ -5,18 +5,17 @@ library(viridis)
 library(tidyverse)
 library(lubridate)
 
+
 source("R/01-clean_data.R")
 
 # Visualize yearly fire size distributions ----------------------------
 ymd <- d %>%
   group_by(fire_year, fire_mon) %>%
   summarize(mean_size = mean(fire_size),
-            median_size = median(fire_size),
             max_size = max(fire_size)) %>%
   ungroup %>%
   tidyr::complete(fire_year, fire_mon,
            fill = list(mean_size = NA,
-                       median_size = NA,
                        max_size = NA)) %>%
   mutate(yearmonth = paste(fire_year,
                            sprintf("%02d", fire_mon),
@@ -24,20 +23,31 @@ ymd <- d %>%
   dplyr::select(-fire_year, -fire_mon) %>%
   mutate(num_ym = as.numeric(factor(yearmonth))) %>%
   gather(Measure, value, -yearmonth, -num_ym) %>%
-  separate(yearmonth, c("year", "month"))
+  separate(yearmonth, c("year", "month")) %>%
+  mutate(day = sprintf("%02d", 1),
+         ymd = ymd(paste(year, month, day, sep = "-")))
 
 
 ymd %>%
-  ggplot(aes(x = num_ym, y = value)) +
+  ggplot(aes(x = ymd, y = value)) +
   geom_path() +
-  facet_wrap(~ Measure) +
-  scale_y_log10()
+  facet_wrap(~ Measure, scales = "free_y") +
+  xlab("Time") +
+  ylab("Value") +
+  theme_minimal()
+ggsave("fig/explore/mean-max-ts.pdf")
+
+
 
 ymd %>%
-  ggplot(aes(x = month, y = value, group = year)) +
-  geom_path() +
-  facet_wrap(~ Measure) +
+  ggplot(aes(x = as.numeric(month), y = value, color = year)) +
+  geom_line() +
+  facet_wrap(~ Measure, scales = "free_y") +
+  theme_minimal() +
+  scale_color_viridis(discrete = TRUE) +
+  xlab("Month") +
   scale_y_log10()
+ggsave("fig/explore/mean-max-months.pdf")
 
 
 # Create spatial neighbors ------------------------------------------------
@@ -120,7 +130,11 @@ data_summary <- d %>%
                                           sprintf("%02d", fire_mon)))))
 
 ymdf <- data_summary %>%
-  distinct(fire_year, fire_mon, num_ym)
+  distinct(fire_year, fire_mon, num_ym) %>%
+  mutate(ymd = ymd(paste(fire_year,
+                         sprintf("%02d", fire_mon),
+                         sprintf("%02d", 1),
+                         sep = "-")))
 
 
 # get fire size data
@@ -136,19 +150,39 @@ fire_sizes <- d %>%
 
 
 data_summary %>%
-  ggplot(aes(fire_mon, n_fires / area, group = year)) +
+  ggplot(aes(as.numeric(fire_mon), n_fires / area, color = year)) +
   geom_path(alpha = .5) +
   scale_y_log10() +
-  facet_wrap(~ us_l3name)
+  facet_wrap(~ us_l3name) +
+  scale_color_viridis() +
+  theme_minimal()
+ggsave("fig/explore/fire-density-seasonality.pdf")
 
 fire_sizes %>%
-  ggplot(aes(fire_mon, fire_size, group = year)) +
-  geom_point(alpha = .5) +
+  ggplot(aes(as.numeric(fire_mon), fire_size, color = year)) +
+  geom_jitter(alpha = .5, width = .3, size = .6) +
   scale_y_log10() +
-  facet_wrap(~ us_l3name)
+  facet_wrap(~ us_l3name) +
+  scale_color_viridis() +
+  theme_minimal()
+ggsave("fig/explore/fire-size-seasonality.pdf")
 
 fire_sizes %>%
-  ggplot(aes(num_ym, fire_size, group = year)) +
+  ggplot(aes(ymd, fire_size, group = year)) +
   geom_point(alpha = .5) +
   scale_y_log10() +
-  facet_wrap(~ us_l3name)
+  facet_wrap(~ us_l3name) +
+  xlab("Year") +
+  ylab("Fire size")
+ggsave("fig/explore/fire-size-ts.pdf")
+
+
+data_summary %>%
+  left_join(ymdf) %>%
+  ggplot(aes(ymd, n_fires/area)) +
+  geom_line(alpha = .5) +
+  scale_y_log10() +
+  facet_wrap(~ us_l3name) +
+  xlab("Year") +
+  ylab("Fire density")
+ggsave("fig/explore/fire-density-ts.pdf")

@@ -18,7 +18,7 @@ ecoregions <- readOGR(ecoregion_prefix, "us_eco_l3")
 
 # Simplify the polygons for faster plotting & reproject
 ecoregions <- ecoregions %>%
-  rgeos::gSimplify(tol = 1e3, topologyPreserve = TRUE) %>%
+  rgeos::gSimplify(tol = 1e4, topologyPreserve = TRUE) %>%
   SpatialPolygonsDataFrame(ecoregions@data)
 
 ecoregions$id <- row.names(ecoregions)
@@ -28,13 +28,17 @@ er_df <- left_join(er_df, ecoregions@data, by = 'id') %>%
 names(er_df) <- tolower(names(er_df))
 
 # Load MACA climate data
-source("R/process-maca.R")
-r <- projectRaster(r, crs = CRS(proj4string(ecoregions)))
-
-maca <- raster::extract(r, ecoregions, fun = mean)
-
-
-
+# source("R/process-maca.R")
+# extent(r) <- extent(extent(r)@xmin - 360, extent(r)@xmax - 360,
+#                     extent(r)@ymin, extent(r)@ymax)
+#
+# proj_er <- spTransform(ecoregions, CRS(projection(r)))
+#
+# plot(r[[1]])
+# plot(proj_er, add = TRUE)
+#
+# maca <- raster::extract(r, proj_er, fun = mean, df = TRUE)
+#
 
 
 # overlay mtbs fire data onto ecoregion shapefile
@@ -50,9 +54,9 @@ d <- mtbs %>%
 
 names(d) <- tolower(names(d))
 
-# subsetting for testing
-d <- d %>%
-  filter(fire_year > 1989, fire_year < 2000)
+# # subsetting for testing
+# d <- d %>%
+#   filter(fire_year > 1989, fire_year < 2000)
 
 lower_year <- min(d$fire_year) - 1
 upper_year <- max(d$fire_year) + 1
