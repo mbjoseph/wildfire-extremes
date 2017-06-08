@@ -54,6 +54,12 @@ for (i in seq_along(unique(r_year))) {
 }
 
 annual_rstack <- stack(annual_r)
+
+extent(annual_rstack) <- extent(extent(annual_rstack)@xmin - 360,
+                                extent(annual_rstack)@xmax - 360,
+                                extent(annual_rstack)@ymin,
+                                extent(annual_rstack)@ymax)
+
 names(annual_rstack) <- expand.grid(unique(variable), unique(r_year)) %>%
   as.matrix() %>%
   apply(1, paste, collapse = "_")
