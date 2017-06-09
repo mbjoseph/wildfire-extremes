@@ -11,14 +11,21 @@ library(RSQLite)
 source("R/00-fetch-data.R")
 
 # Read fire data ----------------------
-mtbs <- readOGR(mtbs_prefix, 'mtbs_fod_pts_20170501')
+mtbs <- readOGR(mtbs_prefix, 'mtbs_fod_pts_20170501') %>%
+  subset(!(STATE %in% c("Alaska", "Hawaii", "Puero Rico")))
 
 # Load MACA climate data
 source("R/process-maca.R")
 
-proj_grid <- spTransform(poly_grid, CRS(projection(mtbs)))
+aea_proj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs "
 
-plot(proj_grid, col = "grey")
+coarse_rp <- projectRaster(coarse_r, crs = CRS(aea_proj))
+mtbs <- spTransform(mtbs, CRS(aea_proj))
+
+projection(coarse_rp)
+projection(mtbs)
+
+plot(coarse_rp[[1]])
 plot(mtbs, pch = 19, col = 2, add = TRUE, cex = .5)
 
 n_year <- length(unique(mtbs$FIRE_YEAR))
@@ -28,7 +35,7 @@ count_l <- list()
 for (i in 1:n_year) {
   count_l[[k]] <- mtbs %>%
     subset(FIRE_YEAR == fire_years[i]) %>%
-    rasterize(coarse_r[[1]], fun = "count", background = 0) %>%
+    rasterize(coarse_rp[[1]], fun = "count", background = 0) %>%
     subset(1)
   k <- k + 1
 }
@@ -38,7 +45,7 @@ names(count_r) <- paste0("n_fires_in_", fire_years)
 
 plot(count_r)
 
-count_r <- mask(count_r, coarse_r[[1]])
+count_r <- mask(count_r, coarse_rp[[1]])
 
 plot(count_r)
 
@@ -54,11 +61,9 @@ count_df %>%
 
 count_df %>%
   ggplot(aes(n_fires)) +
-  geom_histogram() +
-  facet_wrap(~ year) +
-  scale_x_log10()
+  geom_histogram()
 
-# verify that the mask is constant over time
+# verify that the mask is constant over time (this raises error if not)
 count_df %>%
   group_by(pixel_idx) %>%
   summarize(p_na = mean(is.na(n_fires)))
@@ -78,38 +83,29 @@ full_join(raster_counts, mtbs_counts) %>%
   geom_point() +
   geom_abline(slope = 1, intercept = 0)
 
-
-x <- sp::over(mtbs, proj_grid)
-
-testr <- rasterize(mtbs, coarse_r, fun = "count")
-
-maca <- raster::extract(annual_rstack[[1]], proj_er, fun = mean, df = TRUE,
-                        na.rm = TRUE, small = FALSE)
-mean(is.na(maca$huss_1984))
-
-maca <- raster::extract(annual_rstack, proj_er, fun = mean, df = TRUE)
-
+## Find the pixel index for each fire
+mtbs_covs <- raster::extract(coarse_rp, mtbs, cellnumbers = TRUE)  %>%
+  tbl_df %>%
+  mutate(mtbs_idx = 1:n()) %>%
+  rename(pixel_idx = cells) %>%
+  gather(variable, value, -pixel_idx, -mtbs_idx) %>%
+  separate(variable, c("variable", "year"), sep = "_") %>%
+  spread(variable, value) %>%
+  arrange(year, mtbs_idx)
 
 
-# overlay mtbs fire data onto ecoregion shapefile
-d <- mtbs %>%
-  spTransform(CRS(proj4string(ecoregions))) %>%
-  over(ecoregions) %>%
-  bind_cols(as.data.frame(mtbs)) %>%
+d <- mtbs_covs %>%
+  distinct(mtbs_idx, pixel_idx) %>%
+  left_join(tbl_df(mtbs) %>% mutate(mtbs_idx = 1:n())) %>%
   map_if(is.factor, as.character) %>%
   as_tibble() %>%
-  filter(!is.na(US_L3NAME),
-         R_ACRES > 1000) %>%
+  filter(R_ACRES > 1000) %>%
   mutate(fire_size = R_ACRES)
 
 names(d) <- tolower(names(d))
-
-# # subsetting for testing
-# d <- d %>%
-#   filter(fire_year > 1989, fire_year < 2000)
 
 lower_year <- min(d$fire_year) - 1
 upper_year <- max(d$fire_year) + 1
 
 # clean up
-rm(list = c("mtbs", "explore_short"))
+rm(list = c("mtbs"))

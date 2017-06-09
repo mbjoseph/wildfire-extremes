@@ -9,27 +9,19 @@ library(lubridate)
 source("R/01-clean_data.R")
 
 # Visualize yearly fire size distributions ----------------------------
-ymd <- d %>%
-  group_by(fire_year, fire_mon) %>%
+yd <- d %>%
+  group_by(fire_year) %>%
   summarize(mean_size = mean(fire_size),
             max_size = max(fire_size)) %>%
   ungroup %>%
-  tidyr::complete(fire_year, fire_mon,
+  tidyr::complete(fire_year,
            fill = list(mean_size = NA,
                        max_size = NA)) %>%
-  mutate(yearmonth = paste(fire_year,
-                           sprintf("%02d", fire_mon),
-                           sep = "_")) %>%
-  dplyr::select(-fire_year, -fire_mon) %>%
-  mutate(num_ym = as.numeric(factor(yearmonth))) %>%
-  gather(Measure, value, -yearmonth, -num_ym) %>%
-  separate(yearmonth, c("year", "month")) %>%
-  mutate(day = sprintf("%02d", 1),
-         ymd = ymd(paste(year, month, day, sep = "-")))
+  gather(Measure, value, -fire_year)
 
 
-ymd %>%
-  ggplot(aes(x = ymd, y = value)) +
+yd %>%
+  ggplot(aes(x = fire_year, y = value)) +
   geom_path() +
   facet_wrap(~ Measure, scales = "free_y") +
   xlab("Time") +
@@ -37,28 +29,84 @@ ymd %>%
   theme_minimal()
 ggsave("fig/explore/mean-max-ts.pdf")
 
-
-
-ymd %>%
-  ggplot(aes(x = as.numeric(month), y = value, color = year)) +
-  geom_line() +
-  facet_wrap(~ Measure, scales = "free_y") +
-  theme_minimal() +
-  scale_color_viridis(discrete = TRUE) +
-  xlab("Month") +
-  scale_y_log10()
-ggsave("fig/explore/mean-max-months.pdf")
-
-
 # Create spatial neighbors ------------------------------------------------
-W <- poly2nb(ecoregions) %>%
-  aggregate(ecoregions@data$US_L3NAME) %>%
+W <- coarse_rp %>%
+  rasterToPolygons %>%
+  poly2nb %>%
   nb2mat(zero.policy = TRUE, style = 'B')
+plot(raster(W))
 
-er_df <- d %>%
-  group_by(us_l3name) %>%
-  summarize(n_fires = n()) %>%
-  right_join(er_df)
+plot(rasterToPolygons(coarse_rp))
+coarse_rp %>%
+  rasterToPolygons %>%
+  poly2nb %>%
+  plot(col = "red",
+       coords = coordinates(rasterToPolygons(coarse_rp)))
+
+# Create spatiotemporal covariate data frame
+st_cov_chunk <- coarse_rp %>%
+  as.data.frame(xy = TRUE) %>%
+  tbl_df %>%
+  mutate(pixel_idx = 1:n()) %>%
+  gather(variable, value, -x, -y, -pixel_idx) %>%
+  separate(variable, c("variable", "year"), sep = "_") %>%
+  arrange(pixel_idx, year, variable) %>%
+  filter(!is.na(value)) %>%
+  spread(variable, value) %>%
+  arrange(pixel_idx, year)
+
+st_covs <- st_cov_chunk %>%
+  mutate(dim = 1) %>%
+  full_join(mutate(st_cov_chunk, dim = 2)) %>%
+  mutate(chuss = c(scale(huss)),
+         cprec = c(scale(pr)),
+         ctmax = c(scale(tasmax)),
+         ctmin = c(scale(tasmin)),
+         cwas = c(scale(was)),
+         year = parse_number(year),
+         dim = factor(dim))
+
+
+# Create design matrices for each timestep
+X <- array(dim = c(n_year, nrow(st_covs) / n_year, 7)) # 2: bivariate
+for (i in 1:n_year) {
+  X[i, , ] <- filter(st_covs, year - min(year) + 1 == i) %>%
+    model.matrix(~ dim + chuss + cprec + ctmax + ctmin + cwas, data = .)
+}
+
+A_t <- bdiag(replicate(2, list(W)))
+image(A_t)
+
+# compute multivariate basis vectors
+r <- 10 # number of basis vectors
+
+S_X <- array(dim = c(n_year, nrow(st_covs) / n_year, r))
+for (i in 1:n_year) {
+  G <- (diag(nrow(X[1, , ])) -
+          X[i, , ] %*% solve(t(X[i, , ]) %*% X[i, , ]) %*% t(X[i, , ])) %*%
+    A_t %*%
+    (diag(nrow(X[1, , ])) -
+       X[i, , ] %*% solve(t(X[i, , ]) %*% X[i, , ]) %*% t(X[i, , ]))
+  eG <- eigen(G)
+  basis_vectors <- eG$vectors
+  S_X[i, , ] <- basis_vectors[, 1:r]
+}
+
+# visualize multivariate basis functions
+G_unrolled <- S_X[1, , ]
+for (i in 2:n_year) G_unrolled = rbind(G_unrolled, S_X[i, , ])
+
+tbl_df(G_unrolled) %>%
+  bind_cols(st_covs) %>%
+  select(x, y, year, dim, starts_with("V")) %>%
+  gather(basis_dim, value, -x, -y, -year, -dim) %>%
+  ggplot(aes(x, y, fill = value)) +
+  geom_tile() +
+  facet_grid(interaction(basis_dim, dim) ~ year) +
+  scale_fill_viridis() +
+  coord_equal()
+
+
 
 
 ## Add area & num_neighbors to data frame -------------------------------

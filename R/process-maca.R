@@ -64,6 +64,6 @@ names(annual_rstack) <- expand.grid(unique(variable), unique(r_year)) %>%
   as.matrix() %>%
   apply(1, paste, collapse = "_")
 
-coarse_r <- aggregate(annual_rstack[[1]], fact = 4)
+coarse_r <- aggregate(annual_rstack, fact = 30)
 poly_grid <- rasterToPolygons(coarse_r)
 
