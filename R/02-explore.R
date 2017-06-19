@@ -4,7 +4,7 @@ library(spdep)
 library(viridis)
 library(tidyverse)
 library(lubridate)
-
+library(rstan)
 
 source("R/01-clean_data.R")
 
@@ -68,9 +68,15 @@ st_covs <- st_cov_chunk %>%
 
 
 # Create design matrices for each timestep
+
+st_covs <- st_covs %>%
+  mutate(year_idx = factor(year))
+
+master_idx_df <- filter(st_covs, as.numeric(year_idx) == 0)
 X <- array(dim = c(n_year, nrow(st_covs) / n_year, 7)) # 2: bivariate
 for (i in 1:n_year) {
-  X[i, , ] <- filter(st_covs, year - min(year) + 1 == i) %>%
+  master_idx_df <- bind_rows(master_idx_df, filter(st_covs, as.numeric(year_idx) == i))
+  X[i, , ] <-  filter(st_covs, as.numeric(year_idx) == i) %>%
     model.matrix(~ dim + chuss + cprec + ctmax + ctmin + cwas, data = .)
 }
 
@@ -78,7 +84,7 @@ A_t <- bdiag(replicate(2, list(W)))
 image(A_t)
 
 # compute multivariate basis vectors
-r <- 10 # number of basis vectors
+r <- 9 # number of basis vectors
 
 S_X <- array(dim = c(n_year, nrow(st_covs) / n_year, r))
 for (i in 1:n_year) {
@@ -97,37 +103,213 @@ G_unrolled <- S_X[1, , ]
 for (i in 2:n_year) G_unrolled = rbind(G_unrolled, S_X[i, , ])
 
 tbl_df(G_unrolled) %>%
-  bind_cols(st_covs) %>%
-  select(x, y, year, dim, starts_with("V")) %>%
+  mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
+         year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
+         dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
+         dim = factor(dim)) %>%
+  full_join(st_covs) %>%
+  dplyr::select(x, y, year, dim, starts_with("V")) %>%
   gather(basis_dim, value, -x, -y, -year, -dim) %>%
   ggplot(aes(x, y, fill = value)) +
+  theme_classic() +
   geom_tile() +
-  facet_grid(interaction(basis_dim, dim) ~ year) +
+  facet_grid(interaction(dim, basis_dim) ~ year) +
   scale_fill_viridis() +
+  coord_equal() +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) +
+  ggtitle("Spatiotemporal basis functions")
+
+ggsave(filename = "fig/st-basis.pdf", width = 24, height = 11)
+
+# confirm that the basis functions are independent of the covariates
+tbl_df(G_unrolled) %>%
+  bind_cols(st_covs) %>%
+  dplyr::select(starts_with("V"), chuss, cprec, ctmax, ctmin, cwas) %>%
+  cor %>%
+  image
+
+# construct the propagator matrix
+Bt <- array(dim = c(r, dim(X)[3] + r, n_year))
+Mt <- array(dim = c(n_year, r, r))
+for (i in 1:n_year) {
+  Bt[, , i] <- cbind(t(S_X[i, , ]) %*% X[i, , ], diag(r))
+  G_B <- (diag(r) -
+            Bt[, , i] %*% MASS::ginv(t(Bt[, , i]) %*% Bt[, , i]) %*% t(Bt[, , i])) %*%
+    diag(r) %*%
+    (diag(r) -
+       Bt[, , i] %*% MASS::ginv(t(Bt[, , i]) %*% Bt[, , i]) %*% t(Bt[, , i]))
+  eGB <- eigen(G_B)
+  Mt[i, , ] <- eGB$vectors[, 1:r]
+}
+
+
+
+
+# simulate basis function coefficients
+eta <- matrix(nrow = n_year, ncol = r)
+R_eta <- rcorrmatrix(r, alphad = 1)
+LR_eta <- t(chol(R_eta))
+sigma_eta <- 3
+sigma_0 <- 6
+eta[1, ] <- sigma_0 * c(LR_eta %*% rnorm(r))
+for (i in 2:n_year) {
+  eta[i, ] <- Mt[i, , ] %*% eta[i - 1, ] + sigma_eta * c(LR_eta %*% rnorm(r))
+}
+
+# simulate coef for fixed effects
+(beta <- c(-2, 2, rnorm(dim(X)[3] - 2)))
+
+# process model
+Y <- matrix(nrow = dim(X)[2], ncol = n_year)
+for (i in 1:n_year) {
+  Y[, i] <- S_X[i, , ] %*% eta[i, ] + X[i, , ] %*% beta
+}
+
+# visualize latent process
+Y %>%
+  tbl_df %>%
+  gather(sim_year, z) %>%
+  mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
+         year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
+         dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
+         dim = factor(dim)) %>%
+  full_join(st_covs) %>%
+  ggplot(aes(x, y, fill = z)) +
+  geom_tile() +
+  facet_grid(dim ~ year) +
+  scale_fill_viridis() +
+  coord_equal() +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()) +
+  ggtitle("Simulated spatiotemporal process")
+ggsave(filename = "fig/us-process-sim.pdf", width = 24, height = 5)
+
+
+Y %>%
+  tbl_df %>%
+  gather(sim_year, z) %>%
+  mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
+         year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
+         dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
+         dim = factor(dim)) %>%
+  full_join(st_covs) %>%
+  ggplot(aes(year, z, group = pixel_idx)) +
+  geom_line(alpha = .1) +
+  theme_minimal() +
+  facet_wrap(~dim)
+
+# Simulate number of fires in each pixelXyear
+n_fire_sims <- Y %>%
+  tbl_df %>%
+  gather(sim_year, z) %>%
+  bind_cols(st_covs) %>%
+  filter(dim == 1) %>%
+  mutate(n_fire = rpois(n(), lambda = exp(z + rnorm(n(), sd = .1))))
+
+n_fire_sims %>%
+  ggplot(aes(z, n_fire)) +
+  geom_point()
+
+# For each fire event, simulate fire size
+n_fires <- sum(n_fire_sims$n_fire)
+
+y_df <- Y %>%
+  tbl_df %>%
+  gather(sim_year, z) %>%
+  mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
+         year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
+         dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
+         dim = factor(dim)) %>%
+  full_join(st_covs)
+
+
+
+fire_size_df <- tibble(pixel_idx = rep(n_fire_sims$pixel_idx, n_fire_sims$n_fire),
+                       year = rep(n_fire_sims$year, n_fire_sims$n_fire))
+fire_size_df <- y_df %>%
+  filter(dim == 2) %>%
+  dplyr::select(pixel_idx, year, z, dim) %>%
+  right_join(fire_size_df)
+
+stopifnot(nrow(fire_size_df) == n_fires)
+
+# simulate log fire sizes
+fire_size_df <- fire_size_df %>%
+  mutate(z_obs = rnorm(n(), mean = z))
+
+fire_size_df %>%
+  ggplot(aes(z, z_obs)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
   coord_equal()
 
+# Now find indices for each count and each fire size to match to mean matrix
+count_idx <- rep(NA, nrow(n_fire_sims))
+for (i in seq_along(count_idx)) {
+  count_idx[i] <- which(master_idx_df$pixel_idx == n_fire_sims$pixel_idx[i] &
+          master_idx_df$year == n_fire_sims$year[i] &
+          master_idx_df$dim == 1)
+}
+
+size_idx <- rep(NA, nrow(fire_size_df))
+for (i in seq_along(size_idx)) {
+  size_idx[i] <-  which(master_idx_df$pixel_idx == fire_size_df$pixel_idx[i] &
+                          master_idx_df$year == fire_size_df$year[i] &
+                          master_idx_df$dim == 2)
+}
 
 
+stan_d <- list(n = length(unique(master_idx_df$pixel_idx)),
+               T = n_year,
+               L = 2,
+               p = ncol(X[1, ,]),
+               r = r,
+               X = X,
+               S = S_X,
+               M = Mt,
+               counts = n_fire_sims$n_fire,
+               count_idx = count_idx,
+               n_fire = n_fires,
+               sizes = fire_size_df$z_obs,
+               size_idx = size_idx)
 
-## Add area & num_neighbors to data frame -------------------------------
-a_df <- data.frame(id = sapply(slot(ecoregions, "polygons"), slot, "ID"),
-                   area = sapply(slot(ecoregions, "polygons"), slot, "area"),
-                   US_L3NAME = ecoregions@data$US_L3NAME,
-                   stringsAsFactors = FALSE) %>%
-  group_by(US_L3NAME) %>%
-  summarize(area = sum(area))
-a_df$n_neighbors <- rowSums(W)
-names(a_df) <- tolower(names(a_df))
 
-er_df <- left_join(er_df, a_df) %>%
-  mutate(fire_den = n_fires / area,
-         log_fire_density = log(n_fires) - log(area))
+# fit model
+m_init <- stan_model("stan/mstm.stan", auto_write = TRUE)
 
-# get area of each ecoregion
-all_ers <- er_df %>%
-  group_by(us_l3name) %>%
-  summarize(area = unique(area))
+m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3, iter = 1000,
+                  control = list(max_treedepth = 12))
+traceplot(m_fit, inc_warmup = TRUE)
 
+post <- rstan::extract(m_fit)
+
+# Evaluate recovery of spatiotemporal basis coefficients
+eta_df <- eta %>%
+  reshape2::melt(varnames = c("year", "basis_dim"),
+                 value.name = "true_eta")
+
+
+post$eta %>%
+  reshape2::melt(varnames = c("iter", "basis_dim", "year")) %>%
+  tbl_df %>%
+  group_by(basis_dim, year) %>%
+  summarize(med = median(value),
+            lo = quantile(value, .025),
+            hi = quantile(value, .975)) %>%
+  ungroup() %>%
+  full_join(eta_df) %>%
+  ggplot(aes(true_eta, med)) +
+  geom_point() +
+  geom_segment(aes(xend = true_eta, y = lo, yend = hi)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  xlab("True basis coefficient") +
+  ylab("Estimated basis coefficient") +
+  coord_equal() +
+  ggtitle("Basis coefficient recovery")
+ggsave("basis-coef-recovery.pdf", width = 8, height = 6)
 
 
 # Visualize number of neighbors --------------------------------------

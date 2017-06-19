@@ -6,7 +6,8 @@ library(ggmap)
 library(foreign)
 library(purrr)
 library(RSQLite)
-
+library(rasterVis)
+library(clusterGeneration)
 
 source("R/00-fetch-data.R")
 
@@ -27,6 +28,7 @@ projection(mtbs)
 
 plot(coarse_rp[[1]])
 plot(mtbs, pch = 19, col = 2, add = TRUE, cex = .5)
+title("Coarse grid with underlying points")
 
 n_year <- length(unique(mtbs$FIRE_YEAR))
 fire_years <- 1984:2015
@@ -48,6 +50,21 @@ plot(count_r)
 count_r <- mask(count_r, coarse_rp[[1]])
 
 plot(count_r)
+
+gplot(count_r) +
+  theme_classic() +
+  geom_tile(aes(fill = log(value + 1))) +
+  facet_wrap(~ variable) +
+  scale_fill_viridis("log(# Fires + 1)") +
+  coord_equal() +
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+ggsave(filename = "fig/us-fire-counts.pdf", width = 8, height = 6)
+
+
+plot(coarse_rp)
 
 count_df <- as.data.frame(count_r) %>%
   tbl_df %>%
