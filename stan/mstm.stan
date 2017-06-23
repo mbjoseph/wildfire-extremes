@@ -20,27 +20,22 @@ parameters {
   cholesky_factor_corr[r] L_eta;
   real<lower = 0> sigma_0;
   vector<lower = 0>[r] sigma_eta;
-  real<lower = 0> sigma_z; // perhaps allow this to vary by process...
-  vector[n * L * T] epsilon_z;
   real<lower = 0> sigma_size;
 }
 
 transformed parameters {
   matrix[r, T] eta;
-  matrix[n * L, T] mu;
-  vector[n * L * T] z;
+  vector[n * L * T] mu;
 
   eta[, 1] = diag_pre_multiply(rep_vector(sigma_0, r), L_eta) *  etaR[, 1];
   for (t in 2:T) {
-    eta[, t] = M[t] * eta[, t - 1] +
-    diag_pre_multiply(sigma_eta, L_eta) *  etaR[, t];
+    eta[, t] = M[t] * eta[, t - 1]
+               + diag_pre_multiply(sigma_eta, L_eta) *  etaR[, t];
   }
 
   for (t in 1:T) {
-    mu[, t] = X[t] * beta + S[t] * eta[, t];
+    mu[(1 + (t - 1) * n * L):(t * n * L)] = X[t] * beta + S[t] * eta[, t];
   }
-
-  z = to_vector(mu) + epsilon_z;
 }
 
 model {
@@ -49,15 +44,13 @@ model {
   L_eta ~ lkj_corr_cholesky(2);
   sigma_0 ~ normal(0, 3);
   sigma_eta ~ normal(0, 3);
-  sigma_z ~ normal(0, 3);
-  epsilon_z ~ normal(0, sigma_z);
 
   // number of fires
-  counts ~ poisson_log(z[count_idx]);
+  counts ~ poisson_log(mu[count_idx]);
 
   // fire sizes
   sigma_size ~ normal(0, 1);
-  sizes ~ normal(z[size_idx], sigma_size);
+  sizes ~ normal(mu[size_idx], sigma_size);
 }
 
 generated quantities {

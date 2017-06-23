@@ -5,14 +5,23 @@ library(viridis)
 library(tidyverse)
 library(lubridate)
 library(rstan)
+library(ggrepel)
+library(cowplot)
 
 source("R/01-clean_data.R")
+
+
+# subset for sims
+d <- d %>%
+  filter(fire_year < 1995)
+
 
 # Visualize yearly fire size distributions ----------------------------
 yd <- d %>%
   group_by(fire_year) %>%
   summarize(mean_size = mean(fire_size),
-            max_size = max(fire_size)) %>%
+            max_size = max(fire_size),
+            n = n()) %>%
   ungroup %>%
   tidyr::complete(fire_year,
            fill = list(mean_size = NA,
@@ -28,6 +37,31 @@ yd %>%
   ylab("Value") +
   theme_minimal()
 ggsave("fig/explore/mean-max-ts.pdf")
+
+
+p1 <- yd %>%
+  filter(Measure != "mean_size") %>%
+  mutate(Measure = ifelse(Measure == "max_size", "Maximum burn area",
+                          "Number of fires > 1000 acres")) %>%
+  ggplot(aes(x = fire_year, y = value)) +
+  geom_path() +
+  facet_wrap(~ Measure, scales = "free_y") +
+  xlab("Time") +
+  ylab("Value") +
+  theme_minimal()
+
+p2 <- yd %>%
+  filter(Measure != "mean_size") %>%
+  mutate(Measure = ifelse(Measure == "max_size", "Maximum burn area",
+                          "Number of fires > 1000 acres")) %>%
+  spread(Measure, value) %>%
+  ggplot(aes(`Number of fires > 1000 acres`, `Maximum burn area`)) +
+  geom_point() +
+  theme_minimal() +
+  geom_text_repel(aes(label = fire_year))
+
+plot_grid(p1, p2, nrow = 2)
+ggsave("fig/explore/maxima-n.pdf", width = 9, height = 5)
 
 # Create spatial neighbors ------------------------------------------------
 W <- coarse_rp %>%
@@ -77,14 +111,14 @@ X <- array(dim = c(n_year, nrow(st_covs) / n_year, 7)) # 2: bivariate
 for (i in 1:n_year) {
   master_idx_df <- bind_rows(master_idx_df, filter(st_covs, as.numeric(year_idx) == i))
   X[i, , ] <-  filter(st_covs, as.numeric(year_idx) == i) %>%
-    model.matrix(~ dim + chuss + cprec + ctmax + ctmin + cwas, data = .)
+    model.matrix(~ dim * chuss + cprec + ctmax + cwas, data = .)
 }
 
 A_t <- bdiag(replicate(2, list(W)))
 image(A_t)
 
 # compute multivariate basis vectors
-r <- 9 # number of basis vectors
+r <- 50 # number of basis vectors
 
 S_X <- array(dim = c(n_year, nrow(st_covs) / n_year, r))
 for (i in 1:n_year) {
@@ -110,23 +144,29 @@ tbl_df(G_unrolled) %>%
   full_join(st_covs) %>%
   dplyr::select(x, y, year, dim, starts_with("V")) %>%
   gather(basis_dim, value, -x, -y, -year, -dim) %>%
+  filter(year == 1984) %>%
+  mutate(basis_dim = parse_number(basis_dim),
+         Dimension = ifelse(dim == 1, "# Fires", "Burn area"),
+         Basis_dim = paste("Basis", sprintf("%02s", basis_dim))) %>%
   ggplot(aes(x, y, fill = value)) +
-  theme_classic() +
   geom_tile() +
-  facet_grid(interaction(dim, basis_dim) ~ year) +
-  scale_fill_viridis() +
+  facet_wrap(Basis_dim ~ Dimension, ncol = 10) +
+  scale_fill_gradient2("Basis value") +
   coord_equal() +
+  theme_dark() +
   theme(axis.title = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank()) +
-  ggtitle("Spatiotemporal basis functions")
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Sample of spatiotemporal basis functions")
 
-ggsave(filename = "fig/st-basis.pdf", width = 24, height = 11)
+ggsave(filename = "fig/st-basis.pdf", width = 13, height = 8)
 
 # confirm that the basis functions are independent of the covariates
 tbl_df(G_unrolled) %>%
   bind_cols(st_covs) %>%
-  dplyr::select(starts_with("V"), chuss, cprec, ctmax, ctmin, cwas) %>%
+  dplyr::select(starts_with("V"), chuss, cprec, ctmax, cwas) %>%
   cor %>%
   image
 
@@ -151,15 +191,15 @@ for (i in 1:n_year) {
 eta <- matrix(nrow = n_year, ncol = r)
 R_eta <- rcorrmatrix(r, alphad = 1)
 LR_eta <- t(chol(R_eta))
-sigma_eta <- 3
-sigma_0 <- 6
+sigma_eta <- .1
+sigma_0 <- .1
 eta[1, ] <- sigma_0 * c(LR_eta %*% rnorm(r))
 for (i in 2:n_year) {
   eta[i, ] <- Mt[i, , ] %*% eta[i - 1, ] + sigma_eta * c(LR_eta %*% rnorm(r))
 }
 
 # simulate coef for fixed effects
-(beta <- c(-2, 2, rnorm(dim(X)[3] - 2)))
+(beta <- c(-.5, 0, rnorm(dim(X)[3] - 2, mean = 0, sd = .1)))
 
 # process model
 Y <- matrix(nrow = dim(X)[2], ncol = n_year)
@@ -207,11 +247,15 @@ n_fire_sims <- Y %>%
   gather(sim_year, z) %>%
   bind_cols(st_covs) %>%
   filter(dim == 1) %>%
-  mutate(n_fire = rpois(n(), lambda = exp(z + rnorm(n(), sd = .1))))
+  mutate(n_fire = rpois(n(), lambda = exp(z)))
 
 n_fire_sims %>%
-  ggplot(aes(z, n_fire)) +
+  ggplot(aes(exp(z), n_fire)) +
   geom_point()
+
+n_fire_sims %>%
+  ggplot(aes(z)) +
+  geom_histogram()
 
 # For each fire event, simulate fire size
 n_fires <- sum(n_fire_sims$n_fire)
@@ -238,7 +282,7 @@ stopifnot(nrow(fire_size_df) == n_fires)
 
 # simulate log fire sizes
 fire_size_df <- fire_size_df %>%
-  mutate(z_obs = rnorm(n(), mean = z))
+  mutate(z_obs = rnorm(n(), mean = z, sd = .1))
 
 fire_size_df %>%
   ggplot(aes(z, z_obs)) +
@@ -280,9 +324,11 @@ stan_d <- list(n = length(unique(master_idx_df$pixel_idx)),
 # fit model
 m_init <- stan_model("stan/mstm.stan", auto_write = TRUE)
 
-m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3, iter = 1000,
-                  control = list(max_treedepth = 12))
+m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3, iter = 400)
 traceplot(m_fit, inc_warmup = TRUE)
+
+traceplot(m_fit, pars = "sigma_size")
+traceplot(m_fit, pars = "sigma_eta")
 
 post <- rstan::extract(m_fit)
 
@@ -303,6 +349,7 @@ post$eta %>%
   full_join(eta_df) %>%
   ggplot(aes(true_eta, med)) +
   geom_point() +
+  facet_wrap(~basis_dim) +
   geom_segment(aes(xend = true_eta, y = lo, yend = hi)) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
   xlab("True basis coefficient") +
@@ -310,6 +357,41 @@ post$eta %>%
   coord_equal() +
   ggtitle("Basis coefficient recovery")
 ggsave("basis-coef-recovery.pdf", width = 8, height = 6)
+
+
+# Evaluate recovery of fixed effects
+beta_df <- tibble(idx = 1:length(beta),
+                  true_value = beta)
+
+post$beta %>%
+  reshape2::melt(varnames = c("iter", "idx")) %>%
+  full_join(beta_df) %>%
+  tbl_df %>%
+  ggplot(aes(x = value)) +
+  geom_density() +
+  facet_wrap(~ idx, scales = "free") +
+  geom_vline(aes(xintercept = true_value), linetype = "dashed")
+
+
+post$mu %>%
+  reshape2::melt(varnames = c("iter", "idx")) %>%
+  mutate(pixel_idx = master_idx_df$pixel_idx[idx],
+         year = master_idx_df$year[idx],
+         dim = master_idx_df$dim[idx]) %>%
+  full_join(y_df) %>%
+  tbl_df %>%
+  group_by(pixel_idx, year, dim) %>%
+  summarize(med = median(value),
+            lo = quantile(value, .025),
+            hi = quantile(value, .975),
+            true = unique(z)) %>%
+  ggplot(aes(true, med)) +
+  geom_segment(aes(xend = true, y = lo, yend = hi)) +
+  facet_grid(dim ~ year) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed")
+
+
+
 
 
 # Visualize number of neighbors --------------------------------------

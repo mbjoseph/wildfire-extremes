@@ -1,16 +1,22 @@
 ---
-title: "Spatiotemporal fire extremes"
-author: "Max Joseph"
-date: "February 20, 2017"
+title: "Spatiotemporal modeling of wildfire extremes"
+author: "Max Joseph, Matthew Rossi, Megan Cattau, Adam Mahood, Nathan Mietkiewicz, Chelsea Nagy, Lise St. Denis, Jennifer Balch"
+date: "June 20, 2017"
 output: 
   beamer_presentation:
-    colortheme: crane
+    colortheme: spruce
     fonttheme: structurebold
+    fig_caption: false
 in_header:
 - \usepackage{xcolor}
+- \usepackage{amssymb}
 ---
 
 ```{r setup, include=FALSE}
+library(tidyverse)
+library(rgdal)
+library(kableExtra)
+library(knitr)
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```
 
@@ -26,46 +32,53 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 
 - **Peaks over threshold**
 
-Both require large $n$
+## Both require large $n$
 
+```{r, results = "hide"}
+source("R/00-fetch-data.R")
+
+# Read fire data ----------------------
+mtbs <- readOGR(mtbs_prefix, 'mtbs_fod_pts_20170501') %>%
+  subset(!(STATE %in% c("Alaska", "Hawaii", "Puero Rico"))) %>%
+  as.data.frame %>%
+  filter(R_ACRES > 1000) %>%
+  tbl_df
+```
+
+# Sample sizes for wildfires
+
+Monitoring Trends in Burn Severity (MTBS) record: 
+
+1984-2015 `r nrow(mtbs)` records
+
+# Sample sizes for wildfires by year
+
+```{r}
+mtbs %>%
+  group_by(FIRE_YEAR) %>%
+  summarize(n = n()) %>%
+  kable(format = "latex")
+```
+# Sample sizes for wildfires by year X HUC4 drainage
+
+```{r, fig.width = 5, fig.height = 4}
+mtbs %>%
+  group_by(FIRE_YEAR, HUC4_NAME) %>%
+  summarize(n = n()) %>%
+  ggplot(aes(n)) + 
+  geom_histogram() + 
+  xlab("Number of fires") + 
+  ylab("Frequency")
+```
 
 # How to study extremes with small $n$?
 
-**"Metastastical EVT"**
+**"Metastastical extreme value theory (MEV)" (Marani & Ignaccolo 2015)**
 
-Developed for short sequences of values 
+- Number of events $n$ is *random*
+- Parameters that determine the distribution of event size are *random*
 
-- $n$ is *random*
-- parameters $\beta$ are *random*
-
-$$P(Z \leq z) = \sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta$$
-
-# Breaking down the MEV equation
-
-$$\color{red}{P(Z \leq z)} = \color{black} {\sum_n \int_\beta F(z; n, \beta) f(n, \beta) d \beta}$$
-
-- $P(Z \leq z)$: probability of a maximum $Z <$ a value $z$
-
-
-# Breaking down the MEV equation
-
-$$ \color{black} {P(Z \leq z) = \sum_n \int_\beta} \color{red}{F(z; n, \beta)} \color{black}{f(n, \beta) d \beta}$$
-
-- $F(z; n, \beta)$: probability $Z < z$ for a specific $n$ and $\beta$
-
-# Breaking down the MEV equation
-
-$$\color{black} {P(Z \leq z) = \sum_n \int_\beta F(z; n, \beta)} \color{red}{f(n, \beta)} \color{black} {d \beta}$$
-
-- $f(n, \beta)$: probability of $n$ and $\beta$
-
-
-
-# Breaking down the MEV equation
-
-$$\color{black} {P(Z \leq z) =} \color{red}{\sum_n \int_\beta} \color{black} {F(z; n, \beta) f(n, \beta)} \color{red}{d \beta}$$
-
-- sum over $n$, integral over $\beta$: marginalizes over $n$ and $\beta$
+**Sidenote:** MEV is a rediscovery of the Bayesian posterior predictive distribution
 
 
 # Why is the MEV approach useful?
@@ -76,92 +89,67 @@ $$\color{black} {P(Z \leq z) =} \color{red}{\sum_n \int_\beta} \color{black} {F(
 
 **Metastatistical extreme value theory**
 
-- Treat sample size as random
 - Allow inference even when $n$ is small
 
-# Why is the MEV approach interesting? 
-
-It's the Bayesian **posterior predictive distribution**
-
-$$[\tilde{y} \mid y] = \int_\theta [\tilde{y} \mid \theta] [\theta \mid y] d \theta$$
-
-- probability of new data given observed data
-
-# Why does it matter that MEV = posterior predictive distribution
-
-**Generalizes** the MEV approach to infer:
-
-- distribution of future data
-- distribution(s) of functions of future data
+$\rightarrow$ inference at spatiotemporal scales relevant to decision-making
 
 
-# Why does it matter that MEV = posterior predictive distribution
+# Our extension of MEV
 
-**We can study different kinds of extremes**
+Move from the **temporal** (Marani & Ignaccolo 2015) to the **spatiotemporal** domain in the context of **wildfire extremes**
+
+
+# Types of extremes to consider
 
 - sizes of single fires
 - number of fires
 - total burn area in a region/state/country
-- rates of change among years/across space for any ^
+- rates of change among years/across space
+
+**Overall goal**: predict future changes in these quantities at a sufficiently fine spatiotemporal scale
 
 
-# Why does it matter that MEV = posterior predictive distribution
+# Model summary
 
-**We can predict other interesting things**
-
-- changes in fire phenology
-- changes in human vs. lightning started fires
-- changes in ignitions/burn area due to WUI expansion
-
-
-# High level model overview
+Bayesian multivariate spatiotemporal mixed effects model
 
 **Multivariate response**
 
-1. Number of fires
-2. Fire size (each fire)
+1. Number of fires (Poisson)
+2. Size of each fire (log-Normal)
+
+**Explanatory variables**
+
+- VPD, PDSI, precip, max temp., PET
 
 **Spatiotemporal random effects**
 
-- areal model (US L3 EPA ecoregions)
-- multivariate sparse CAR spatial dependence
-- AR1 spatiotemporal dependence
+- Orthogonal spatiotemporal basis functions (Bradley, Holan, & Wikle 2015)
+- Avoids confounding with covariates
 
 
+# 
 
-# Current status
-
-1. "Simple" model has been fit/run
-2. Posterior predictive checks for
-
-- number of fires
-- size of maximum fire
-- total burn area
-
-# Current results
-
-1. Posterior checks
-2. Spatiotemporal visualizations
-
-(plots)
+![](fig/st-basis.pdf)
 
 
-# What we're missing
+# Spatiotemporal drivers
 
-Fire ecology
+Multivariate Adaptive Constructed Analogs (MACA) (Abatzoglou, Brown, 2011) 
 
-- explanatory variables
-- any quirks with MTBS data?
-- detection bias across years?
+Currently using MACAv2-METDATA, monthly timestep
+
+1. VPD (?)
+2. PDSI (?)
+3. Total precip: 1 yr + 1 mo. sliding window ($\checkmark$) 
+4. Mean daily maximum temp. ($\checkmark$) 
+5. Potential evapotranspiration ($\checkmark$) 
 
 
-# Ideal covariates
+# Other questions about MACA data
 
-Drivers of **ignition** and/or **burn area**
+Any particular CMIP5 model(s) to use or avoid?
 
-1. Rasters (can be summarized at different areal units)
-2. Model outputs (can project forward to make predictions)
-3. Public data
-4. Easily accessible
-5. Known to affect either number of ignitions or burn area
-6. Processed in R or Python
+Are ensemble average values available?
+
+# Thanks!
