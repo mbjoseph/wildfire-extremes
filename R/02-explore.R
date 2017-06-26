@@ -107,18 +107,19 @@ st_covs <- st_covs %>%
   mutate(year_idx = factor(year))
 
 master_idx_df <- filter(st_covs, as.numeric(year_idx) == 0)
-X <- array(dim = c(n_year, nrow(st_covs) / n_year, 7)) # 2: bivariate
+X <- array(dim = c(n_year, nrow(st_covs) / n_year, 7))
 for (i in 1:n_year) {
   master_idx_df <- bind_rows(master_idx_df, filter(st_covs, as.numeric(year_idx) == i))
   X[i, , ] <-  filter(st_covs, as.numeric(year_idx) == i) %>%
     model.matrix(~ dim * chuss + cprec + ctmax + cwas, data = .)
 }
 
+# create block diagonal adjacency matrix
 A_t <- bdiag(replicate(2, list(W)))
 image(A_t)
 
 # compute multivariate basis vectors
-r <- 50 # number of basis vectors
+r <- 10 # number of basis vectors
 
 S_X <- array(dim = c(n_year, nrow(st_covs) / n_year, r))
 for (i in 1:n_year) {
@@ -191,31 +192,38 @@ for (i in 1:n_year) {
 eta <- matrix(nrow = n_year, ncol = r)
 R_eta <- rcorrmatrix(r, alphad = 1)
 LR_eta <- t(chol(R_eta))
-sigma_eta <- .1
-sigma_0 <- .1
+sigma_eta <- 1
+sigma_0 <- 2
 eta[1, ] <- sigma_0 * c(LR_eta %*% rnorm(r))
 for (i in 2:n_year) {
   eta[i, ] <- Mt[i, , ] %*% eta[i - 1, ] + sigma_eta * c(LR_eta %*% rnorm(r))
 }
 
 # simulate coef for fixed effects
-(beta <- c(-.5, 0, rnorm(dim(X)[3] - 2, mean = 0, sd = .1)))
+(beta <- c(-1, 3, rnorm(dim(X)[3] - 2, mean = 0, sd = .1)))
 
 # process model
+sigma_y <- .1
 Y <- matrix(nrow = dim(X)[2], ncol = n_year)
 for (i in 1:n_year) {
-  Y[, i] <- S_X[i, , ] %*% eta[i, ] + X[i, , ] %*% beta
+  Y[, i] <- S_X[i, , ] %*% eta[i, ] + X[i, , ] %*% beta +
+    rnorm(length(Y[, i]), sd = sigma_y)
 }
 
-# visualize latent process
-Y %>%
+
+y_df <- Y %>%
   tbl_df %>%
   gather(sim_year, z) %>%
   mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
          year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
          dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
          dim = factor(dim)) %>%
-  full_join(st_covs) %>%
+  full_join(st_covs)
+
+
+
+# visualize latent process
+y_df %>%
   ggplot(aes(x, y, fill = z)) +
   geom_tile() +
   facet_grid(dim ~ year) +
@@ -228,24 +236,14 @@ Y %>%
 ggsave(filename = "fig/us-process-sim.pdf", width = 24, height = 5)
 
 
-Y %>%
-  tbl_df %>%
-  gather(sim_year, z) %>%
-  mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
-         year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
-         dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
-         dim = factor(dim)) %>%
-  full_join(st_covs) %>%
+y_df %>%
   ggplot(aes(year, z, group = pixel_idx)) +
   geom_line(alpha = .1) +
   theme_minimal() +
   facet_wrap(~dim)
 
 # Simulate number of fires in each pixelXyear
-n_fire_sims <- Y %>%
-  tbl_df %>%
-  gather(sim_year, z) %>%
-  bind_cols(st_covs) %>%
+n_fire_sims <- y_df %>%
   filter(dim == 1) %>%
   mutate(n_fire = rpois(n(), lambda = exp(z)))
 
@@ -254,21 +252,15 @@ n_fire_sims %>%
   geom_point()
 
 n_fire_sims %>%
-  ggplot(aes(z)) +
+  ggplot(aes(n_fire)) +
+  geom_histogram()
+
+n_fire_sims %>%
+  ggplot(aes(exp(z))) +
   geom_histogram()
 
 # For each fire event, simulate fire size
 n_fires <- sum(n_fire_sims$n_fire)
-
-y_df <- Y %>%
-  tbl_df %>%
-  gather(sim_year, z) %>%
-  mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
-         year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
-         dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
-         dim = factor(dim)) %>%
-  full_join(st_covs)
-
 
 
 fire_size_df <- tibble(pixel_idx = rep(n_fire_sims$pixel_idx, n_fire_sims$n_fire),
@@ -287,8 +279,20 @@ fire_size_df <- fire_size_df %>%
 fire_size_df %>%
   ggplot(aes(z, z_obs)) +
   geom_point() +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-  coord_equal()
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed")
+
+
+# evaluate bias in process based on observed vs. not observed fire sizes
+n_fire_sims %>%
+  dplyr::select(x, y, pixel_idx, year, n_fire) %>%
+  group_by(pixel_idx, year) %>%
+  summarize(any_fires = n_fire > 0) %>%
+  full_join(y_df) %>%
+  ggplot(aes(z, fill = any_fires)) +
+  geom_density(alpha = .2) +
+  facet_wrap(~dim)
+
+
 
 # Now find indices for each count and each fire size to match to mean matrix
 count_idx <- rep(NA, nrow(n_fire_sims))
@@ -324,7 +328,7 @@ stan_d <- list(n = length(unique(master_idx_df$pixel_idx)),
 # fit model
 m_init <- stan_model("stan/mstm.stan", auto_write = TRUE)
 
-m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3, iter = 400)
+m_fit <- sampling(m_init, data = stan_d, cores = 3, chains = 3, iter = 500)
 traceplot(m_fit, inc_warmup = TRUE)
 
 traceplot(m_fit, pars = "sigma_size")
@@ -349,12 +353,11 @@ post$eta %>%
   full_join(eta_df) %>%
   ggplot(aes(true_eta, med)) +
   geom_point() +
-  facet_wrap(~basis_dim) +
+  facet_wrap(~basis_dim, scales = "free") +
   geom_segment(aes(xend = true_eta, y = lo, yend = hi)) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
   xlab("True basis coefficient") +
   ylab("Estimated basis coefficient") +
-  coord_equal() +
   ggtitle("Basis coefficient recovery")
 ggsave("basis-coef-recovery.pdf", width = 8, height = 6)
 
@@ -369,8 +372,11 @@ post$beta %>%
   tbl_df %>%
   ggplot(aes(x = value)) +
   geom_density() +
-  facet_wrap(~ idx, scales = "free") +
-  geom_vline(aes(xintercept = true_value), linetype = "dashed")
+  facet_wrap(~ paste("Coefficient", idx), scales = "free") +
+  geom_vline(aes(xintercept = true_value), linetype = "dashed") +
+  xlab("Value") +
+  ylab("Posterior density") +
+  ggtitle("Recovery of fixed effect coefficients")
 
 
 post$mu %>%

@@ -21,6 +21,8 @@ parameters {
   real<lower = 0> sigma_0;
   vector<lower = 0>[r] sigma_eta;
   real<lower = 0> sigma_size;
+  vector[n * L * T] epsilonR;
+  real<lower = 0> sigma_mu;
 }
 
 transformed parameters {
@@ -36,6 +38,8 @@ transformed parameters {
   for (t in 1:T) {
     mu[(1 + (t - 1) * n * L):(t * n * L)] = X[t] * beta + S[t] * eta[, t];
   }
+  // process error
+  mu = mu + epsilonR * sigma_mu;
 }
 
 model {
@@ -44,6 +48,8 @@ model {
   L_eta ~ lkj_corr_cholesky(2);
   sigma_0 ~ normal(0, 3);
   sigma_eta ~ normal(0, 3);
+  sigma_mu ~ normal(0, 3);
+  epsilonR ~ normal(0, 1);
 
   // number of fires
   counts ~ poisson_log(mu[count_idx]);
