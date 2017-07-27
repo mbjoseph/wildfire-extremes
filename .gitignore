@@ -27,3 +27,4 @@ vignettes/*.pdf
 *.rds
 *.gif
 *.pdf
+.ipynb_checkpoints
