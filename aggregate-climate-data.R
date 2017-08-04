@@ -31,13 +31,18 @@ summarize_by_month <- function(file, mask_shp) {
   }
 
   # determine which function to use
-  fun <- ifelse(var == "pr", sum, mean)
+  if (var == "pr") {
+    fun <- sum
+  } else {
+    fun <- mean
+  }
 
   # otherwise, generate monthly summary
   raster <- stack(file)
   start_date <- as.Date(paste(year, "01", "01", sep = "-"))
   end_date <- as.Date(paste(year, "12", "31", sep = "-"))
   date_seq <- seq(start_date, end_date, by = "1 day")
+  date_seq <- date_seq[1:nlayers(raster)]
   month_seq <- month(date_seq)
 
   res <- stackApply(raster, month_seq, fun = fun)
@@ -60,7 +65,9 @@ system.time(res <- summarize_by_month(daily_files[[7]], usa_shp))
 
 res
 
-system.time(monthly_precip <- monthly_summary("pr", "1983", fun = sum, usa_shp))
-
-plot(monthly_precip)
-
+pb <- txtProgressBar(min = 1, max = length(daily_files), style = 3)
+for (i in seq_along(daily_files)) {
+  summarize_by_month(daily_files[i], usa_shp)
+  setTxtProgressBar(pb, i)
+}
+close(pb)
