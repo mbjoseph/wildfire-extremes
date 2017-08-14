@@ -1,4 +1,3 @@
-library(raster)
 library(tidyverse)
 library(rgdal)
 library(maptools)
@@ -8,121 +7,54 @@ library(purrr)
 library(RSQLite)
 library(rasterVis)
 library(clusterGeneration)
+library(sf)
+library(rmapshaper)
+library(zoo)
 
 source("R/00-fetch-data.R")
 
+aea_proj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+
+# Read ecoregion data
+ecoregions <- st_read('data/raw/us_eco_l3/us_eco_l3.shp')
+
 # Read fire data ----------------------
-mtbs <- readOGR(mtbs_prefix, 'mtbs_fod_pts_20170501') %>%
-  subset(!(STATE %in% c("Alaska", "Hawaii", "Puero Rico")))
+mtbs <- st_read('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_20170501.shp') %>%
+  filter(!(STATE %in% c("Alaska", "Hawaii", "Puerto Rico"))) %>%
+  st_transform(st_crs(ecoregions)) %>%
+  mutate(ym = as.yearmon(paste(FIRE_YEAR, sprintf("%02d", FIRE_MON),
+                               sep = "-")))
 
-# Load MACA climate data
-source("R/process-maca.R")
 
-aea_proj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs "
 
-coarse_rp <- projectRaster(coarse_r, crs = CRS(aea_proj))
-mtbs <- spTransform(mtbs, CRS(aea_proj))
 
-projection(coarse_rp)
-projection(mtbs)
-
-plot(coarse_rp[[1]])
-plot(mtbs, pch = 19, col = 2, add = TRUE, cex = .5)
-title("Coarse grid with underlying points")
-
-n_year <- length(unique(mtbs$FIRE_YEAR))
-fire_years <- 1984:2015
-k <- 1
-count_l <- list()
-for (i in 1:n_year) {
-  count_l[[k]] <- mtbs %>%
-    subset(FIRE_YEAR == fire_years[i]) %>%
-    rasterize(coarse_rp[[1]], fun = "count", background = 0) %>%
-    subset(1)
-  k <- k + 1
+# match each ignition to an ecoregion
+if (!file.exists("ov.rds")) {
+  st_over <- function(x, y) {
+    sapply(st_intersects(x,y), function(z) if (length(z)==0) NA_integer_ else z[1])
+  }
+  ov <- st_over(mtbs, ecoregions)
+  write_rds(ov, "ov.rds")
 }
+ov <- read_rds("ov.rds")
 
-count_r <- stack(count_l)
-names(count_r) <- paste0("n_fires_in_", fire_years)
-
-plot(count_r)
-
-count_r <- mask(count_r, coarse_rp[[1]])
-
-plot(count_r)
-
-gplot(count_r) +
-  theme_classic() +
-  geom_tile(aes(fill = log(value + 1))) +
-  facet_wrap(~ variable) +
-  scale_fill_viridis("log(# Fires + 1)") +
-  coord_equal() +
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank())
-
-ggsave(filename = "fig/us-fire-counts.pdf", width = 8, height = 6)
+mtbs <- mtbs %>%
+  mutate(US_L3NAME = ecoregions$US_L3NAME[ov],
+         US_L3NAME = factor(US_L3NAME, levels = levels(ecoregions$US_L3NAME))) %>%
+  filter(!is.na(US_L3NAME))
 
 
-plot(coarse_rp)
 
-count_df <- as.data.frame(count_r) %>%
+
+# count the number of fires in each ecoregion in each month
+count_df <- mtbs %>%
   tbl_df %>%
-  mutate(pixel_idx = 1:n()) %>%
-  gather(year, n_fires, -pixel_idx) %>%
-  mutate(year = gsub("n_fires_in_", "", year) %>% parse_number)
+  dplyr::select(-geometry) %>%
+  group_by(US_L3NAME, ym) %>%
+  summarize(n_fire = n()) %>%
+  ungroup %>%
+  complete(ym, US_L3NAME, fill = list(n_fire = 0)) %>%
+  arrange(ym)
 
-count_df %>%
-  ggplot(aes(year, n_fires, group = pixel_idx)) +
-  geom_line()
-
-count_df %>%
-  ggplot(aes(n_fires)) +
-  geom_histogram()
-
-# verify that the mask is constant over time (this raises error if not)
-count_df %>%
-  group_by(pixel_idx) %>%
-  summarize(p_na = mean(is.na(n_fires)))
-
-# verify that all fires were counted
-raster_counts <- count_df %>%
-  group_by(year) %>%
-  summarize(n_fires = sum(n_fires, na.rm = TRUE))
-
-mtbs_counts <- as.data.frame(mtbs) %>%
-  group_by(FIRE_YEAR) %>%
-  summarize(n_fires_mtbs = n()) %>%
-  rename(year = FIRE_YEAR)
-
-full_join(raster_counts, mtbs_counts) %>%
-  ggplot(aes(n_fires_mtbs, n_fires)) +
-  geom_point() +
-  geom_abline(slope = 1, intercept = 0)
-
-## Find the pixel index for each fire
-mtbs_covs <- raster::extract(coarse_rp, mtbs, cellnumbers = TRUE)  %>%
-  tbl_df %>%
-  mutate(mtbs_idx = 1:n()) %>%
-  rename(pixel_idx = cells) %>%
-  gather(variable, value, -pixel_idx, -mtbs_idx) %>%
-  separate(variable, c("variable", "year"), sep = "_") %>%
-  spread(variable, value) %>%
-  arrange(year, mtbs_idx)
-
-
-d <- mtbs_covs %>%
-  distinct(mtbs_idx, pixel_idx) %>%
-  left_join(tbl_df(mtbs) %>% mutate(mtbs_idx = 1:n())) %>%
-  map_if(is.factor, as.character) %>%
-  as_tibble() %>%
-  filter(R_ACRES > 1000) %>%
-  mutate(fire_size = R_ACRES)
-
-names(d) <- tolower(names(d))
-
-lower_year <- min(d$fire_year) - 1
-upper_year <- max(d$fire_year) + 1
-
-# clean up
-rm(list = c("mtbs"))
+stopifnot(0 == sum(is.na(count_df$US_L3NAME)))
+stopifnot(sum(count_df$n_fire) == nrow(mtbs))

@@ -11,71 +11,67 @@ library(cowplot)
 source("R/01-clean_data.R")
 
 
-# subset for sims
-d <- d %>%
-  filter(fire_year < 1995)
+# Visualize the distribution of number of fires
+count_df %>%
+  ggplot(aes(ym, n_fire)) +
+  geom_line() +
+  facet_wrap(~US_L3NAME) +
+  scale_y_log10()
 
-
-# Visualize yearly fire size distributions ----------------------------
-yd <- d %>%
-  group_by(fire_year) %>%
-  summarize(mean_size = mean(fire_size),
-            max_size = max(fire_size),
-            n = n()) %>%
-  ungroup %>%
-  tidyr::complete(fire_year,
-           fill = list(mean_size = NA,
-                       max_size = NA)) %>%
-  gather(Measure, value, -fire_year)
-
-
-yd %>%
-  ggplot(aes(x = fire_year, y = value)) +
-  geom_path() +
-  facet_wrap(~ Measure, scales = "free_y") +
-  xlab("Time") +
-  ylab("Value") +
-  theme_minimal()
-ggsave("fig/explore/mean-max-ts.pdf")
-
-
-p1 <- yd %>%
-  filter(Measure != "mean_size") %>%
-  mutate(Measure = ifelse(Measure == "max_size", "Maximum burn area",
-                          "Number of fires > 1000 acres")) %>%
-  ggplot(aes(x = fire_year, y = value)) +
-  geom_path() +
-  facet_wrap(~ Measure, scales = "free_y") +
-  xlab("Time") +
-  ylab("Value") +
-  theme_minimal()
-
-p2 <- yd %>%
-  filter(Measure != "mean_size") %>%
-  mutate(Measure = ifelse(Measure == "max_size", "Maximum burn area",
-                          "Number of fires > 1000 acres")) %>%
-  spread(Measure, value) %>%
-  ggplot(aes(`Number of fires > 1000 acres`, `Maximum burn area`)) +
+# Visualize changes in maxima
+mtbs %>%
+  tbl_df %>%
+  group_by(ym, US_L3NAME) %>%
+  summarize(max = max(P_ACRES)) %>%
+  ggplot(aes(ym, max)) +
   geom_point() +
-  theme_minimal() +
-  geom_text_repel(aes(label = fire_year))
+  facet_wrap(~ US_L3NAME)
 
-plot_grid(p1, p2, nrow = 2)
-ggsave("fig/explore/maxima-n.pdf", width = 9, height = 5)
+
+
 
 # Create spatial neighbors ------------------------------------------------
-W <- coarse_rp %>%
-  rasterToPolygons %>%
-  poly2nb %>%
+nb <- as(ecoregions, "Spatial") %>%
+  poly2nb
+W <- nb %>%
   nb2mat(zero.policy = TRUE, style = 'B')
-plot(raster(W))
+plot(raster(W), col = viridis(10))
 
-plot(rasterToPolygons(coarse_rp))
-coarse_rp %>%
-  rasterToPolygons %>%
-  poly2nb %>%
-  plot(col = "red",
-       coords = coordinates(rasterToPolygons(coarse_rp)))
+# aggregate neighbor matrix to ecoregion level
+ecoregion_df <- as(ecoregions, "Spatial") %>%
+  data.frame
+
+W_ag <- spdep::aggregate.nb(nb, IDs = ecoregion_df$US_L3NAME) %>%
+  nb2mat(zero.policy = TRUE, style = "B")
+plot(raster(W_ag), col = viridis(10))
+
+
+# load spatiotemporal covariates
+st_covs <- read_csv("data/processed/extracted_pet.csv") %>%
+  mutate(year = ifelse(is.na(year), 2000, year)) %>% # check this....
+  dplyr::select(-timestep) %>%
+  spread(var, mean_val) %>%
+  mutate(timestep = ymd(paste(year, month, "01", sep = "-")))
+
+
+st_covs %>%
+  ggplot(aes(timestep, pet, group = US_L3NAME)) +
+  geom_line() +
+  facet_wrap(~ US_L3NAME)
+
+
+
+
+
+
+
+
+
+# End new implementation --------------------------------------------------
+
+
+
+
 
 # Create spatiotemporal covariate data frame
 st_cov_chunk <- coarse_rp %>%
