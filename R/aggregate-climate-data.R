@@ -3,6 +3,13 @@ library(lubridate)
 library(rgdal)
 library(tidyverse)
 
+if (!dir.exists("data/raw/cb_2016_us_nation_20m/")) {
+  download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_nation_20m.zip",
+                destfile = "data/raw/cb_2016_us_nation_20m.zip")
+  unzip("data/raw/cb_2016_us_nation_20m.zip",
+        exdir = "data/raw/cb_2016_us_nation_20m/")
+}
+
 usa_shp <- readOGR(dsn = "data/raw/cb_2016_us_nation_20m",
                    layer = "cb_2016_us_nation_20m")
 
@@ -58,12 +65,8 @@ summarize_by_month <- function(file, mask_shp) {
 }
 
 # identify which files need to be processed
-daily_files <- list.files("data/raw/gridmet", pattern = "nc",
+daily_files <- list.files("bash", pattern = "nc",
                           recursive = TRUE, full.names = TRUE)
-
-system.time(res <- summarize_by_month(daily_files[[7]], usa_shp))
-
-res
 
 pb <- txtProgressBar(min = 1, max = length(daily_files), style = 3)
 for (i in seq_along(daily_files)) {
