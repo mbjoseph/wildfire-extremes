@@ -1,9 +1,10 @@
-#!/bin/bash 
+#!/bin/bash
 
 # download the data from remote server
 source metdata_wget.sh
 
 # execute R script to produce monthly GeoTIFFs
+Rscript --vanilla R/aggregate-climate-data.R
 
 # push GeoTIFFS to AWS S3
 
