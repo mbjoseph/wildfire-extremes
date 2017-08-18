@@ -30,7 +30,8 @@ summarize_by_month <- function(file, mask_shp) {
                    replacement = paste0("monthly_",
                                         basename(file))) %>%
     gsub(pattern = ".nc", replacement = ".tif")
-  if (file.exists(out_name)) {
+  if (basename(out_name) %in% list.files(pattern = basename(out_name),
+                                         recursive = TRUE)) {
     return(paste("File", out_name, "already exists"))
   }
   if (as.numeric(year) < 1983) {
@@ -65,7 +66,7 @@ summarize_by_month <- function(file, mask_shp) {
 }
 
 # identify which files need to be processed
-daily_files <- list.files("bash", pattern = "nc",
+daily_files <- list.files(".", pattern = "nc",
                           recursive = TRUE, full.names = TRUE)
 
 pb <- txtProgressBar(min = 1, max = length(daily_files), style = 3)
@@ -74,3 +75,23 @@ for (i in seq_along(daily_files)) {
   setTxtProgressBar(pb, i)
 }
 close(pb)
+
+
+## move files to proper directories -------------------------------------------
+tifs_in_home_dir <- list.files(pattern = ".tif") %>%
+  tibble(filename = .) %>%
+  separate(filename, into = c("time_interval", "variable", "year"), sep = "_") %>%
+  mutate(current_name = paste(time_interval, variable, year, sep = "_"))
+
+variables <- distinct(tifs_in_home_dir, variable) %>%
+  unlist()
+
+# create dirs for each variable
+dirs_to_make <- file.path("data", "processed", variables)
+sapply(dirs_to_make, dir.create)
+
+# move each tif file to the proper location
+tifs_in_home_dir %>%
+  mutate(dest_dir = file.path("data", "processed", variable),
+         dest_file = file.path(dest_dir, current_name)) %>%
+  do(file.rename(.$current_name, .$dest_file) %>% tibble)
