@@ -28,29 +28,10 @@ mtbs_prefix <- file.path(raw_prefix, "mtbs_fod_pts_data")
 mtbs_shp <- file.path(mtbs_prefix, 'mtbs_fod_pts_20170501.shp')
 
 if (!file.exists(mtbs_shp)) {
-  loc <- "http://www.mtbs.gov/MTBS_Uploads/data/composite_data/fod_pt_shapefile/mtbs_fod_pts_data.zip"
+  loc <- "https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/fod_pt_shapefile/mtbs_fod_pts_data.zip"
   dest <- paste0(mtbs_prefix, ".zip")
   download.file(loc, dest)
   unzip(dest, exdir = mtbs_prefix)
   unlink(dest)
   assert_that(file.exists(mtbs_shp))
 }
-
-
-# Short fire data ---------------------------------------------------------
-
-short_prefix <- file.path(raw_prefix, "short_fire")
-short_sqlite <- file.path(short_prefix, "Data", "FPA_FOD_20150323.sqlite")
-
-if (!file.exists(short_sqlite)) {
-  loc <- "https://www.fs.usda.gov/rds/archive/products/RDS-2013-0009.3/RDS-2013-0009.3_SQLite.zip"
-  dest <- paste0(short_prefix, ".zip")
-  if (!dir.exists(short_prefix)) {
-    dir.create(short_prefix)
-  }
-  download.file(loc, dest, method = "wget")
-  unzip(dest, exdir = short_prefix)
-  unlink(dest)
-  assert_that(file.exists(short_sqlite))
-}
-
