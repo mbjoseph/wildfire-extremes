@@ -22,14 +22,18 @@ tifs <- list.files("data/processed",
                    full.names = TRUE)
 
 extract_one <- function(filename, ecoregion_shp) {
-  raster::extract(raster::stack(filename), ecoregion_shp,
-                  na.rm = TRUE, fun = mean, df = TRUE)
+  out_name <- gsub('.tif', '.csv', filename)
+  if (!file.exists(out_name)) {
+    res <- raster::extract(raster::stack(filename), ecoregion_shp,
+                    na.rm = TRUE, fun = mean, df = TRUE)
+    write.csv(res, file = out_name)
+  }
 }
 
-sfInit(parallel = TRUE, cpus = 40)
+sfInit(parallel = TRUE, cpus = parallel::detectCores())
 sfExport(list = c("ecoregion_shp"))
 
-extractions <- sfLapply(as.list(tifs),
+extractions <- sfLapply(as.list(tifs[1:4]),
                         fun = extract_one,
                         ecoregion_shp = ecoregion_shp)
 sfStop()
