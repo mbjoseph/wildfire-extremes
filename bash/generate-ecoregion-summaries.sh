@@ -13,3 +13,7 @@ Rscript --vanilla R/get-ecoregion-summaries.R
 
 # push tidy ecoregion summary file back to s3
 aws s3 cp data/processed/ecoregion_summaries.csv s3://earthlab-gridmet/ecoregion_summaries.csv
+
+
+# pull ecoregion data from s3
+#aws s3 cp s3://earthlab-gridmet/ecoregion_summaries.csv data/processed/ecoregion_summaries.csv
