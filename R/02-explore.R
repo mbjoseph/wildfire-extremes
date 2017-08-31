@@ -7,6 +7,7 @@ library(lubridate)
 library(rstan)
 library(ggrepel)
 library(cowplot)
+library(corrplot)
 
 source("R/01-clean_data.R")
 
@@ -15,17 +16,17 @@ source("R/01-clean_data.R")
 count_df %>%
   ggplot(aes(ym, n_fire)) +
   geom_line() +
-  facet_wrap(~US_L3NAME) +
+  facet_wrap(~NA_L3NAME) +
   scale_y_log10()
 
 # Visualize changes in maxima
 mtbs %>%
   tbl_df %>%
-  group_by(ym, US_L3NAME) %>%
+  group_by(ym, NA_L3NAME) %>%
   summarize(max = max(P_ACRES)) %>%
   ggplot(aes(ym, max)) +
   geom_point() +
-  facet_wrap(~ US_L3NAME)
+  facet_wrap(~ NA_L3NAME)
 
 
 
@@ -41,84 +42,64 @@ plot(raster(W), col = viridis(10))
 ecoregion_df <- as(ecoregions, "Spatial") %>%
   data.frame
 
-W_ag <- spdep::aggregate.nb(nb, IDs = ecoregion_df$US_L3NAME) %>%
+W_ag <- spdep::aggregate.nb(nb, IDs = ecoregion_df$NA_L3NAME) %>%
   nb2mat(zero.policy = TRUE, style = "B")
 plot(raster(W_ag), col = viridis(10))
 
 
-# load spatiotemporal covariates
-st_covs <- read_csv("data/processed/extracted_pet.csv") %>%
-  mutate(year = ifelse(is.na(year), 2000, year)) %>% # check this....
-  dplyr::select(-timestep) %>%
-  spread(var, mean_val) %>%
-  mutate(timestep = ymd(paste(year, month, "01", sep = "-")))
-
-
-st_covs %>%
-  ggplot(aes(timestep, pet, group = US_L3NAME)) +
+# visualize spatiotemporal covariates
+ecoregion_summaries %>%
+  gather(var, val, -NA_L3NAME, -year, -month, -ym) %>%
+  ggplot(aes(ym, val)) +
   geom_line() +
-  facet_wrap(~ US_L3NAME)
+  facet_wrap(~ var, scales = "free_y") +
+  scale_y_log10()
 
 
 
 
 
+er_df <- dplyr::select(data.frame(ecoregions), NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
+  as_tibble
 
-
-
-
-# End new implementation --------------------------------------------------
-
-
-
-
-
-# Create spatiotemporal covariate data frame
-st_cov_chunk <- coarse_rp %>%
-  as.data.frame(xy = TRUE) %>%
-  tbl_df %>%
-  mutate(pixel_idx = 1:n()) %>%
-  gather(variable, value, -x, -y, -pixel_idx) %>%
-  separate(variable, c("variable", "year"), sep = "_") %>%
-  arrange(pixel_idx, year, variable) %>%
-  filter(!is.na(value)) %>%
-  spread(variable, value) %>%
-  arrange(pixel_idx, year)
-
-st_covs <- st_cov_chunk %>%
+st_covs <- ecoregion_summaries %>%
   mutate(dim = 1) %>%
-  full_join(mutate(st_cov_chunk, dim = 2)) %>%
-  mutate(chuss = c(scale(huss)),
-         cprec = c(scale(pr)),
-         ctmax = c(scale(tasmax)),
-         ctmin = c(scale(tasmin)),
-         cwas = c(scale(was)),
-         year = parse_number(year),
-         dim = factor(dim))
+  full_join(mutate(ecoregion_summaries, dim = 2)) %>%
+  mutate(cpet = c(scale(pet)),
+         cpr = c(scale(pr)),
+         ctmx = c(scale(tmmx)),
+         cvs = c(scale(vs)),
+         dim = factor(dim),
+         timestep_factor = factor(ym)) %>%
+  left_join(er_df) %>%
+  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)")
 
+st_covs <- st_covs[!duplicated(st_covs), ]
+
+st_covs$id <- 1:nrow(st_covs)
 
 # Create design matrices for each timestep
+master_idx_df <- filter(st_covs, as.numeric(timestep_factor) == 0) # dummy (0 rows)
+n_timestep <- length(levels(st_covs$timestep_factor))
 
-st_covs <- st_covs %>%
-  mutate(year_idx = factor(year))
-
-master_idx_df <- filter(st_covs, as.numeric(year_idx) == 0)
-X <- array(dim = c(n_year, nrow(st_covs) / n_year, 7))
-for (i in 1:n_year) {
-  master_idx_df <- bind_rows(master_idx_df, filter(st_covs, as.numeric(year_idx) == i))
-  X[i, , ] <-  filter(st_covs, as.numeric(year_idx) == i) %>%
-    model.matrix(~ dim * chuss + cprec + ctmax + cwas, data = .)
+X <- array(dim = c(n_timestep, nrow(st_covs) / n_timestep, 8)) # last dimension is number of cols in design matrix
+for (i in 1:n_timestep) {
+  master_idx_df <- bind_rows(master_idx_df,
+                             filter(st_covs, as.numeric(timestep_factor) == i))
+  X[i, , ] <-  filter(st_covs, as.numeric(timestep_factor) == i) %>%
+    model.matrix(~ cpr * dim + ctmx * dim + cvs * dim,
+                 data = .)
 }
 
 # create block diagonal adjacency matrix
-A_t <- bdiag(replicate(2, list(W)))
+A_t <- bdiag(replicate(2, list(W_ag)))
 image(A_t)
 
 # compute multivariate basis vectors
 r <- 10 # number of basis vectors
 
-S_X <- array(dim = c(n_year, nrow(st_covs) / n_year, r))
-for (i in 1:n_year) {
+S_X <- array(dim = c(n_timestep, nrow(st_covs) / n_timestep, r))
+for (i in 1:n_timestep) {
   G <- (diag(nrow(X[1, , ])) -
           X[i, , ] %*% solve(t(X[i, , ]) %*% X[i, , ]) %*% t(X[i, , ])) %*%
     A_t %*%
@@ -131,46 +112,41 @@ for (i in 1:n_year) {
 
 # visualize multivariate basis functions
 G_unrolled <- S_X[1, , ]
-for (i in 2:n_year) G_unrolled = rbind(G_unrolled, S_X[i, , ])
+for (i in 2:n_timestep) G_unrolled = rbind(G_unrolled, S_X[i, , ])
 
-tbl_df(G_unrolled) %>%
-  mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
-         year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
-         dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
-         dim = factor(dim)) %>%
-  full_join(st_covs) %>%
-  dplyr::select(x, y, year, dim, starts_with("V")) %>%
-  gather(basis_dim, value, -x, -y, -year, -dim) %>%
-  filter(year == 1984) %>%
-  mutate(basis_dim = parse_number(basis_dim),
-         Dimension = ifelse(dim == 1, "# Fires", "Burn area"),
-         Basis_dim = paste("Basis", sprintf("%02s", basis_dim))) %>%
-  ggplot(aes(x, y, fill = value)) +
-  geom_tile() +
-  facet_wrap(Basis_dim ~ Dimension, ncol = 10) +
-  scale_fill_gradient2("Basis value") +
-  coord_equal() +
-  theme_dark() +
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank()) +
-  theme(panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  ggtitle("Sample of spatiotemporal basis functions")
-
-ggsave(filename = "fig/st-basis.pdf", width = 13, height = 8)
+# g_df <- tbl_df(G_unrolled) %>%
+#   mutate(id = 1:n()) %>%
+#   full_join(st_covs) %>%
+#   distinct(NA_L3NAME, year, month, dim, .keep_all = TRUE) %>%
+#   dplyr::select(NA_L3NAME, year, month, dim, starts_with("V"), -vs) %>%
+#   filter(year == 1983, month == 1) %>%
+#   dplyr::select(-year, -month) %>%
+#   gather(var, value, -NA_L3NAME, -dim)
+#
+# ecoregions %>%
+#   full_join(g_df) %>%
+#   ggplot(aes(fill = value)) +
+#   geom_sf() +
+#   facet_grid(dim ~ var) +
+#   scale_fill_gradient2()
+#
+# ggsave(filename = "fig/st-basis.pdf", width = 13, height = 8)
 
 # confirm that the basis functions are independent of the covariates
 tbl_df(G_unrolled) %>%
-  bind_cols(st_covs) %>%
-  dplyr::select(starts_with("V"), chuss, cprec, ctmax, cwas) %>%
+  mutate(id = 1:n()) %>%
+  full_join(st_covs) %>%
+  dplyr::select(starts_with("V",
+                            ignore.case = FALSE),
+                starts_with("c"),
+                -cpet) %>%
   cor %>%
-  image
+  corrplot
 
 # construct the propagator matrix
-Bt <- array(dim = c(r, dim(X)[3] + r, n_year))
-Mt <- array(dim = c(n_year, r, r))
-for (i in 1:n_year) {
+Bt <- array(dim = c(r, dim(X)[3] + r, n_timestep))
+Mt <- array(dim = c(n_timestep, r, r))
+for (i in 1:n_timestep) {
   Bt[, , i] <- cbind(t(S_X[i, , ]) %*% X[i, , ], diag(r))
   G_B <- (diag(r) -
             Bt[, , i] %*% MASS::ginv(t(Bt[, , i]) %*% Bt[, , i]) %*% t(Bt[, , i])) %*%
@@ -185,13 +161,13 @@ for (i in 1:n_year) {
 
 
 # simulate basis function coefficients
-eta <- matrix(nrow = n_year, ncol = r)
+eta <- matrix(nrow = n_timestep, ncol = r)
 R_eta <- rcorrmatrix(r, alphad = 1)
 LR_eta <- t(chol(R_eta))
 sigma_eta <- 1
 sigma_0 <- 2
 eta[1, ] <- sigma_0 * c(LR_eta %*% rnorm(r))
-for (i in 2:n_year) {
+for (i in 2:n_timestep) {
   eta[i, ] <- Mt[i, , ] %*% eta[i - 1, ] + sigma_eta * c(LR_eta %*% rnorm(r))
 }
 
@@ -200,20 +176,19 @@ for (i in 2:n_year) {
 
 # process model
 sigma_y <- .1
-Y <- matrix(nrow = dim(X)[2], ncol = n_year)
-for (i in 1:n_year) {
+Y <- matrix(nrow = dim(X)[2], ncol = n_timestep)
+for (i in 1:n_timestep) {
   Y[, i] <- S_X[i, , ] %*% eta[i, ] + X[i, , ] %*% beta +
     rnorm(length(Y[, i]), sd = sigma_y)
 }
 
-
+# TODO: Fix this join!
 y_df <- Y %>%
   tbl_df %>%
-  gather(sim_year, z) %>%
-  mutate(pixel_idx = rep(rep(unique(st_covs$pixel_idx), times = 2), n_year),
-         year = rep(unique(st_covs$year), each = nrow(st_covs) / n_year),
-         dim = rep(rep(1:2, each = length(unique(st_covs$pixel_idx))), n_year),
-         dim = factor(dim)) %>%
+  gather(timestep, z) %>%
+  mutate(dim = rep(rep(1:2, each = length(unique(st_covs$NA_L3NAME))), n_timestep),
+         dim = factor(dim),
+         id = 1:n()) %>%
   full_join(st_covs)
 
 
@@ -307,7 +282,7 @@ for (i in seq_along(size_idx)) {
 
 
 stan_d <- list(n = length(unique(master_idx_df$pixel_idx)),
-               T = n_year,
+               T = n_timestep,
                L = 2,
                p = ncol(X[1, ,]),
                r = r,
@@ -426,19 +401,19 @@ post$mu %>%
 
 # get count data (number of fires in each ecoregion X year)
 data_summary <- d %>%
-  group_by(us_l3name, fire_year, fire_mon) %>%
+  group_by(na_l3name, fire_year, fire_mon) %>%
   summarize(n_fires = n()) %>%
   left_join(a_df) %>%
   full_join(all_ers) %>%
   ungroup() %>%
   dplyr::select(-area, -n_neighbors) %>%
-  complete(us_l3name, fire_year, fire_mon,
+  complete(na_l3name, fire_year, fire_mon,
            fill = list(n_fires = 0)) %>%
   full_join(all_ers) %>%
   mutate(cyear = c(scale(fire_year)),
          year = fire_year + 1 - min(fire_year),
-         freg = factor(us_l3name,
-                       levels = levels(factor(all_ers$us_l3name))),
+         freg = factor(na_l3name,
+                       levels = levels(factor(all_ers$na_l3name))),
          reg = as.numeric(freg),
          num_ym = as.numeric(factor(paste(fire_year,
                                           sprintf("%02d", fire_mon)))))
@@ -453,13 +428,13 @@ ymdf <- data_summary %>%
 
 # get fire size data
 fire_sizes <- d %>%
-  dplyr::select(us_l3name, fire_year, fire_mon, fire_size) %>%
+  dplyr::select(na_l3name, fire_year, fire_mon, fire_size) %>%
   mutate(cyear = c(scale(fire_year)),
-         freg = factor(us_l3name,
+         freg = factor(na_l3name,
                        levels = levels(data_summary$freg)),
          reg = as.numeric(freg),
          year = fire_year + 1 - min(fire_year)) %>%
-  arrange(us_l3name, fire_year, fire_mon) %>%
+  arrange(na_l3name, fire_year, fire_mon) %>%
   left_join(ymdf)
 
 
@@ -467,7 +442,7 @@ data_summary %>%
   ggplot(aes(as.numeric(fire_mon), n_fires / area, color = year)) +
   geom_path(alpha = .5) +
   scale_y_log10() +
-  facet_wrap(~ us_l3name) +
+  facet_wrap(~ na_l3name) +
   scale_color_viridis() +
   theme_minimal()
 ggsave("fig/explore/fire-density-seasonality.pdf")
@@ -476,7 +451,7 @@ fire_sizes %>%
   ggplot(aes(as.numeric(fire_mon), fire_size, color = year)) +
   geom_jitter(alpha = .5, width = .3, size = .6) +
   scale_y_log10() +
-  facet_wrap(~ us_l3name) +
+  facet_wrap(~ na_l3name) +
   scale_color_viridis() +
   theme_minimal()
 ggsave("fig/explore/fire-size-seasonality.pdf")
@@ -485,7 +460,7 @@ fire_sizes %>%
   ggplot(aes(ymd, fire_size, group = year)) +
   geom_point(alpha = .5) +
   scale_y_log10() +
-  facet_wrap(~ us_l3name) +
+  facet_wrap(~ na_l3name) +
   xlab("Year") +
   ylab("Fire size")
 ggsave("fig/explore/fire-size-ts.pdf")
@@ -496,7 +471,7 @@ data_summary %>%
   ggplot(aes(ymd, n_fires/area)) +
   geom_line(alpha = .5) +
   scale_y_log10() +
-  facet_wrap(~ us_l3name) +
+  facet_wrap(~ na_l3name) +
   xlab("Year") +
   ylab("Fire density")
 ggsave("fig/explore/fire-density-ts.pdf")
