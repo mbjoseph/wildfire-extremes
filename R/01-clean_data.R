@@ -56,7 +56,7 @@ stopifnot(0 == sum(is.na(count_df$NA_L3NAME)))
 stopifnot(sum(count_df$n_fire) == nrow(mtbs))
 
 # load covariate data and link to count data frame
-ecoregion_summaries <- read_csv('data/processed/ecoregion_summaries.csv',
+ecoregion_summaries <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gridmet/ecoregion_summaries.csv',
                                 col_types = cols(
                                   NA_L3NAME = col_character(),
                                   variable = col_character(),
@@ -73,3 +73,4 @@ ecoregion_summaries <- read_csv('data/processed/ecoregion_summaries.csv',
   filter(year < 2017)
 
 count_df <- left_join(count_df, ecoregion_summaries)
+
