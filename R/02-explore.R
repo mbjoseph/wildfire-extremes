@@ -8,7 +8,7 @@ library(rstan)
 library(ggrepel)
 library(cowplot)
 library(corrplot)
-
+library(sf)
 source("R/01-clean_data.R")
 
 
@@ -75,7 +75,6 @@ st_covs <- ecoregion_summaries %>%
   filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)")
 
 st_covs <- st_covs[!duplicated(st_covs), ]
-
 st_covs$id <- 1:nrow(st_covs)
 
 # Create design matrices for each timestep
@@ -164,15 +163,15 @@ for (i in 1:n_timestep) {
 eta <- matrix(nrow = n_timestep, ncol = r)
 R_eta <- rcorrmatrix(r, alphad = 1)
 LR_eta <- t(chol(R_eta))
-sigma_eta <- 1
-sigma_0 <- 2
+sigma_eta <- .2
+sigma_0 <- .5
 eta[1, ] <- sigma_0 * c(LR_eta %*% rnorm(r))
 for (i in 2:n_timestep) {
   eta[i, ] <- Mt[i, , ] %*% eta[i - 1, ] + sigma_eta * c(LR_eta %*% rnorm(r))
 }
 
 # simulate coef for fixed effects
-(beta <- c(-1, 3, rnorm(dim(X)[3] - 2, mean = 0, sd = .1)))
+(beta <- c(-5, 3, rnorm(dim(X)[3] - 2, mean = 0, sd = .01)))
 
 # process model
 sigma_y <- .1
@@ -182,36 +181,42 @@ for (i in 1:n_timestep) {
     rnorm(length(Y[, i]), sd = sigma_y)
 }
 
-# TODO: Fix this join!
 y_df <- Y %>%
   tbl_df %>%
   gather(timestep, z) %>%
-  mutate(dim = rep(rep(1:2, each = length(unique(st_covs$NA_L3NAME))), n_timestep),
+  mutate(z = 0.2 * z,
+         dim = rep(rep(1:2, each = length(unique(st_covs$NA_L3NAME))), n_timestep),
          dim = factor(dim),
-         id = 1:n()) %>%
-  full_join(st_covs)
+         id = 1:n(),
+         timestep = parse_number(timestep),
+         timestep_factor = levels(st_covs$timestep_factor)[timestep]) %>%
+  bind_cols(dplyr::select(master_idx_df, - dim))
 
 
 
 # visualize latent process
-y_df %>%
-  ggplot(aes(x, y, fill = z)) +
-  geom_tile() +
-  facet_grid(dim ~ year) +
-  scale_fill_viridis() +
-  coord_equal() +
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank()) +
-  ggtitle("Simulated spatiotemporal process")
-ggsave(filename = "fig/us-process-sim.pdf", width = 24, height = 5)
+simple_ecoregions <- ecoregions %>%
+  as('Spatial') %>%
+  ms_simplify(keep = 0.01) %>%
+  as('sf')
+
+
+simple_ecoregions %>%
+  full_join(y_df) %>%
+  filter(timestep < 3) %>%
+  ggplot(aes(fill = z)) +
+  geom_sf() +
+  facet_wrap(dim ~ timestep_factor) +
+  scale_fill_gradient2()
+ggsave(filename = "fig/us-process-sim.pdf", width = 16, height = 14)
 
 
 y_df %>%
-  ggplot(aes(year, z, group = pixel_idx)) +
+  ggplot(aes(timestep, z, group = NA_L3NAME)) +
   geom_line(alpha = .1) +
   theme_minimal() +
   facet_wrap(~dim)
+
 
 # Simulate number of fires in each pixelXyear
 n_fire_sims <- y_df %>%
@@ -224,7 +229,8 @@ n_fire_sims %>%
 
 n_fire_sims %>%
   ggplot(aes(n_fire)) +
-  geom_histogram()
+  geom_histogram() +
+  scale_x_log10()
 
 n_fire_sims %>%
   ggplot(aes(exp(z))) +
@@ -234,11 +240,18 @@ n_fire_sims %>%
 n_fires <- sum(n_fire_sims$n_fire)
 
 
-fire_size_df <- tibble(pixel_idx = rep(n_fire_sims$pixel_idx, n_fire_sims$n_fire),
-                       year = rep(n_fire_sims$year, n_fire_sims$n_fire))
+
+fire_size_df <- tibble(NA_L3NAME = rep(n_fire_sims$NA_L3NAME,
+                                       n_fire_sims$n_fire),
+                       timestep_factor = rep(n_fire_sims$timestep_factor,
+                                  n_fire_sims$n_fire))
 fire_size_df <- y_df %>%
   filter(dim == 2) %>%
-  dplyr::select(pixel_idx, year, z, dim) %>%
+  dplyr::select(NA_L3NAME, timestep_factor, z) %>%
+  mutate(timestep_factor = factor(timestep_factor,
+                            levels = levels(master_idx_df$timestep_factor)
+  ),
+  timestep = as.numeric(timestep_factor)) %>%
   right_join(fire_size_df)
 
 stopifnot(nrow(fire_size_df) == n_fires)
@@ -253,35 +266,24 @@ fire_size_df %>%
   geom_abline(slope = 1, intercept = 0, linetype = "dashed")
 
 
-# evaluate bias in process based on observed vs. not observed fire sizes
-n_fire_sims %>%
-  dplyr::select(x, y, pixel_idx, year, n_fire) %>%
-  group_by(pixel_idx, year) %>%
-  summarize(any_fires = n_fire > 0) %>%
-  full_join(y_df) %>%
-  ggplot(aes(z, fill = any_fires)) +
-  geom_density(alpha = .2) +
-  facet_wrap(~dim)
-
-
-
 # Now find indices for each count and each fire size to match to mean matrix
 count_idx <- rep(NA, nrow(n_fire_sims))
 for (i in seq_along(count_idx)) {
-  count_idx[i] <- which(master_idx_df$pixel_idx == n_fire_sims$pixel_idx[i] &
-          master_idx_df$year == n_fire_sims$year[i] &
-          master_idx_df$dim == 1)
+  count_idx[i] <- which(
+    master_idx_df$NA_L3NAME == n_fire_sims$NA_L3NAME[i] &
+    master_idx_df$timestep_factor == n_fire_sims$timestep_factor[i] &
+    master_idx_df$dim == "1")
 }
 
 size_idx <- rep(NA, nrow(fire_size_df))
 for (i in seq_along(size_idx)) {
-  size_idx[i] <-  which(master_idx_df$pixel_idx == fire_size_df$pixel_idx[i] &
-                          master_idx_df$year == fire_size_df$year[i] &
-                          master_idx_df$dim == 2)
+  size_idx[i] <-  which(master_idx_df$NA_L3NAME == fire_size_df$NA_L3NAME[i] &
+                          master_idx_df$timestep_factor == fire_size_df$timestep_factor[i] &
+                          master_idx_df$dim == "2")
 }
 
 
-stan_d <- list(n = length(unique(master_idx_df$pixel_idx)),
+stan_d <- list(n = length(unique(master_idx_df$NA_L3NAME)),
                T = n_timestep,
                L = 2,
                p = ncol(X[1, ,]),
@@ -309,14 +311,14 @@ post <- rstan::extract(m_fit)
 
 # Evaluate recovery of spatiotemporal basis coefficients
 eta_df <- eta %>%
-  reshape2::melt(varnames = c("year", "basis_dim"),
+  reshape2::melt(varnames = c("timestep_factor", "basis_dim"),
                  value.name = "true_eta")
 
 
 post$eta %>%
-  reshape2::melt(varnames = c("iter", "basis_dim", "year")) %>%
+  reshape2::melt(varnames = c("iter", "basis_dim", "timestep_factor")) %>%
   tbl_df %>%
-  group_by(basis_dim, year) %>%
+  group_by(basis_dim, timestep_factor) %>%
   summarize(med = median(value),
             lo = quantile(value, .025),
             hi = quantile(value, .975)) %>%
@@ -352,126 +354,19 @@ post$beta %>%
 
 post$mu %>%
   reshape2::melt(varnames = c("iter", "idx")) %>%
-  mutate(pixel_idx = master_idx_df$pixel_idx[idx],
-         year = master_idx_df$year[idx],
+  mutate(NA_L3NAME = master_idx_df$NA_L3NAME[idx],
+         timestep_factor = master_idx_df$timestep_factor[idx],
          dim = master_idx_df$dim[idx]) %>%
   full_join(y_df) %>%
   tbl_df %>%
-  group_by(pixel_idx, year, dim) %>%
+  group_by(NA_L3NAME, timestep_factor, dim) %>%
   summarize(med = median(value),
             lo = quantile(value, .025),
             hi = quantile(value, .975),
             true = unique(z)) %>%
   ggplot(aes(true, med)) +
   geom_segment(aes(xend = true, y = lo, yend = hi)) +
-  facet_grid(dim ~ year) +
+  facet_grid(dim ~ timestep_factor) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed")
 
 
-
-
-
-# Visualize number of neighbors --------------------------------------
-# theme_map <- theme(axis.line = element_blank(),
-#                    axis.text.x = element_blank(),
-#                    axis.text.y = element_blank(),
-#                    axis.ticks = element_blank(),
-#                    axis.title.x = element_blank(),
-#                    axis.title.y = element_blank(),
-#                    panel.background = element_blank(),
-#                    panel.border = element_blank(),
-#                    panel.grid.major = element_blank(),
-#                    panel.grid.minor = element_blank(),
-#                    plot.background = element_blank())
-
-# ggplot(er_df, aes(long, lat, group = group)) +
-#   geom_polygon(aes(fill = n_neighbors), color = NA) +
-#   coord_equal() +
-#   scale_fill_viridis() +
-#   theme_map
-#
-#
-# # Visualize the fire density in each ecoregion ----------------------------
-# ggplot(er_df, aes(long, lat, group = group)) +
-#   geom_polygon(aes(fill = log_fire_density), color = NA) +
-#   coord_equal() +
-#   labs(x = "Longitude", y = "Latitude") +
-#   scale_fill_viridis("log(Fire density)") +
-#   theme_map
-
-# get count data (number of fires in each ecoregion X year)
-data_summary <- d %>%
-  group_by(na_l3name, fire_year, fire_mon) %>%
-  summarize(n_fires = n()) %>%
-  left_join(a_df) %>%
-  full_join(all_ers) %>%
-  ungroup() %>%
-  dplyr::select(-area, -n_neighbors) %>%
-  complete(na_l3name, fire_year, fire_mon,
-           fill = list(n_fires = 0)) %>%
-  full_join(all_ers) %>%
-  mutate(cyear = c(scale(fire_year)),
-         year = fire_year + 1 - min(fire_year),
-         freg = factor(na_l3name,
-                       levels = levels(factor(all_ers$na_l3name))),
-         reg = as.numeric(freg),
-         num_ym = as.numeric(factor(paste(fire_year,
-                                          sprintf("%02d", fire_mon)))))
-
-ymdf <- data_summary %>%
-  distinct(fire_year, fire_mon, num_ym) %>%
-  mutate(ymd = ymd(paste(fire_year,
-                         sprintf("%02d", fire_mon),
-                         sprintf("%02d", 1),
-                         sep = "-")))
-
-
-# get fire size data
-fire_sizes <- d %>%
-  dplyr::select(na_l3name, fire_year, fire_mon, fire_size) %>%
-  mutate(cyear = c(scale(fire_year)),
-         freg = factor(na_l3name,
-                       levels = levels(data_summary$freg)),
-         reg = as.numeric(freg),
-         year = fire_year + 1 - min(fire_year)) %>%
-  arrange(na_l3name, fire_year, fire_mon) %>%
-  left_join(ymdf)
-
-
-data_summary %>%
-  ggplot(aes(as.numeric(fire_mon), n_fires / area, color = year)) +
-  geom_path(alpha = .5) +
-  scale_y_log10() +
-  facet_wrap(~ na_l3name) +
-  scale_color_viridis() +
-  theme_minimal()
-ggsave("fig/explore/fire-density-seasonality.pdf")
-
-fire_sizes %>%
-  ggplot(aes(as.numeric(fire_mon), fire_size, color = year)) +
-  geom_jitter(alpha = .5, width = .3, size = .6) +
-  scale_y_log10() +
-  facet_wrap(~ na_l3name) +
-  scale_color_viridis() +
-  theme_minimal()
-ggsave("fig/explore/fire-size-seasonality.pdf")
-
-fire_sizes %>%
-  ggplot(aes(ymd, fire_size, group = year)) +
-  geom_point(alpha = .5) +
-  scale_y_log10() +
-  facet_wrap(~ na_l3name) +
-  xlab("Year") +
-  ylab("Fire size")
-ggsave("fig/explore/fire-size-ts.pdf")
-
-
-data_summary %>%
-  left_join(ymdf) %>%
-  ggplot(aes(ymd, n_fires/area)) +
-  geom_line(alpha = .5) +
-  scale_y_log10() +
-  facet_wrap(~ na_l3name) +
-  xlab("Year") +
-  ylab("Fire density")
-ggsave("fig/explore/fire-density-ts.pdf")
