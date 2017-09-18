@@ -169,6 +169,10 @@ post <- rstan::extract(m_fit)
 
 str(post)
 
+
+
+# Visualize some predictions ----------------------------------------------
+
 st_covs_small$row <- 1:nrow(st_covs_small)
 
 mu_df <- post$mu %>%
@@ -182,11 +186,45 @@ mu_df <- post$mu %>%
   full_join(st_covs_small)
 
 mu_df %>%
-  filter(dim == 1, NA_L3NAME == 'Southern Rockies') %>%
-  ggplot(aes(ym, med)) +
-  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = .5, fill = 'dodgerblue') +
+  filter(dim == 1, NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
+  ggplot(aes(ym, exp(med))) +
+  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
+              alpha = .5, fill = 'dodgerblue') +
   geom_line() +
+  facet_wrap(~ NA_L3NAME) +
+  xlab('Date') +
+  ylab("Expected fire density (area-adjusted)") +
+  ggtitle('Model predictions for northwestern forested mountains')
+ggsave(filename = 'fig/fire-density-nw-forested-mtns.pdf')
+
+mu_df %>%
+  filter(dim == 1, NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
+  ggplot(aes(ym, exp(med))) +
+  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
+              alpha = .5, fill = 'dodgerblue') +
+  geom_line() +
+  facet_wrap(~ NA_L3NAME) +
+  xlab('Date') +
+  ylab("Expected fire density (area-adjusted)") +
+  ggtitle('Model predictions for eastern temperate forests')
+ggsave(filename = 'fig/fire-density-eastern-temperate-forests.pdf')
+
+# compare predictions to actual values
+mu_df %>%
+  filter(dim == 1, NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
+  left_join(count_df) %>%
+  ggplot(aes(x = n_fire, y = exp(med + log(area * 1e-10)))) +
+  geom_segment(aes(xend = n_fire,
+                   y = exp(lo + log(area * 1e-10)),
+                   yend = exp(hi + log(area * 1e-10)))) +
+  geom_point() +
+  coord_equal() +
+  geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
   facet_wrap(~ NA_L3NAME)
+
+
+
+
 
 mu_df %>%
   filter(dim == 1) %>%
@@ -198,11 +236,13 @@ mu_df %>%
   geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Total precipitation') +
-  ylab("Expected number of fires")
+  ylab("Expected fire density (area-adjusted)") +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-density-precip.pdf', width = 20, height = 15)
 
 mu_df %>%
   filter(dim == 1) %>%
-  ggplot(aes(pr, med)) +
+  ggplot(aes(tmmx, med)) +
   geom_segment(aes(xend = tmmx,
                    y = lo,
                    yend = hi),
@@ -210,7 +250,9 @@ mu_df %>%
   geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Mean daily maximum air temperature') +
-  ylab("Expected number of fires")
+  ylab("Expected fire density (area-adjusted)") +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-density-tmmx.pdf', width = 20, height = 15)
 
 
 mu_df %>%
@@ -223,7 +265,9 @@ mu_df %>%
   geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Mean daily wind speed') +
-  ylab("Expected number of fires")
+  ylab("Expected fire density (area-adjusted)") +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-density-wind-speed.pdf', width = 20, height = 15)
 
 
 
@@ -237,7 +281,12 @@ mu_df %>%
   geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Mean daily potential evapotranspiration') +
-  ylab("Expected number of fires")
+  ylab("Expected fire density (area-adjusted)") +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-density-pet.pdf', width = 20, height = 15)
+
+
+
 
 
 mu_df %>%
@@ -250,46 +299,59 @@ mu_df %>%
   geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Total precipitation') +
-  ylab("Expected fire size (log burn area)")
+  ylab("Expected fire size (burn area)") +
+  scale_y_log10() +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-size-precip.pdf', width = 20, height = 15)
 
 mu_df %>%
   filter(dim == 2) %>%
-  ggplot(aes(tmmx, med)) +
+  ggplot(aes(tmmx, exp(med))) +
   geom_segment(aes(xend = tmmx,
-                   y = lo,
-                   yend = hi),
+                   y = exp(lo),
+                   yend = exp(hi)),
                alpha = .5) +
   geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Mean daily maximum air temperature') +
-  ylab("Expected fire size (log burn area)")
+  ylab("Expected fire size (burn area)") +
+  scale_y_log10() +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-size-tmmx.pdf', width = 20, height = 15)
 
 
 mu_df %>%
   filter(dim == 2) %>%
-  ggplot(aes(vs, med)) +
+  ggplot(aes(vs, exp(med))) +
   geom_segment(aes(xend = vs,
-                   y = lo,
-                   yend = hi),
+                   y = exp(lo),
+                   yend = exp(hi)),
                alpha = .5) +
   geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Mean daily wind speed') +
-  ylab("Expected fire size (log burn area)")
+  ylab("Expected fire size (burn area)") +
+  scale_y_log10() +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-size-wind-speed.pdf', width = 20, height = 15)
+
 
 
 
 mu_df %>%
   filter(dim == 2) %>%
-  ggplot(aes(pet, med)) +
+  ggplot(aes(pet, exp(med))) +
   geom_segment(aes(xend = pet,
-                   y = lo,
-                   yend = hi),
+                   y = exp(lo),
+                   yend = exp(hi)),
                alpha = .5) +
   geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Mean daily potential evapotranspiration') +
-  ylab("Expected fire size (log burn area)")
+  ylab("Expected fire size (burn area)") +
+  scale_y_log10() +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-size-pet.pdf', width = 20, height = 15)
 
 
 
