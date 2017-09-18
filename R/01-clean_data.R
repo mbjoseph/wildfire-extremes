@@ -1,13 +1,11 @@
 library(tidyverse)
 library(rgdal)
 library(maptools)
-library(ggmap)
 library(foreign)
 library(purrr)
 library(rasterVis)
 library(clusterGeneration)
 library(sf)
-library(rmapshaper)
 library(zoo)
 
 source("R/fetch-fire-data.R")
