@@ -31,8 +31,12 @@ mtbs %>%
 
 
 # Create spatial neighbors ------------------------------------------------
-nb <- as(ecoregions, "Spatial") %>%
-  poly2nb
+if (!file.exists('nb.rds')) {
+  nb <- as(ecoregions, "Spatial") %>%
+    poly2nb
+  write_rds(nb, path = 'nb.rds')
+}
+nb <- read_rds('nb.rds')
 W <- nb %>%
   nb2mat(zero.policy = TRUE, style = 'B')
 plot(raster(W), col = viridis(10))
@@ -84,84 +88,101 @@ st_covs <- ecoregion_summaries %>%
 st_covs <- st_covs[!duplicated(st_covs), ]
 st_covs$id <- 1:nrow(st_covs)
 
-# create big sparse design matrix
-X <- model.matrix(~ cpr * dim * NA_L2NAME +
-                    ctmx * dim * NA_L2NAME +
-                    cvs * dim * NA_L2NAME +
-                    cyear * dim * NA_L2NAME,
-                  data = st_covs)
+# Create training sets, including years 1984 - 2004
+cutoff_year <- 2010
 
-N <- length(unique(count_df$NA_L3NAME))
-T <- length(unique(count_df$ym))
+train_counts <- count_df %>%
+  filter(year < cutoff_year) %>%
+  left_join(filter(st_covs, dim == 1))
 
-# match counts to rows in the design matrix
-assert_that(nrow(count_df) == N * T)
-count_idx <- rep(NA, N * T)
-for (i in 1:nrow(count_df)) {
-  count_idx[i] <- which(st_covs$NA_L3NAME == count_df$NA_L3NAME[i] &
-          st_covs$ym == count_df$ym[i] &
-            st_covs$dim == 1)
+train_burns <- mtbs %>%
+  filter(FIRE_YEAR < cutoff_year) %>%
+  left_join(filter(st_covs, dim == 2))
+
+N <- length(unique(train_counts$NA_L3NAME))
+T <- length(unique(train_counts$ym))
+
+
+# Create design matrices --------------------------------------------------
+make_X <- function(df) {
+  model.matrix(~ 0 +
+                 cpr * NA_L3NAME +
+                 ctmx * NA_L3NAME +
+                 cvs * NA_L3NAME +
+                 cyear * NA_L3NAME +
+                 cpr * NA_L2NAME +
+                 ctmx * NA_L2NAME +
+                 cvs * NA_L2NAME +
+                 cyear * NA_L2NAME +
+                 cpr * NA_L1NAME +
+                 ctmx * NA_L1NAME +
+                 cvs * NA_L1NAME +
+                 cyear * NA_L1NAME,
+               data = df)
 }
 
-# match fire events to rows in design matrix
-size_idx <- rep(NA, nrow(mtbs))
-for (i in 1:nrow(mtbs)) {
-  size_idx[i] <- which(st_covs$NA_L3NAME == mtbs$NA_L3NAME[i] &
-                         st_covs$ym == mtbs$ym[i] &
-                         st_covs$dim == 2)
-}
+Xc <- make_X(train_counts)
+sparse_Xc <- extract_sparse_parts(Xc)
+
+# need to ensure that all ecoregions show up here
+X <- make_X(train_burns)
+sparse_X <- extract_sparse_parts(X)
 
 
 
-# Reduce size of X to only needed cases ----------------------------------
-needed_rows <- sort(unique(c(count_idx, size_idx)))
-X_small <- X[needed_rows, ]
-st_covs_small <- st_covs[needed_rows, ]
-
-for (i in 1:nrow(count_df)) {
-  count_idx[i] <- which(st_covs_small$NA_L3NAME == count_df$NA_L3NAME[i] &
-                          st_covs_small$ym == count_df$ym[i] &
-                          st_covs_small$dim == 1)
-}
-
-for (i in 1:nrow(mtbs)) {
-  size_idx[i] <- which(st_covs_small$NA_L3NAME == mtbs$NA_L3NAME[i] &
-                         st_covs_small$ym == mtbs$ym[i] &
-                         st_covs_small$dim == 2)
-}
-
-sparse_parts <- extract_sparse_parts(X_small)
+# note that there are columns in Xc that are not in X
+colnames(Xc)[!(colnames(Xc) %in% colnames(X))]
 
 stan_d <- list(
   N = N,
   T = T,
   L = 2,
   p = ncol(X),
-  nrowX = nrow(X_small),
-  n_w = length(sparse_parts$w),
-  w = sparse_parts$w,
-  v = sparse_parts$v,
-  u = sparse_parts$u,
-  counts = count_df$n_fire,
-  count_idx = count_idx,
-  n_fire = nrow(mtbs),
-  sizes = log(mtbs$R_ACRES),
-  size_idx = size_idx,
-  region = as.numeric(as.factor(count_df$NA_L3NAME)),
-  log_area = log(count_df$area * 1e-10)
+  p_c = ncol(Xc),
+
+  n_w = length(sparse_X$w),
+  w = sparse_X$w,
+  v = sparse_X$v,
+  u = sparse_X$u,
+
+  n_wc = length(sparse_Xc$w),
+  wc = sparse_Xc$w,
+  vc = sparse_Xc$v,
+  uc = sparse_Xc$u,
+
+  counts = train_counts$n_fire,
+  n_fire = nrow(train_burns),
+  sizes = log(train_burns$R_ACRES - 1e3),
+  log_area = log(train_counts$area * 1e-10)
 )
 
 m_init <- stan_model('stan/st-basis.stan')
 m_fit <- sampling(m_init,
                   data = stan_d,
-                  pars = c('beta', 'tau', 'sigma_size', 'mu'),
+                  pars = c('beta', 'tau', 'sigma_size',
+                           'mu', 'mu_counts',
+                           'sigma_eps',
+                           'beta_c', 'tau_c',
+                           'alpha',
+                           'c_sq'),
                   cores = 4,
-                  init_r = .1)
+                  init_r = .05,
+                  iter = 500,
+                  control = list(adapt_delta = 0.99,
+                                 max_treedepth = 12))
 
-traceplot(m_fit)
+traceplot(m_fit,
+          inc_warmup = TRUE)
 
 
-traceplot(m_fit, pars = c('tau', 'sigma_size'))
+traceplot(m_fit, pars = c('tau', 'sigma_size', 'sigma_eps', 'tau_c'))
+
+plot(m_fit, pars = 'beta') +
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  coord_flip()
+plot(m_fit, pars = 'beta_c') +
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  coord_flip()
 
 
 post <- rstan::extract(m_fit)
@@ -173,8 +194,8 @@ str(post)
 
 # Visualize some predictions ----------------------------------------------
 
-st_covs_small$row <- 1:nrow(st_covs_small)
-
+# burn areas
+train_burns$row <- 1:nrow(train_burns)
 mu_df <- post$mu %>%
   reshape2::melt(varnames = c('iter', 'row')) %>%
   tbl_df %>%
@@ -183,114 +204,39 @@ mu_df <- post$mu %>%
             lo = quantile(value, 0.025),
             hi = quantile(value, .975)) %>%
   ungroup %>%
-  full_join(st_covs_small)
+  full_join(train_burns)
 
+# changes over time
 mu_df %>%
-  filter(dim == 1, NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
   ggplot(aes(ym, exp(med))) +
   geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
               alpha = .5, fill = 'dodgerblue') +
   geom_line() +
   facet_wrap(~ NA_L3NAME) +
   xlab('Date') +
-  ylab("Expected fire density (area-adjusted)") +
-  ggtitle('Model predictions for northwestern forested mountains')
-ggsave(filename = 'fig/fire-density-nw-forested-mtns.pdf')
+  ylab("Expected fire size") +
+  scale_y_log10()
 
+# true vs. predicted means
 mu_df %>%
-  filter(dim == 1, NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
-  ggplot(aes(ym, exp(med))) +
-  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
-              alpha = .5, fill = 'dodgerblue') +
-  geom_line() +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Date') +
-  ylab("Expected fire density (area-adjusted)") +
-  ggtitle('Model predictions for eastern temperate forests')
-ggsave(filename = 'fig/fire-density-eastern-temperate-forests.pdf')
-
-# compare predictions to actual values
-mu_df %>%
-  filter(dim == 1, NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
-  left_join(count_df) %>%
-  ggplot(aes(x = n_fire, y = exp(med + log(area * 1e-10)))) +
-  geom_segment(aes(xend = n_fire,
-                   y = exp(lo + log(area * 1e-10)),
-                   yend = exp(hi + log(area * 1e-10)))) +
-  geom_point() +
-  coord_equal() +
+  group_by(NA_L3NAME, ym) %>%
+  summarize(emp_mean = mean(log(R_ACRES - 1e3)),
+            med = unique(med),
+            lo = unique(lo),
+            hi = unique(hi)) %>%
+  ggplot(aes(emp_mean, med)) +
+  geom_point(size = .2, alpha = .2) +
+  geom_segment(aes(xend = emp_mean,
+                   y = lo, yend = hi), alpha = .2) +
   geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
-  facet_wrap(~ NA_L3NAME)
-
-
-
-
-
-mu_df %>%
-  filter(dim == 1) %>%
-  ggplot(aes(pr, med)) +
-  geom_segment(aes(xend = pr,
-                   y = lo,
-                   yend = hi),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
   facet_wrap(~ NA_L3NAME) +
-  xlab('Total precipitation') +
-  ylab("Expected fire density (area-adjusted)") +
-  theme(strip.text = element_text(size=9))
-ggsave(filename = 'fig/fire-density-precip.pdf', width = 20, height = 15)
+  xlab('True mean fire size') +
+  ylab("Expected fire size")
 
-mu_df %>%
-  filter(dim == 1) %>%
-  ggplot(aes(tmmx, med)) +
-  geom_segment(aes(xend = tmmx,
-                   y = lo,
-                   yend = hi),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily maximum air temperature') +
-  ylab("Expected fire density (area-adjusted)") +
-  theme(strip.text = element_text(size=9))
-ggsave(filename = 'fig/fire-density-tmmx.pdf', width = 20, height = 15)
+# is there an association with log(lambda) that we can exploit?
 
 
 mu_df %>%
-  filter(dim == 1) %>%
-  ggplot(aes(vs, med)) +
-  geom_segment(aes(xend = vs,
-                   y = lo,
-                   yend = hi),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily wind speed') +
-  ylab("Expected fire density (area-adjusted)") +
-  theme(strip.text = element_text(size=9))
-ggsave(filename = 'fig/fire-density-wind-speed.pdf', width = 20, height = 15)
-
-
-
-mu_df %>%
-  filter(dim == 1) %>%
-  ggplot(aes(pet, med)) +
-  geom_segment(aes(xend = pet,
-                   y = lo,
-                   yend = hi),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily potential evapotranspiration') +
-  ylab("Expected fire density (area-adjusted)") +
-  theme(strip.text = element_text(size=9))
-ggsave(filename = 'fig/fire-density-pet.pdf', width = 20, height = 15)
-
-
-
-
-
-mu_df %>%
-  filter(dim == 2) %>%
   ggplot(aes(pr, exp(med))) +
   geom_segment(aes(xend = pr,
                    y = exp(lo),
@@ -305,7 +251,6 @@ mu_df %>%
 ggsave(filename = 'fig/fire-size-precip.pdf', width = 20, height = 15)
 
 mu_df %>%
-  filter(dim == 2) %>%
   ggplot(aes(tmmx, exp(med))) +
   geom_segment(aes(xend = tmmx,
                    y = exp(lo),
@@ -321,7 +266,6 @@ ggsave(filename = 'fig/fire-size-tmmx.pdf', width = 20, height = 15)
 
 
 mu_df %>%
-  filter(dim == 2) %>%
   ggplot(aes(vs, exp(med))) +
   geom_segment(aes(xend = vs,
                    y = exp(lo),
@@ -336,10 +280,7 @@ mu_df %>%
 ggsave(filename = 'fig/fire-size-wind-speed.pdf', width = 20, height = 15)
 
 
-
-
 mu_df %>%
-  filter(dim == 2) %>%
   ggplot(aes(pet, exp(med))) +
   geom_segment(aes(xend = pet,
                    y = exp(lo),
@@ -355,3 +296,120 @@ ggsave(filename = 'fig/fire-size-pet.pdf', width = 20, height = 15)
 
 
 
+train_counts$row_c <- 1:nrow(train_counts)
+c_df <- post$mu_counts %>%
+  reshape2::melt(varnames = c('iter', 'row_c')) %>%
+  tbl_df %>%
+  group_by(row_c) %>%
+  summarize(med_c = median(value),
+            lo_c = quantile(value, 0.025),
+            hi_c = quantile(value, .975)) %>%
+  ungroup %>%
+  full_join(train_counts)
+
+
+c_df %>%
+  filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
+  ggplot(aes(x=ym, y = med_c)) +
+  geom_ribbon(aes(ymin = lo_c, ymax = hi_c),
+              alpha = .5, fill = 'red', col = NA) +
+  geom_line() +
+  facet_wrap(~NA_L3NAME)
+
+c_df %>%
+  filter(NA_L1NAME == 'GREAT PLAINS') %>%
+  ggplot(aes(x=ym, y = med_c)) +
+  geom_ribbon(aes(ymin = lo_c, ymax = hi_c),
+              alpha = .5, fill = 'red', col = NA) +
+  geom_line() +
+  facet_wrap(~NA_L3NAME)
+
+
+c_df %>%
+  filter(NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
+  ggplot(aes(x=ym, y = med_c)) +
+  geom_ribbon(aes(ymin = lo_c, ymax = hi_c),
+              alpha = .5, fill = 'red', col = NA) +
+  geom_line() +
+  facet_wrap(~NA_L3NAME)
+
+
+c_df %>%
+  ggplot(aes(pr, exp(med_c))) +
+  geom_segment(aes(xend = pr,
+                   y = exp(lo_c),
+                   yend = exp(hi_c)),
+               alpha = .5) +
+  geom_point(shape = 1, alpha = .5, size = .1) +
+  facet_wrap(~ NA_L3NAME) +
+  xlab('Total precipitation') +
+  ylab("Expected # fires") +
+  scale_y_log10() +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-num-precip.pdf', width = 20, height = 15)
+
+c_df %>%
+  ggplot(aes(tmmx, exp(med_c))) +
+  geom_segment(aes(xend = tmmx,
+                   y = exp(lo_c),
+                   yend = exp(hi_c)),
+               alpha = .5) +
+  geom_point(shape = 1, alpha = .5, size = .1) +
+  facet_wrap(~ NA_L3NAME) +
+  xlab('Mean daily maximum air temperature') +
+  ylab("Expected # fires") +
+  scale_y_log10() +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-num-tmmx.pdf', width = 20, height = 15)
+
+
+c_df %>%
+  ggplot(aes(vs, exp(med_c))) +
+  geom_segment(aes(xend = vs,
+                   y = exp(lo_c),
+                   yend = exp(hi_c)),
+               alpha = .5) +
+  geom_point(shape = 1, alpha = .5, size = .1) +
+  facet_wrap(~ NA_L3NAME) +
+  xlab('Mean daily wind speed') +
+  ylab("Expected # fires") +
+  scale_y_log10() +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-num-wind-speed.pdf', width = 20, height = 15)
+
+
+c_df %>%
+  ggplot(aes(pet, exp(med_c))) +
+  geom_segment(aes(xend = pet,
+                   y = exp(lo_c),
+                   yend = exp(hi_c)),
+               alpha = .5) +
+  geom_point(shape = 1, alpha = .5, size = .1) +
+  facet_wrap(~ NA_L3NAME) +
+  xlab('Mean daily potential evapotranspiration') +
+  ylab("Expected # fires") +
+  scale_y_log10() +
+  theme(strip.text = element_text(size=9))
+ggsave(filename = 'fig/fire-num-pet.pdf', width = 20, height = 15)
+
+
+c_df %>%
+  ggplot(aes(x = n_fire, y = exp(med_c))) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
+  geom_segment(aes(xend = n_fire, y = exp(lo_c), yend = exp(hi_c)))
+
+
+
+
+mu_df %>%
+  left_join(dplyr::select(c_df, NA_L3NAME, ym, med_c, lo_c, hi_c)) %>%
+  ggplot(aes(x = med_c, y = med)) +
+  geom_point() +
+  facet_wrap(~NA_L3NAME)
+
+mu_df %>%
+  left_join(dplyr::select(c_df, NA_L3NAME, ym, med_c, lo_c, hi_c)) %>%
+  ggplot(aes(x = med_c, y = log(R_ACRES - 1e3))) +
+  geom_point(shape = 1, size = .5, alpha = .3) +
+  facet_wrap(~NA_L3NAME)
