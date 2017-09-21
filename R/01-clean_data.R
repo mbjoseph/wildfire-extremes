@@ -17,7 +17,9 @@ ecoregions <- st_read('data/raw/us_eco_l3/us_eco_l3.shp')
 
 # Read fire data ----------------------
 mtbs <- st_read('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_20170501.shp') %>%
-  filter(!(STATE %in% c("Alaska", "Hawaii", "Puerto Rico"))) %>%
+  filter(!(STATE %in% c("Alaska", "Hawaii", "Puerto Rico")),
+         R_ACRES > 1e3 # consistent cutoff for west and east
+         ) %>%
   st_transform(st_crs(ecoregions)) %>%
   mutate(ym = as.yearmon(paste(FIRE_YEAR, sprintf("%02d", FIRE_MON),
                                sep = "-")))
