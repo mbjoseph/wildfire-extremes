@@ -99,6 +99,10 @@ train_burns <- mtbs %>%
   filter(FIRE_YEAR < cutoff_year) %>%
   left_join(filter(st_covs, dim == 2))
 
+# this data frame has no duplicate ecoregion X timestep combos
+train_burn_covs <- train_burns %>%
+  distinct(NA_L3NAME, ym, .keep_all = TRUE)
+
 N <- length(unique(train_counts$NA_L3NAME))
 T <- length(unique(train_counts$ym))
 
@@ -106,18 +110,18 @@ T <- length(unique(train_counts$ym))
 # Create design matrices --------------------------------------------------
 make_X <- function(df) {
   model.matrix(~ 0 +
+                 cyear * NA_L3NAME +
+                 cyear * NA_L2NAME +
+                 cyear * NA_L1NAME +
                  cpr * NA_L3NAME +
                  ctmx * NA_L3NAME +
                  cvs * NA_L3NAME +
-                 cyear * NA_L3NAME +
                  cpr * NA_L2NAME +
                  ctmx * NA_L2NAME +
                  cvs * NA_L2NAME +
-                 cyear * NA_L2NAME +
                  cpr * NA_L1NAME +
                  ctmx * NA_L1NAME +
-                 cvs * NA_L1NAME +
-                 cyear * NA_L1NAME,
+                 cvs * NA_L1NAME,
                data = df)
 }
 
@@ -125,9 +129,15 @@ Xc <- make_X(train_counts)
 sparse_Xc <- extract_sparse_parts(Xc)
 
 # need to ensure that all ecoregions show up here
-X <- make_X(train_burns)
+X <- make_X(train_burn_covs)
 sparse_X <- extract_sparse_parts(X)
 
+burn_idx <- rep(NA, nrow(train_burns))
+for (i in 1:nrow(train_burns)) {
+  burn_idx[i] <- which(train_burn_covs$NA_L3NAME == train_burns$NA_L3NAME[i] &
+                         train_burn_covs$ym == train_burns$ym[i])
+}
+stopifnot(max(burn_idx) <= nrow(train_burn_covs))
 
 
 # note that there are columns in Xc that are not in X
@@ -144,6 +154,9 @@ stan_d <- list(
   w = sparse_X$w,
   v = sparse_X$v,
   u = sparse_X$u,
+  nrowX = nrow(X),
+  n_u = length(sparse_X$u),
+  burn_idx = burn_idx,
 
   n_wc = length(sparse_Xc$w),
   wc = sparse_Xc$w,
@@ -166,16 +179,15 @@ m_fit <- sampling(m_init,
                            'alpha',
                            'c_sq'),
                   cores = 4,
-                  init_r = .05,
-                  iter = 500,
-                  control = list(adapt_delta = 0.99,
-                                 max_treedepth = 12))
+                  init_r = .01,
+                  iter = 1000)
+# write_rds(m_fit, 'm_fit.rds')
 
 traceplot(m_fit,
           inc_warmup = TRUE)
 
 
-traceplot(m_fit, pars = c('tau', 'sigma_size', 'sigma_eps', 'tau_c'))
+traceplot(m_fit, pars = c('tau', 'sigma_size', 'sigma_eps', 'tau_c', 'c_sq'))
 
 plot(m_fit, pars = 'beta') +
   geom_vline(xintercept = 0, linetype = 'dashed') +
@@ -186,16 +198,51 @@ plot(m_fit, pars = 'beta_c') +
 
 
 post <- rstan::extract(m_fit)
-
-
 str(post)
 
+beta_df <- post$beta %>%
+  reshape2::melt(varnames = c('iter', 'col')) %>%
+  tbl_df %>%
+  group_by(col) %>%
+  summarize(med = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, .975)) %>%
+  ungroup %>%
+  mutate(variable = colnames(X)[col],
+         over_zero = lo < 0 & hi > 0)
+
+beta_df %>%
+  filter(!over_zero) %>%
+  ggplot(aes(med, variable)) +
+  geom_point() +
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  geom_segment(aes(x = lo, xend = hi, yend = variable))
+
+
+beta_c_df <- post$beta_c %>%
+  reshape2::melt(varnames = c('iter', 'col')) %>%
+  tbl_df %>%
+  group_by(col) %>%
+  summarize(med = median(value),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, .975)) %>%
+  ungroup %>%
+  mutate(variable = colnames(Xc)[col],
+         over_zero = lo < 0 & hi > 0)
+
+beta_c_df %>%
+  filter(!over_zero) %>%
+  ggplot(aes(med, variable)) +
+  geom_point() +
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  geom_segment(aes(x = lo, xend = hi, yend = variable)) +
+  theme_bw()
 
 
 # Visualize some predictions ----------------------------------------------
 
 # burn areas
-train_burns$row <- 1:nrow(train_burns)
+train_burn_covs$row <- 1:nrow(train_burn_covs)
 mu_df <- post$mu %>%
   reshape2::melt(varnames = c('iter', 'row')) %>%
   tbl_df %>%
@@ -204,7 +251,16 @@ mu_df <- post$mu %>%
             lo = quantile(value, 0.025),
             hi = quantile(value, .975)) %>%
   ungroup %>%
-  full_join(train_burns)
+  full_join(tbl_df(train_burn_covs)) %>%
+  dplyr::select(ym, NA_L3NAME,
+                pet, pr, tmmx, vs,
+                med, lo, hi) %>%
+  right_join(tbl_df(train_burns))
+
+mu_df <- mu_df %>%
+  left_join(dplyr::select(tbl_df(ecoregions),
+                          NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste0(NA_L1CODE, NA_L3NAME))
 
 # changes over time
 mu_df %>%
@@ -221,9 +277,9 @@ mu_df %>%
 mu_df %>%
   group_by(NA_L3NAME, ym) %>%
   summarize(emp_mean = mean(log(R_ACRES - 1e3)),
-            med = unique(med),
-            lo = unique(lo),
-            hi = unique(hi)) %>%
+            med = unique(na.omit(med)),
+            lo = unique(na.omit(lo)),
+            hi = unique(na.omit(hi))) %>%
   ggplot(aes(emp_mean, med)) +
   geom_point(size = .2, alpha = .2) +
   geom_segment(aes(xend = emp_mean,
@@ -234,68 +290,47 @@ mu_df %>%
   ylab("Expected fire size")
 
 # is there an association with log(lambda) that we can exploit?
+plot_size_vs_var <- function(mu_df, var) {
+  mu_df %>%
+    distinct(ym, NA_L3NAME, .keep_all = TRUE) %>%
+    ggplot(aes_string(var, "exp(med)",
+                      color = "NA_L1NAME")) +
+    geom_segment(aes_string(xend = var,
+                     y = "exp(lo)",
+                     yend = "exp(hi)"),
+                 alpha = .5) +
+    geom_point(shape = 1, alpha = .5, size = .1) +
+    facet_wrap(~ facet_factor) +
+    xlab(var) +
+    ylab("Expected fire size (burn area)") +
+    scale_y_log10() +
+    theme(strip.text = element_text(size=9)) +
+    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5)))
+}
 
-
-mu_df %>%
-  ggplot(aes(pr, exp(med))) +
-  geom_segment(aes(xend = pr,
-                   y = exp(lo),
-                   yend = exp(hi)),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Total precipitation') +
-  ylab("Expected fire size (burn area)") +
-  scale_y_log10() +
-  theme(strip.text = element_text(size=9))
+plot_size_vs_var(mu_df, var = 'pr') +
+  xlab('Total precipitation')
 ggsave(filename = 'fig/fire-size-precip.pdf', width = 20, height = 15)
 
-mu_df %>%
-  ggplot(aes(tmmx, exp(med))) +
-  geom_segment(aes(xend = tmmx,
-                   y = exp(lo),
-                   yend = exp(hi)),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily maximum air temperature') +
-  ylab("Expected fire size (burn area)") +
-  scale_y_log10() +
-  theme(strip.text = element_text(size=9))
+plot_size_vs_var(mu_df, var = 'tmmx') +
+  xlab('Mean daily maximum air temperature')
 ggsave(filename = 'fig/fire-size-tmmx.pdf', width = 20, height = 15)
 
-
-mu_df %>%
-  ggplot(aes(vs, exp(med))) +
-  geom_segment(aes(xend = vs,
-                   y = exp(lo),
-                   yend = exp(hi)),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily wind speed') +
-  ylab("Expected fire size (burn area)") +
-  scale_y_log10() +
-  theme(strip.text = element_text(size=9))
+plot_size_vs_var(mu_df, var = 'vs') +
+  xlab('Mean daily wind speed')
 ggsave(filename = 'fig/fire-size-wind-speed.pdf', width = 20, height = 15)
 
-
-mu_df %>%
-  ggplot(aes(pet, exp(med))) +
-  geom_segment(aes(xend = pet,
-                   y = exp(lo),
-                   yend = exp(hi)),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily potential evapotranspiration') +
-  ylab("Expected fire size (burn area)") +
-  scale_y_log10() +
-  theme(strip.text = element_text(size=9))
+plot_size_vs_var(mu_df, var = 'pet') +
+  xlab('Mean potential evapotranspiration')
 ggsave(filename = 'fig/fire-size-pet.pdf', width = 20, height = 15)
 
 
 
+
+
+
+
+# Visualize effects on expected number of counts --------------------------
 train_counts$row_c <- 1:nrow(train_counts)
 c_df <- post$mu_counts %>%
   reshape2::melt(varnames = c('iter', 'row_c')) %>%
@@ -307,90 +342,67 @@ c_df <- post$mu_counts %>%
   ungroup %>%
   full_join(train_counts)
 
+c_df <- c_df %>%
+  left_join(dplyr::select(tbl_df(ecoregions),
+                          NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste0(NA_L1CODE, NA_L3NAME))
+
+plot_c_ts <- function(df) {
+  df  %>%
+    ggplot(aes(x=ym, y = exp(med_c))) +
+    geom_ribbon(aes(ymin = exp(lo_c), ymax = exp(hi_c)),
+                alpha = .5, fill = 'red', col = NA) +
+    geom_line() +
+    facet_wrap(~facet_factor)
+}
 
 c_df %>%
   filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
-  ggplot(aes(x=ym, y = med_c)) +
-  geom_ribbon(aes(ymin = lo_c, ymax = hi_c),
-              alpha = .5, fill = 'red', col = NA) +
-  geom_line() +
-  facet_wrap(~NA_L3NAME)
+  plot_c_ts
 
 c_df %>%
   filter(NA_L1NAME == 'GREAT PLAINS') %>%
-  ggplot(aes(x=ym, y = med_c)) +
-  geom_ribbon(aes(ymin = lo_c, ymax = hi_c),
-              alpha = .5, fill = 'red', col = NA) +
-  geom_line() +
-  facet_wrap(~NA_L3NAME)
+  plot_c_ts
 
 
 c_df %>%
   filter(NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
-  ggplot(aes(x=ym, y = med_c)) +
-  geom_ribbon(aes(ymin = lo_c, ymax = hi_c),
-              alpha = .5, fill = 'red', col = NA) +
-  geom_line() +
-  facet_wrap(~NA_L3NAME)
+  plot_c_ts
 
+plot_c_vs_var <- function(df, var) {
+  df %>%
+    distinct(ym, NA_L3NAME, .keep_all = TRUE) %>%
+    ggplot(aes_string(var, "exp(med_c - log(area))",
+                      color = "NA_L1NAME")) +
+    geom_segment(aes_string(xend = var,
+                            y = "exp(lo_c - log(area))",
+                            yend = "exp(hi_c - log(area))"),
+                 alpha = .5) +
+    geom_point(shape = 1, alpha = .5, size = .1) +
+    facet_wrap(~ facet_factor) +
+    xlab(var) +
+    ylab("Expected number of fires") +
+    scale_y_log10() +
+    theme(strip.text = element_text(size=9)) +
+    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5)))
+}
 
-c_df %>%
-  ggplot(aes(pr, exp(med_c))) +
-  geom_segment(aes(xend = pr,
-                   y = exp(lo_c),
-                   yend = exp(hi_c)),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Total precipitation') +
-  ylab("Expected # fires") +
-  scale_y_log10() +
-  theme(strip.text = element_text(size=9))
+plot_c_vs_var(c_df, 'pr') +
+  xlab('Total precipitation')
 ggsave(filename = 'fig/fire-num-precip.pdf', width = 20, height = 15)
 
-c_df %>%
-  ggplot(aes(tmmx, exp(med_c))) +
-  geom_segment(aes(xend = tmmx,
-                   y = exp(lo_c),
-                   yend = exp(hi_c)),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily maximum air temperature') +
-  ylab("Expected # fires") +
-  scale_y_log10() +
-  theme(strip.text = element_text(size=9))
+plot_c_vs_var(c_df, 'tmmx') +
+  xlab('Mean daily maximum air temperature')
 ggsave(filename = 'fig/fire-num-tmmx.pdf', width = 20, height = 15)
 
-
-c_df %>%
-  ggplot(aes(vs, exp(med_c))) +
-  geom_segment(aes(xend = vs,
-                   y = exp(lo_c),
-                   yend = exp(hi_c)),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily wind speed') +
-  ylab("Expected # fires") +
-  scale_y_log10() +
-  theme(strip.text = element_text(size=9))
+plot_c_vs_var(c_df, 'vs') +
+  xlab('Mean daily wind speed')
 ggsave(filename = 'fig/fire-num-wind-speed.pdf', width = 20, height = 15)
 
-
-c_df %>%
-  ggplot(aes(pet, exp(med_c))) +
-  geom_segment(aes(xend = pet,
-                   y = exp(lo_c),
-                   yend = exp(hi_c)),
-               alpha = .5) +
-  geom_point(shape = 1, alpha = .5, size = .1) +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Mean daily potential evapotranspiration') +
-  ylab("Expected # fires") +
-  scale_y_log10() +
-  theme(strip.text = element_text(size=9))
+plot_c_vs_var(c_df, 'pet') +
+  xlab('Mean daily potential evapotranspiration')
 ggsave(filename = 'fig/fire-num-pet.pdf', width = 20, height = 15)
+
 
 
 c_df %>%
@@ -398,8 +410,6 @@ c_df %>%
   geom_point() +
   geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
   geom_segment(aes(xend = n_fire, y = exp(lo_c), yend = exp(hi_c)))
-
-
 
 
 mu_df %>%
