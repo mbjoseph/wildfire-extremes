@@ -15,12 +15,15 @@ data {
 
   int n_fire;
   vector[n_fire] sizes;
+  int<lower = 1> burn_idx[n_fire];
 
   // sparse matrix for fire sizes
+  int<lower = 1> nrowX;
   int<lower = 1> n_w;
   vector[n_w] w;
   int<lower = 1> v[n_w];
-  int<lower = 1> u[n_fire + 1];
+  int<lower = 1> n_u;
+  int<lower = 1> u[n_u];
 }
 
 parameters {
@@ -41,23 +44,28 @@ parameters {
 }
 
 transformed parameters {
-  vector[n_fire] mu;
+  vector[nrowX] mu;
   vector[N * T] mu_counts;
   vector[p] beta;
   vector[p] lambda_tilde;
   vector[p_c] beta_c;
   vector[p_c] lambda_tilde_c;
+  vector[p] lambda_sq;
+  vector[p_c] lambda_c_sq;
+
+  lambda_sq = square(lambda);
+  lambda_c_sq = square(lambda_c);
 
   // regularized horseshoe prior
-  lambda_tilde = sqrt(c_sq[1] * square(lambda) ./
-                      (c_sq[1] + tau^2 * square(lambda)));
-  lambda_tilde_c = sqrt(c_sq[2] * square(lambda_c) ./
-                        (c_sq[2] + tau_c^2 * square(lambda_c)));
+  lambda_tilde = sqrt(c_sq[1] * lambda_sq ./
+                      (c_sq[1] + tau^2 * lambda_sq));
+  lambda_tilde_c = sqrt(c_sq[2] * lambda_c_sq ./
+                        (c_sq[2] + tau_c^2 * lambda_c_sq));
 
   beta = betaR .* lambda_tilde * tau;
   beta_c = betaR_c .* lambda_tilde_c * tau_c;
 
-  mu = alpha[1] + csr_matrix_times_vector(n_fire, p, w, v, u, beta);
+  mu = alpha[1] + csr_matrix_times_vector(nrowX, p, w, v, u, beta);
 
   mu_counts = alpha[2]
                 + csr_matrix_times_vector(N*T, p_c, wc, vc, uc, beta_c)
@@ -76,15 +84,15 @@ model {
 
   betaR ~ normal(0, 1);
   lambda ~ cauchy(0, 1);
-  tau ~ student_t(5, 0, 1);
+  tau ~ normal(0, 1);
 
   betaR_c ~ normal(0, 1);
   lambda_c ~ cauchy(0, 1);
-  tau_c ~ student_t(5, 0, 1);
+  tau_c ~ normal(0, 1);
 
   // number of fires
   counts ~ poisson_log(mu_counts);
 
   // fire sizes
-  sizes ~ normal(mu, sigma_size);
+  sizes ~ normal(mu[burn_idx], sigma_size);
 }
