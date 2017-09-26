@@ -6,7 +6,6 @@ library(tidyverse)
 library(lubridate)
 library(rstan)
 library(cowplot)
-library(corrplot)
 library(sf)
 source("R/01-clean_data.R")
 
@@ -69,7 +68,13 @@ ecoregion_summaries %>%
   facet_wrap(~ var, scales = "free_y") +
   scale_y_log10()
 
-er_df <- dplyr::select(data.frame(ecoregions), NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
+ecoregion_summaries %>%
+  ggplot(aes(ym, prev_12mo_precip)) +
+  geom_line() +
+  facet_wrap(~ NA_L3NAME)
+
+er_df <- dplyr::select(data.frame(ecoregions),
+                       NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
   as_tibble
 
 st_covs <- ecoregion_summaries %>%
@@ -79,6 +84,7 @@ st_covs <- ecoregion_summaries %>%
          cpr = c(scale(pr)),
          ctmx = c(scale(tmmx)),
          cvs = c(scale(vs)),
+         cpr12 = c(scale(prev_12mo_precip)),
          dim = factor(dim),
          timestep_factor = factor(ym),
          cyear = c(scale(year))) %>%
@@ -114,12 +120,15 @@ make_X <- function(df) {
                  cyear * NA_L2NAME +
                  cyear * NA_L1NAME +
                  cpr * NA_L3NAME +
+                 cpr12 * NA_L3NAME +
                  ctmx * NA_L3NAME +
                  cvs * NA_L3NAME +
                  cpr * NA_L2NAME +
+                 cpr12 * NA_L2NAME +
                  ctmx * NA_L2NAME +
                  cvs * NA_L2NAME +
                  cpr * NA_L1NAME +
+                 cpr12 * NA_L1NAME +
                  ctmx * NA_L1NAME +
                  cvs * NA_L1NAME,
                data = df)

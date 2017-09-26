@@ -72,5 +72,21 @@ ecoregion_summaries <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gri
   spread(variable, wmean) %>%
   filter(year < 2017)
 
+# Compute previous 12 months total precip
+ecoregion_summaries$prev_12mo_precip <- NA
+for (i in 1:nrow(ecoregion_summaries)) {
+  if (ecoregion_summaries$year[i] > 1983) {
+    start_ym <- ecoregion_summaries$ym[i] - 1 # minus one year
+
+    ecoregion_summaries$prev_12mo_precip[i] <- ecoregion_summaries %>%
+      filter(NA_L3NAME == ecoregion_summaries$NA_L3NAME[i],
+             ym >= start_ym,
+             ym <= ecoregion_summaries$ym[i]) %>%
+      summarize(twelve_month_total = sum(pr)) %>%
+      c %>%
+      unlist
+  }
+}
+
 count_df <- left_join(count_df, ecoregion_summaries)
 
