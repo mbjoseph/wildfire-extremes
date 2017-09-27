@@ -2,10 +2,12 @@ library(scales)
 library(gridExtra)
 library(spdep)
 library(viridis)
+library(rmapshaper)
 library(tidyverse)
 library(lubridate)
 library(rstan)
 library(cowplot)
+library(ggthemes)
 library(sf)
 source("R/01-clean_data.R")
 
@@ -87,7 +89,8 @@ st_covs <- ecoregion_summaries %>%
          cpr12 = c(scale(prev_12mo_precip)),
          dim = factor(dim),
          timestep_factor = factor(ym),
-         cyear = c(scale(year))) %>%
+         cyear = c(scale(year)),
+         ctri = c(scale(log(tri)))) %>%
   left_join(er_df) %>%
   filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)")
 
@@ -106,7 +109,8 @@ train_burns <- mtbs %>%
   left_join(filter(st_covs, dim == 2))
 
 # this data frame has no duplicate ecoregion X timestep combos
-train_burn_covs <- train_burns %>%
+train_burn_covs <- st_covs %>%
+  filter(dim == 2, ym >= min(train_burns$ym), ym <= max(train_burns$ym)) %>%
   distinct(NA_L3NAME, ym, .keep_all = TRUE)
 
 N <- length(unique(train_counts$NA_L3NAME))
@@ -116,6 +120,7 @@ T <- length(unique(train_counts$ym))
 # Create design matrices --------------------------------------------------
 make_X <- function(df) {
   model.matrix(~ 0 +
+                 ctri +
                  cyear * NA_L3NAME +
                  cyear * NA_L2NAME +
                  cyear * NA_L1NAME +
@@ -146,10 +151,13 @@ for (i in 1:nrow(train_burns)) {
   burn_idx[i] <- which(train_burn_covs$NA_L3NAME == train_burns$NA_L3NAME[i] &
                          train_burn_covs$ym == train_burns$ym[i])
 }
+
+# check to make sure the indices were correct
 stopifnot(max(burn_idx) <= nrow(train_burn_covs))
+stopifnot(all(train_burn_covs$NA_L3NAME[burn_idx] == train_burns$NA_L3NAME))
+stopifnot(all(train_burn_covs$ym[burn_idx] == train_burns$ym))
 
-
-# note that there are columns in Xc that are not in X
+# note whether there are columns in Xc that are not in X
 colnames(Xc)[!(colnames(Xc) %in% colnames(X))]
 
 stan_d <- list(
@@ -179,22 +187,22 @@ stan_d <- list(
 )
 
 m_init <- stan_model('stan/st-basis.stan')
-m_fit <- sampling(m_init,
-                  data = stan_d,
-                  pars = c('beta', 'tau', 'sigma_size',
-                           'mu', 'mu_counts',
-                           'sigma_eps',
-                           'beta_c', 'tau_c',
-                           'alpha',
-                           'c_sq'),
-                  cores = 4,
-                  init_r = .01,
-                  iter = 1000)
+# m_fit <- sampling(m_init,
+#                   data = stan_d,
+#                   pars = c('beta', 'tau', 'sigma_size',
+#                            'mu', 'mu_counts',
+#                            'sigma_eps',
+#                            'beta_c', 'tau_c',
+#                            'alpha',
+#                            'c_sq'),
+#                   cores = 4,
+#                   init_r = .01,
+#                   iter = 1000)
 # write_rds(m_fit, 'm_fit.rds')
+m_fit <- read_rds('m_fit.rds')
 
 traceplot(m_fit,
           inc_warmup = TRUE)
-
 
 traceplot(m_fit, pars = c('tau', 'sigma_size', 'sigma_eps', 'tau_c', 'c_sq'))
 
@@ -208,14 +216,16 @@ plot(m_fit, pars = 'beta_c') +
 
 post <- rstan::extract(m_fit)
 str(post)
+rm(m_fit)
+gc()
 
 beta_df <- post$beta %>%
   reshape2::melt(varnames = c('iter', 'col')) %>%
   tbl_df %>%
   group_by(col) %>%
   summarize(med = median(value),
-            lo = quantile(value, 0.025),
-            hi = quantile(value, .975)) %>%
+            lo = quantile(value, 0.05),
+            hi = quantile(value, .95)) %>%
   ungroup %>%
   mutate(variable = colnames(X)[col],
          over_zero = lo < 0 & hi > 0)
@@ -233,8 +243,8 @@ beta_c_df <- post$beta_c %>%
   tbl_df %>%
   group_by(col) %>%
   summarize(med = median(value),
-            lo = quantile(value, 0.025),
-            hi = quantile(value, .975)) %>%
+            lo = quantile(value, 0.05),
+            hi = quantile(value, .95)) %>%
   ungroup %>%
   mutate(variable = colnames(Xc)[col],
          over_zero = lo < 0 & hi > 0)
@@ -248,10 +258,19 @@ beta_c_df %>%
   theme_bw()
 
 
+# explore the possibility of allowing correlation between beta and beta_c
+beta_df %>%
+  mutate(Parameter = 'beta') %>%
+  full_join(mutate(beta_c_df, Parameter = 'beta_c')) %>%
+  select(col, Parameter, med) %>%
+  spread(Parameter, med) %>%
+  ggplot(aes(beta_c, beta)) +
+  geom_point()
+
+
 # Visualize some predictions ----------------------------------------------
 
 # burn areas
-train_burn_covs$row <- 1:nrow(train_burn_covs)
 mu_df <- post$mu %>%
   reshape2::melt(varnames = c('iter', 'row')) %>%
   tbl_df %>%
@@ -260,11 +279,8 @@ mu_df <- post$mu %>%
             lo = quantile(value, 0.025),
             hi = quantile(value, .975)) %>%
   ungroup %>%
-  full_join(tbl_df(train_burn_covs)) %>%
-  dplyr::select(ym, NA_L3NAME,
-                pet, pr, tmmx, vs,
-                med, lo, hi) %>%
-  right_join(tbl_df(train_burns))
+  `[`(burn_idx, ) %>%
+  bind_cols(tbl_df(train_burns))
 
 mu_df <- mu_df %>%
   left_join(dplyr::select(tbl_df(ecoregions),
@@ -295,7 +311,7 @@ mu_df %>%
                    y = lo, yend = hi), alpha = .2) +
   geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
   facet_wrap(~ NA_L3NAME) +
-  xlab('True mean fire size') +
+  xlab('Empirical mean fire size') +
   ylab("Expected fire size")
 
 # is there an association with log(lambda) that we can exploit?
@@ -320,6 +336,10 @@ plot_size_vs_var <- function(mu_df, var) {
 plot_size_vs_var(mu_df, var = 'pr') +
   xlab('Total precipitation')
 ggsave(filename = 'fig/fire-size-precip.pdf', width = 20, height = 15)
+
+plot_size_vs_var(mu_df, var = 'prev_12mo_precip') +
+  xlab('Previous 12 months precipitation')
+ggsave(filename = 'fig/fire-size-12mo-precip.pdf', width = 20, height = 15)
 
 plot_size_vs_var(mu_df, var = 'tmmx') +
   xlab('Mean daily maximum air temperature')
@@ -362,7 +382,10 @@ plot_c_ts <- function(df) {
     geom_ribbon(aes(ymin = exp(lo_c), ymax = exp(hi_c)),
                 alpha = .5, fill = 'red', col = NA) +
     geom_line() +
-    facet_wrap(~facet_factor)
+    facet_wrap(~facet_factor) +
+    xlab('Time') +
+    ylab('Expected # of burns over 1000 acres') +
+    scale_y_log10()
 }
 
 c_df %>%
@@ -372,7 +395,6 @@ c_df %>%
 c_df %>%
   filter(NA_L1NAME == 'GREAT PLAINS') %>%
   plot_c_ts
-
 
 c_df %>%
   filter(NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
@@ -386,19 +408,23 @@ plot_c_vs_var <- function(df, var) {
     geom_segment(aes_string(xend = var,
                             y = "exp(lo_c - log(area))",
                             yend = "exp(hi_c - log(area))"),
-                 alpha = .5) +
-    geom_point(shape = 1, alpha = .5, size = .1) +
+                 alpha = .1) +
+    geom_point(shape = 1, alpha = .8, size = .1) +
     facet_wrap(~ facet_factor) +
     xlab(var) +
-    ylab("Expected number of fires") +
+    ylab("Expected # fires > 1000 acres per sq. meter") +
     scale_y_log10() +
     theme(strip.text = element_text(size=9)) +
     guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5)))
 }
 
 plot_c_vs_var(c_df, 'pr') +
-  xlab('Total precipitation')
+  xlab('Monthly precipitation')
 ggsave(filename = 'fig/fire-num-precip.pdf', width = 20, height = 15)
+
+plot_c_vs_var(c_df, var = 'prev_12mo_precip') +
+  xlab('Previous 12 months precipitation')
+ggsave(filename = 'fig/fire-num-12mo-precip.pdf', width = 20, height = 15)
 
 plot_c_vs_var(c_df, 'tmmx') +
   xlab('Mean daily maximum air temperature')
@@ -413,19 +439,109 @@ plot_c_vs_var(c_df, 'pet') +
 ggsave(filename = 'fig/fire-num-pet.pdf', width = 20, height = 15)
 
 
+# Mapping covariate effects -----------------------------------------------
+
+# to map the effect of variable x for an l3 ecoregion we need:
+# main effect of x
+# + l1_adj
+# + l2_adj
+# + l3_adj
+colnames(post$beta) <- colnames(X)
+colnames(post$beta_c) <- colnames(Xc)
+
+beta_meds <- apply(post$beta, 2, median)
+beta_c_meds <- apply(post$beta_c, 2, median)
+
+stopifnot(all(identical(colnames(X), colnames(Xc))))
+
+er_names <- distinct(ecoregion_df, NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
+  tbl_df
+
+effect_combos <- expand.grid(NA_L3NAME = er_names$NA_L3NAME,
+                             vars = c('cpr', 'ctmx', 'cvs', 'cpr12')) %>%
+  tbl_df %>%
+  left_join(er_names)
+effect_combos$beta <- NA
+effect_combos$beta_c <- NA
+
+for (i in 1:nrow(effect_combos)) {
+  var_idx <- grepl(effect_combos$vars[i], names(beta_meds))
+  main_eff_idx <- grepl(paste0('^', effect_combos$vars[i], '$'),
+                        names(beta_meds))
+  index <-  main_eff_idx +
+    var_idx * grepl(effect_combos$NA_L1NAME[i], names(beta_meds)) +
+    var_idx * grepl(effect_combos$NA_L2NAME[i], names(beta_meds)) +
+    var_idx * grepl(effect_combos$NA_L3NAME[i], names(beta_meds))
+
+  effect_combos$beta[i] <- sum(beta_meds[index > 0])
+  effect_combos$beta_c[i] <- sum(beta_c_meds[index > 0])
+}
+
+# simplify ecoregion data frame for easy plotting
+simple_ecoregions <- ecoregions %>%
+  as('Spatial') %>%
+  ms_simplify(keep = 0.01) %>%
+  as('sf')
+
+ggplot() +
+  geom_sf(data = simple_ecoregions,
+          aes(fill = Shape_Area))
+
+effect_sf <- effect_combos %>%
+  gather(which_beta, posterior_med, -vars, -starts_with('NA')) %>%
+  full_join(simple_ecoregions) %>%
+  mutate(response = ifelse(which_beta == 'beta',
+                           'Burn area', 'Number of fires'),
+         variable = ifelse(vars == 'cpr',
+                           'Precipitation (same month)',
+                           ifelse(vars == 'cpr12',
+                                  'Precipitation (previous 12 months)',
+                                  ifelse(vars == 'cvs',
+                                         'Wind speed',
+                                         'Air temperature'))))
+
+lowcolor <- 'royalblue4'
+hicolor <- 'red3'
+
+p1 <- ggplot(filter(effect_sf, which_beta == 'beta_c'),
+             aes(fill = posterior_med)) +
+  geom_sf(size = .1, color = scales::alpha(1, .5)) +
+  facet_wrap( ~ variable, nrow = 1, strip.position = 'bottom') +
+  scale_fill_gradient2(low = lowcolor, high = hicolor,
+                       "") +
+  theme_minimal()+
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid.major = element_line(color = NA),
+        panel.spacing = unit(0, "lines"),
+        plot.margin = margin(0, 0, 0, 0, "cm")) +
+  ggtitle('Estimated climate effects on the monthly expected number of fires over 1000 acres')
+
+p2 <- ggplot(filter(effect_sf, which_beta == 'beta'),
+       aes(fill = posterior_med)) +
+  geom_sf(size = .1, color = scales::alpha(1, .5)) +
+  facet_wrap(~ variable, nrow = 1, strip.position = 'bottom') +
+  scale_fill_gradient2(low = lowcolor, high = hicolor,
+                       "") +
+  theme_minimal()+
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid.major = element_line(color = NA),
+        panel.spacing = unit(0, "lines"),
+        plot.margin = margin(0, 0, 0, 0, "cm")) +
+  ggtitle('Estimated climate effects on the monthly expected burn area exceedance over 1000 acres')
+
+plot_grid(p1, p2, nrow = 2)
+ggsave(filename = 'fig/climatic-effects.pdf', width = 16, height = 6)
+
 
 c_df %>%
   ggplot(aes(x = n_fire, y = exp(med_c))) +
   geom_point() +
   geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
   geom_segment(aes(xend = n_fire, y = exp(lo_c), yend = exp(hi_c)))
-
-
-mu_df %>%
-  left_join(dplyr::select(c_df, NA_L3NAME, ym, med_c, lo_c, hi_c)) %>%
-  ggplot(aes(x = med_c, y = med)) +
-  geom_point() +
-  facet_wrap(~NA_L3NAME)
 
 mu_df %>%
   left_join(dplyr::select(c_df, NA_L3NAME, ym, med_c, lo_c, hi_c)) %>%
