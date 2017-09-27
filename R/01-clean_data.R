@@ -3,8 +3,6 @@ library(rgdal)
 library(maptools)
 library(foreign)
 library(purrr)
-library(rasterVis)
-library(clusterGeneration)
 library(sf)
 library(zoo)
 
@@ -73,20 +71,32 @@ ecoregion_summaries <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gri
   filter(year < 2017)
 
 # Compute previous 12 months total precip
-ecoregion_summaries$prev_12mo_precip <- NA
-for (i in 1:nrow(ecoregion_summaries)) {
-  if (ecoregion_summaries$year[i] > 1983) {
-    start_ym <- ecoregion_summaries$ym[i] - 1 # minus one year
+if (!file.exists('lagged_precip.rds')) {
+  ecoregion_summaries$prev_12mo_precip <- NA
+  pb <- txtProgressBar(max = nrow(ecoregion_summaries), style = 3)
+  for (i in 1:nrow(ecoregion_summaries)) {
+    setTxtProgressBar(pb, i)
+    if (ecoregion_summaries$year[i] > 1983) {
+      start_ym <- ecoregion_summaries$ym[i] - 1 # minus one year
 
-    ecoregion_summaries$prev_12mo_precip[i] <- ecoregion_summaries %>%
-      filter(NA_L3NAME == ecoregion_summaries$NA_L3NAME[i],
-             ym >= start_ym,
-             ym <= ecoregion_summaries$ym[i]) %>%
-      summarize(twelve_month_total = sum(pr)) %>%
-      c %>%
-      unlist
+      ecoregion_summaries$prev_12mo_precip[i] <- ecoregion_summaries %>%
+        filter(NA_L3NAME == ecoregion_summaries$NA_L3NAME[i],
+               ym >= start_ym,
+               ym <= ecoregion_summaries$ym[i]) %>%
+        summarize(twelve_month_total = sum(pr)) %>%
+        c %>%
+        unlist
+    }
   }
+
+  ecoregion_summaries %>%
+    dplyr::select(NA_L3NAME, ym, prev_12mo_precip) %>%
+    write_rds('lagged_precip.rds')
 }
+
+ecoregion_summaries <- ecoregion_summaries %>%
+  left_join(read_rds('lagged_precip.rds')) %>%
+  left_join(read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gridmet/ecoregion_tri.csv'))
 
 count_df <- left_join(count_df, ecoregion_summaries)
 
