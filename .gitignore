@@ -30,3 +30,4 @@ vignettes/*.pdf
 .ipynb_checkpoints
 *.tif
 *.nc
+ecoregion_tri.csv
