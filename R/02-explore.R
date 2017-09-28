@@ -1,4 +1,5 @@
 library(scales)
+library(raster)
 library(gridExtra)
 library(spdep)
 library(viridis)
@@ -92,7 +93,9 @@ st_covs <- ecoregion_summaries %>%
          cyear = c(scale(year)),
          ctri = c(scale(log(tri)))) %>%
   left_join(er_df) %>%
-  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)")
+  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)",
+         year > 1983) %>%
+  left_join(area_df)
 
 st_covs <- st_covs[!duplicated(st_covs), ]
 st_covs$id <- 1:nrow(st_covs)
@@ -109,12 +112,32 @@ train_burns <- mtbs %>%
   left_join(filter(st_covs, dim == 2))
 
 # this data frame has no duplicate ecoregion X timestep combos
-train_burn_covs <- st_covs %>%
-  filter(dim == 2, ym >= min(train_burns$ym), ym <= max(train_burns$ym)) %>%
+count_covs <- st_covs %>%
+  filter(dim == 1) %>%
   distinct(NA_L3NAME, ym, .keep_all = TRUE)
 
-N <- length(unique(train_counts$NA_L3NAME))
-T <- length(unique(train_counts$ym))
+burn_covs <- st_covs %>%
+  filter(dim == 2) %>%
+  distinct(NA_L3NAME, ym, .keep_all = TRUE)
+
+N <- length(unique(st_covs$NA_L3NAME))
+T <- length(unique(st_covs$ym))
+
+stopifnot(identical(nrow(burn_covs), N * T))
+stopifnot(identical(nrow(count_covs), N * T))
+
+# make sure that count and burn covariate data frames have all the same
+# ecoregion X timestep values
+count_combos <- count_covs %>%
+  distinct(NA_L3NAME, ym) %>%
+  mutate(combo = paste(NA_L3NAME, ym, sep = '-')) %>%
+  `[[`('combo')
+burn_combos <- burn_covs %>%
+  distinct(NA_L3NAME, ym) %>%
+  mutate(combo = paste(NA_L3NAME, ym, sep = '-')) %>%
+  `[[`('combo')
+
+stopifnot(length(burn_combos[!(burn_combos %in% count_combos)]) == 0)
 
 
 # Create design matrices --------------------------------------------------
@@ -139,23 +162,33 @@ make_X <- function(df) {
                data = df)
 }
 
-Xc <- make_X(train_counts)
+Xc <- make_X(count_covs)
 sparse_Xc <- extract_sparse_parts(Xc)
 
 # need to ensure that all ecoregions show up here
-X <- make_X(train_burn_covs)
+X <- make_X(burn_covs)
 sparse_X <- extract_sparse_parts(X)
 
 burn_idx <- rep(NA, nrow(train_burns))
 for (i in 1:nrow(train_burns)) {
-  burn_idx[i] <- which(train_burn_covs$NA_L3NAME == train_burns$NA_L3NAME[i] &
-                         train_burn_covs$ym == train_burns$ym[i])
+  burn_idx[i] <- which(burn_covs$NA_L3NAME == train_burns$NA_L3NAME[i] &
+                         burn_covs$ym == train_burns$ym[i])
+}
+
+count_idx <- rep(NA, nrow(train_counts))
+for (i in 1:nrow(train_counts)) {
+  count_idx[i] <- which(count_covs$NA_L3NAME == train_counts$NA_L3NAME[i] &
+                        count_covs$ym == train_counts$ym[i])
 }
 
 # check to make sure the indices were correct
-stopifnot(max(burn_idx) <= nrow(train_burn_covs))
-stopifnot(all(train_burn_covs$NA_L3NAME[burn_idx] == train_burns$NA_L3NAME))
-stopifnot(all(train_burn_covs$ym[burn_idx] == train_burns$ym))
+stopifnot(max(burn_idx) <= nrow(burn_covs))
+stopifnot(max(count_idx) <= nrow(count_covs))
+stopifnot(all(burn_covs$NA_L3NAME[burn_idx] == train_burns$NA_L3NAME))
+stopifnot(all(burn_covs$ym[burn_idx] == train_burns$ym))
+stopifnot(all(count_covs$NA_L3NAME[count_idx] == train_counts$NA_L3NAME))
+stopifnot(all(count_covs$ym[count_idx] == train_counts$ym))
+
 
 # note whether there are columns in Xc that are not in X
 colnames(Xc)[!(colnames(Xc) %in% colnames(X))]
