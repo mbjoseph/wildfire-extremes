@@ -1,11 +1,17 @@
 data {
   int<lower = 1> N; // # spatial units
   int<lower = 1> T; // # timesteps
-  int<lower = 1> L; // # dimensions
   int<lower = 1> p; // # columns in design matrix
-  int<lower = 1> p_c; // # cols in count X
+  int<lower = 1> p_c; // # cols in count design matrix
   vector[N * T] log_area;
-  int<lower = 0> counts[N * T]; // # of events in each spatial unit * timestep
+
+  int<lower = 1> n_count; // number of counts in training set
+  int<lower = 0> counts[n_count]; // # of events in each spatial unit * timestep
+  int<lower = 1, upper = N * T> count_idx[n_count];
+
+  int n_fire;
+  vector[n_fire] sizes;
+  int<lower = 1, upper = N * T> burn_idx[n_fire];
 
   // sparse matrix for counts
   int<lower = 1> n_wc;
@@ -13,17 +19,11 @@ data {
   int<lower = 1> vc[n_wc];
   int<lower = 1> uc[N * T + 1];
 
-  int n_fire;
-  vector[n_fire] sizes;
-  int<lower = 1> burn_idx[n_fire];
-
   // sparse matrix for fire sizes
-  int<lower = 1> nrowX;
   int<lower = 1> n_w;
   vector[n_w] w;
   int<lower = 1> v[n_w];
-  int<lower = 1> n_u;
-  int<lower = 1> u[n_u];
+  int<lower = 1> u[N * T + 1];
 }
 
 parameters {
@@ -44,7 +44,7 @@ parameters {
 }
 
 transformed parameters {
-  vector[nrowX] mu;
+  vector[N * T] mu;
   vector[N * T] mu_counts;
   vector[p] beta;
   vector[p] lambda_tilde;
@@ -65,7 +65,7 @@ transformed parameters {
   beta = betaR .* lambda_tilde * tau;
   beta_c = betaR_c .* lambda_tilde_c * tau_c;
 
-  mu = alpha[1] + csr_matrix_times_vector(nrowX, p, w, v, u, beta);
+  mu = alpha[1] + csr_matrix_times_vector(N * T, p, w, v, u, beta);
 
   mu_counts = alpha[2]
                 + csr_matrix_times_vector(N*T, p_c, wc, vc, uc, beta_c)
@@ -91,7 +91,7 @@ model {
   tau_c ~ normal(0, 1);
 
   // number of fires
-  counts ~ poisson_log(mu_counts);
+  counts ~ poisson_log(mu_counts[count_idx]);
 
   // fire sizes
   sizes ~ normal(mu[burn_idx], sigma_size);
