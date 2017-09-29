@@ -14,7 +14,8 @@ m_fit <- read_rds('m_fit.rds')
 traceplot(m_fit,
           inc_warmup = TRUE)
 
-traceplot(m_fit, pars = c('tau', 'sigma_size', 'sigma_eps', 'tau_c', 'c_sq'))
+traceplot(m_fit, pars = c('tau', 'sigma_size', 'sigma_eps', 'sigma_mu',
+                          'tau_c', 'c_sq'))
 
 plot(m_fit, pars = 'beta') +
   geom_vline(xintercept = 0, linetype = 'dashed') +
@@ -382,24 +383,16 @@ plot_grid(cplot, splot, nrow = 2)
 ggsave('fig/time-trends.pdf', width = 7, height = 10)
 
 # Compare predicted to expected counts for training data
-# c_df %>%
-#   right_join(train_counts) %>%
-#   ggplot(aes(x = n_fire, y = exp(med_c))) +
-#   geom_point() +
-#   geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
-#   geom_segment(aes(xend = n_fire, y = exp(lo_c), yend = exp(hi_c)))
+c_df %>%
+  dplyr::select(-row_c) %>%
+  right_join(train_counts) %>%
+  ggplot(aes(x = n_fire, y = exp(med_c))) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
+  geom_segment(aes(xend = n_fire, y = exp(lo_c), yend = exp(hi_c))) +
+  facet_wrap(~ NA_L3NAME)
 
 
 
 # Posterior predictions  --------------------------------------------------
 
-# 1: Predict the number of fire events for the entire record, inc. training
-#     and test sets.
-
-# 1a. make predictions for the training set
-train_counts_pred <- rpois(length(c(post$mu_counts)),
-                           lambda = exp(c(post$mu_counts))) %>%
-  matrix(nrow = nrow(post$mu_counts), ncol = ncol(post$mu_counts))
-
-# for each ecoregion by timestep, simulate burn area exceedance of each event
-mu_exceedance <- array(dim = train_counts_pred)
