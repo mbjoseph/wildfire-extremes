@@ -56,6 +56,6 @@ m2_fit <- sampling(m2_init,
                    pars = pars,
                    cores = 4,
                    init_r = 0.01,
-                   iter = 10,
+                   iter = 800,
                    refresh = 1)
-# write_rds(m_fit, 'm_fit2.rds')
+write_rds(m_fit, 'm_fit2.rds')

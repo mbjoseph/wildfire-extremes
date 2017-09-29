@@ -12,12 +12,6 @@ data {
   vector[n_fire] sizes;
   int<lower = 1, upper = N * T> burn_idx[n_fire];
 
-  // sparse matrix for counts
-  int<lower = 1> n_wc;
-  vector[n_wc] wc;
-  int<lower = 1> vc[n_wc];
-  int<lower = 1> uc[N * T + 1];
-
   // sparse matrix for fire sizes
   int<lower = 1> n_w;
   vector[n_w] w;
@@ -44,8 +38,10 @@ transformed parameters {
   // regularized horseshoe prior
   for (i in 1:3) {
     lambda_sq[i] = square(lambda[i]);
-    lambda_tilde[i] = sqrt(c_sq[i] * lambda_sq[i] ./
-                      (c_sq[i] + tau[i]^2 * lambda_sq[i]));
+    lambda_tilde[i] = sqrt(
+                            c_sq[i] * lambda_sq[i] ./
+                            (c_sq[i] + tau[i]^2 * lambda_sq[i])
+                          );
     beta[i] = betaR[i] .* lambda_tilde[i] * tau[i];
     mu[i] = alpha[i] +
               csr_matrix_times_vector(N * T, p, w, v, u, beta[i]) +
