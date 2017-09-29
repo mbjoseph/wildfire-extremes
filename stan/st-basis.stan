@@ -36,7 +36,11 @@ parameters {
   real<lower = 0> tau_c;
 
   vector[2] alpha; // intercept
+
+  vector[N * T] size_epsR;
   real<lower = 0> sigma_size;
+  real<lower = 0> sigma_mu;
+
   vector[N * T] count_epsR;
   real<lower = 0> sigma_eps;
 
@@ -65,7 +69,9 @@ transformed parameters {
   beta = betaR .* lambda_tilde * tau;
   beta_c = betaR_c .* lambda_tilde_c * tau_c;
 
-  mu = alpha[1] + csr_matrix_times_vector(N * T, p, w, v, u, beta);
+  mu = alpha[1]
+        + csr_matrix_times_vector(N * T, p, w, v, u, beta)
+        + size_epsR * sigma_mu;
 
   mu_counts = alpha[2]
                 + csr_matrix_times_vector(N*T, p_c, wc, vc, uc, beta_c)
@@ -76,6 +82,10 @@ transformed parameters {
 model {
   count_epsR ~ normal(0, 1);
   sigma_eps ~ normal(0, 1);
+
+  size_epsR ~ normal(0, 1);
+  sigma_mu ~ normal(0, 1);
+
   sigma_size ~ normal(0, 1);
   alpha ~ normal(0, 1);
 
