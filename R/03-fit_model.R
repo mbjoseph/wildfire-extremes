@@ -27,6 +27,9 @@ stan_d <- list(
   v = sparse_X$v,
   u = sparse_X$u)
 
+
+
+# Simple model with no variance structure ---------------------------------
 m_init <- stan_model('stan/st-basis.stan')
 m_fit <- sampling(m_init,
                   data = stan_d,
@@ -35,9 +38,24 @@ m_fit <- sampling(m_init,
                            'sigma_eps',
                            'beta_c', 'tau_c',
                            'alpha',
-                           'c_sq'),
+                           'c_sq',
+                           'sigma_mu'),
                   cores = 4,
                   init_r = .01,
                   iter = 1000,
                   refresh = 50)
 # write_rds(m_fit, 'm_fit.rds')
+
+
+
+# Fancy model, nonstationary variance -------------------------------------
+pars <- c('beta', 'tau', 'alpha', 'sigma', 'c_sq', 'mu')
+m2_init <- stan_model('stan/st-basis-ns-sigma.stan')
+m2_fit <- sampling(m2_init,
+                   data = stan_d,
+                   pars = pars,
+                   cores = 4,
+                   init_r = 0.01,
+                   iter = 10,
+                   refresh = 1)
+# write_rds(m_fit, 'm_fit2.rds')
