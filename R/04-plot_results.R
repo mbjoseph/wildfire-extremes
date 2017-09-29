@@ -1,5 +1,16 @@
+library(raster)
+library(rstan)
+library(sf)
+library(rmapshaper)
+library(tidyverse)
+
+source('R/02-explore.R')
+
+
 m_fit <- read_rds('m_fit.rds')
 
+
+# Evaluate convergence ----------------------------------------------------
 traceplot(m_fit,
           inc_warmup = TRUE)
 
@@ -13,11 +24,15 @@ plot(m_fit, pars = 'beta_c') +
   coord_flip()
 
 
+# Extract posterior draws and visualize results ---------------------------
 post <- rstan::extract(m_fit)
 str(post)
 rm(m_fit)
 gc()
 
+
+
+# Coefficients that seem to be far from zero ------------------------------
 beta_df <- post$beta %>%
   reshape2::melt(varnames = c('iter', 'col')) %>%
   tbl_df %>%
@@ -61,11 +76,11 @@ beta_c_df %>%
 beta_df %>%
   mutate(Parameter = 'beta') %>%
   full_join(mutate(beta_c_df, Parameter = 'beta_c')) %>%
-  select(col, Parameter, med) %>%
+  dplyr::select(col, Parameter, med) %>%
   spread(Parameter, med) %>%
   ggplot(aes(beta_c, beta)) +
   geom_point()
-
+# doesn't seem to be evidence for correpsondence
 
 # Visualize some predictions ----------------------------------------------
 
@@ -78,11 +93,10 @@ mu_df <- post$mu %>%
             lo = quantile(value, 0.025),
             hi = quantile(value, .975)) %>%
   ungroup %>%
-  `[`(burn_idx, ) %>%
-  bind_cols(tbl_df(train_burns))
+  bind_cols(tbl_df(burn_covs))
 
 mu_df <- mu_df %>%
-  left_join(dplyr::select(tbl_df(ecoregions),
+  left_join(dplyr::distinct(tbl_df(ecoregions),
                           NA_L3NAME, NA_L1CODE)) %>%
   mutate(facet_factor = paste0(NA_L1CODE, NA_L3NAME))
 
@@ -90,8 +104,9 @@ mu_df <- mu_df %>%
 mu_df %>%
   ggplot(aes(ym, exp(med))) +
   geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
-              alpha = .5, fill = 'dodgerblue') +
-  geom_line() +
+              alpha = .5, fill = 'dodgerblue',
+              color = NA) +
+  geom_line(size = .1) +
   facet_wrap(~ NA_L3NAME) +
   xlab('Date') +
   ylab("Expected fire size") +
@@ -99,18 +114,15 @@ mu_df %>%
 
 # true vs. predicted means
 mu_df %>%
+  right_join(tbl_df(train_burns)) %>%
   group_by(NA_L3NAME, ym) %>%
-  summarize(emp_mean = mean(log(R_ACRES - 1e3)),
-            med = unique(na.omit(med)),
-            lo = unique(na.omit(lo)),
-            hi = unique(na.omit(hi))) %>%
-  ggplot(aes(emp_mean, med)) +
+  ggplot(aes(log(R_ACRES - 1e3), med)) +
   geom_point(size = .2, alpha = .2) +
-  geom_segment(aes(xend = emp_mean,
+  geom_segment(aes(xend = log(R_ACRES - 1e3),
                    y = lo, yend = hi), alpha = .2) +
   geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
   facet_wrap(~ NA_L3NAME) +
-  xlab('Empirical mean fire size') +
+  xlab('Observed fire size') +
   ylab("Expected fire size")
 
 # is there an association with log(lambda) that we can exploit?
@@ -126,31 +138,32 @@ plot_size_vs_var <- function(mu_df, var) {
     geom_point(shape = 1, alpha = .5, size = .1) +
     facet_wrap(~ facet_factor) +
     xlab(var) +
-    ylab("Expected fire size (burn area)") +
+    ylab("Expected burn area exceedance over 1000 acres") +
     scale_y_log10() +
     theme(strip.text = element_text(size=9)) +
-    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5)))
+    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5))) +
+    scale_color_discrete('Level 1 ecoregion')
 }
 
-plot_size_vs_var(mu_df, var = 'pr') +
-  xlab('Total precipitation')
-ggsave(filename = 'fig/fire-size-precip.pdf', width = 20, height = 15)
-
-plot_size_vs_var(mu_df, var = 'prev_12mo_precip') +
-  xlab('Previous 12 months precipitation')
-ggsave(filename = 'fig/fire-size-12mo-precip.pdf', width = 20, height = 15)
-
-plot_size_vs_var(mu_df, var = 'tmmx') +
-  xlab('Mean daily maximum air temperature')
-ggsave(filename = 'fig/fire-size-tmmx.pdf', width = 20, height = 15)
-
-plot_size_vs_var(mu_df, var = 'vs') +
-  xlab('Mean daily wind speed')
-ggsave(filename = 'fig/fire-size-wind-speed.pdf', width = 20, height = 15)
-
-plot_size_vs_var(mu_df, var = 'pet') +
-  xlab('Mean potential evapotranspiration')
-ggsave(filename = 'fig/fire-size-pet.pdf', width = 20, height = 15)
+# plot_size_vs_var(mu_df, var = 'pr') +
+#   xlab('Total precipitation')
+# ggsave(filename = 'fig/fire-size-precip.pdf', width = 20, height = 15)
+#
+# plot_size_vs_var(mu_df, var = 'prev_12mo_precip') +
+#   xlab('Previous 12 months precipitation')
+# ggsave(filename = 'fig/fire-size-12mo-precip.pdf', width = 20, height = 15)
+#
+# plot_size_vs_var(mu_df, var = 'tmmx') +
+#   xlab('Mean daily maximum air temperature')
+# ggsave(filename = 'fig/fire-size-tmmx.pdf', width = 20, height = 15)
+#
+# plot_size_vs_var(mu_df, var = 'vs') +
+#   xlab('Mean daily wind speed')
+# ggsave(filename = 'fig/fire-size-wind-speed.pdf', width = 20, height = 15)
+#
+# plot_size_vs_var(mu_df, var = 'pet') +
+#   xlab('Mean potential evapotranspiration')
+# ggsave(filename = 'fig/fire-size-pet.pdf', width = 20, height = 15)
 
 
 
@@ -168,74 +181,80 @@ c_df <- post$mu_counts %>%
             lo_c = quantile(value, 0.025),
             hi_c = quantile(value, .975)) %>%
   ungroup %>%
-  full_join(train_counts)
+  bind_cols(count_covs)
 
 c_df <- c_df %>%
-  left_join(dplyr::select(tbl_df(ecoregions),
+  left_join(dplyr::distinct(tbl_df(ecoregions),
                           NA_L3NAME, NA_L1CODE)) %>%
   mutate(facet_factor = paste0(NA_L1CODE, NA_L3NAME))
 
 plot_c_ts <- function(df) {
   df  %>%
     ggplot(aes(x=ym, y = exp(med_c))) +
-    geom_ribbon(aes(ymin = exp(lo_c), ymax = exp(hi_c)),
-                alpha = .5, fill = 'red', col = NA) +
-    geom_line() +
+    geom_ribbon(aes(ymin = exp(lo_c), ymax = exp(hi_c),
+                    fill = NA_L1NAME),
+                alpha = .8,
+                col = NA) +
+    geom_line(size = .2) +
     facet_wrap(~facet_factor) +
     xlab('Time') +
     ylab('Expected # of burns over 1000 acres') +
-    scale_y_log10()
-}
-
-c_df %>%
-  filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
-  plot_c_ts
-
-c_df %>%
-  filter(NA_L1NAME == 'GREAT PLAINS') %>%
-  plot_c_ts
-
-c_df %>%
-  filter(NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
-  plot_c_ts
-
-plot_c_vs_var <- function(df, var) {
-  df %>%
-    distinct(ym, NA_L3NAME, .keep_all = TRUE) %>%
-    ggplot(aes_string(var, "exp(med_c - log(area))",
-                      color = "NA_L1NAME")) +
-    geom_segment(aes_string(xend = var,
-                            y = "exp(lo_c - log(area))",
-                            yend = "exp(hi_c - log(area))"),
-                 alpha = .1) +
-    geom_point(shape = 1, alpha = .8, size = .1) +
-    facet_wrap(~ facet_factor) +
-    xlab(var) +
-    ylab("Expected # fires > 1000 acres per sq. meter") +
     scale_y_log10() +
-    theme(strip.text = element_text(size=9)) +
-    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5)))
+    theme(legend.position = 'bottom')
 }
 
-plot_c_vs_var(c_df, 'pr') +
-  xlab('Monthly precipitation')
-ggsave(filename = 'fig/fire-num-precip.pdf', width = 20, height = 15)
-
-plot_c_vs_var(c_df, var = 'prev_12mo_precip') +
-  xlab('Previous 12 months precipitation')
-ggsave(filename = 'fig/fire-num-12mo-precip.pdf', width = 20, height = 15)
-
-plot_c_vs_var(c_df, 'tmmx') +
-  xlab('Mean daily maximum air temperature')
-ggsave(filename = 'fig/fire-num-tmmx.pdf', width = 20, height = 15)
-
-plot_c_vs_var(c_df, 'vs') +
-  xlab('Mean daily wind speed')
-ggsave(filename = 'fig/fire-num-wind-speed.pdf', width = 20, height = 15)
-
-plot_c_vs_var(c_df, 'pet') +
-  xlab('Mean daily potential evapotranspiration')
-ggsave(filename = 'fig/fire-num-pet.pdf', width = 20, height = 15)
+# c_df %>%
+#   plot_c_ts
+#
+# c_df %>%
+#   filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
+#   plot_c_ts
+#
+# c_df %>%
+#   filter(NA_L1NAME == 'GREAT PLAINS') %>%
+#   plot_c_ts
+#
+# c_df %>%
+#   filter(NA_L3NAME == 'Southern Rockies') %>%
+#   plot_c_ts
+#
+# plot_c_vs_var <- function(df, var) {
+#   df %>%
+#     distinct(ym, NA_L3NAME, .keep_all = TRUE) %>%
+#     ggplot(aes_string(var, "exp(med_c - log(area))",
+#                       color = "NA_L1NAME")) +
+#     geom_segment(aes_string(xend = var,
+#                             y = "exp(lo_c - log(area))",
+#                             yend = "exp(hi_c - log(area))"),
+#                  alpha = .1) +
+#     geom_point(shape = 1, alpha = .8, size = .1) +
+#     facet_wrap(~ facet_factor) +
+#     xlab(var) +
+#     ylab("Expected # fires > 1000 acres per sq. meter") +
+#     scale_y_log10() +
+#     theme(strip.text = element_text(size=9)) +
+#     guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5)))
+# }
+#
+# plot_c_vs_var(c_df, 'pr') +
+#   xlab('Monthly precipitation')
+# ggsave(filename = 'fig/fire-num-precip.pdf', width = 20, height = 15)
+#
+# plot_c_vs_var(c_df, var = 'prev_12mo_precip') +
+#   xlab('Previous 12 months precipitation')
+# ggsave(filename = 'fig/fire-num-12mo-precip.pdf', width = 20, height = 15)
+#
+# plot_c_vs_var(c_df, 'tmmx') +
+#   xlab('Mean daily maximum air temperature')
+# ggsave(filename = 'fig/fire-num-tmmx.pdf', width = 20, height = 15)
+#
+# plot_c_vs_var(c_df, 'vs') +
+#   xlab('Mean daily wind speed')
+# ggsave(filename = 'fig/fire-num-wind-speed.pdf', width = 20, height = 15)
+#
+# plot_c_vs_var(c_df, 'pet') +
+#   xlab('Mean daily potential evapotranspiration')
+# ggsave(filename = 'fig/fire-num-pet.pdf', width = 20, height = 15)
 
 
 # Mapping covariate effects -----------------------------------------------
@@ -257,7 +276,9 @@ er_names <- distinct(ecoregion_df, NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
   tbl_df
 
 effect_combos <- expand.grid(NA_L3NAME = er_names$NA_L3NAME,
-                             vars = c('cpr', 'ctmx', 'cvs', 'cpr12')) %>%
+                             vars = c('cpr', 'ctmx',
+                                      'cvs', 'cpr12',
+                                      'cyear')) %>%
   tbl_df %>%
   left_join(er_names)
 effect_combos$beta <- NA
@@ -290,60 +311,95 @@ effect_sf <- effect_combos %>%
   gather(which_beta, posterior_med, -vars, -starts_with('NA')) %>%
   full_join(simple_ecoregions) %>%
   mutate(response = ifelse(which_beta == 'beta',
-                           'Burn area', 'Number of fires'),
+                           'Burn area exceedance > 1000 acres', 'Number of fires > 1000 acres'),
          variable = ifelse(vars == 'cpr',
                            'Precipitation (same month)',
                            ifelse(vars == 'cpr12',
                                   'Precipitation (previous 12 months)',
                                   ifelse(vars == 'cvs',
                                          'Wind speed',
-                                         'Air temperature'))))
+                                         ifelse(vars == 'ctmx',
+                                         'Air temperature',
+                                         'Time trend')))))
 
 lowcolor <- 'royalblue4'
 hicolor <- 'red3'
 
-p1 <- ggplot(filter(effect_sf, which_beta == 'beta_c'),
-             aes(fill = posterior_med)) +
-  geom_sf(size = .1, color = scales::alpha(1, .5)) +
-  facet_wrap( ~ variable, nrow = 1, strip.position = 'bottom') +
-  scale_fill_gradient2(low = lowcolor, high = hicolor,
-                       "") +
-  theme_minimal()+
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.grid.major = element_line(color = NA),
-        panel.spacing = unit(0, "lines"),
-        plot.margin = margin(0, 0, 0, 0, "cm")) +
-  ggtitle('Estimated climate effects on the monthly expected number of fires over 1000 acres')
+effect_map <- function(df) {
+  ggplot(df, aes(fill = posterior_med)) +
+    geom_sf(size = .1, color = scales::alpha(1, .5)) +
+    facet_wrap( ~ variable, nrow = 1, strip.position = 'bottom') +
+    scale_fill_gradient2(low = lowcolor, high = hicolor, "") +
+    theme_minimal()+
+    theme(axis.title = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          panel.grid.major = element_line(color = NA),
+          panel.spacing = unit(0, "lines"))
+}
 
-p2 <- ggplot(filter(effect_sf, which_beta == 'beta'),
-             aes(fill = posterior_med)) +
-  geom_sf(size = .1, color = scales::alpha(1, .5)) +
-  facet_wrap(~ variable, nrow = 1, strip.position = 'bottom') +
-  scale_fill_gradient2(low = lowcolor, high = hicolor,
-                       "") +
-  theme_minimal()+
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.grid.major = element_line(color = NA),
-        panel.spacing = unit(0, "lines"),
-        plot.margin = margin(0, 0, 0, 0, "cm")) +
-  ggtitle('Estimated climate effects on the monthly expected burn area exceedance over 1000 acres')
+p1 <- effect_sf %>%
+  filter(which_beta == 'beta_c', vars != 'cyear') %>%
+  effect_map() +
+  ggtitle('A. Estimated effects: number of fires > 1000 acres')
+
+p2 <- effect_sf %>%
+  filter(which_beta == 'beta', vars != 'cyear') %>%
+  effect_map() +
+  ggtitle('B. Estimated effects: burn area exceedance > 1000 acres')
 
 plot_grid(p1, p2, nrow = 2)
 ggsave(filename = 'fig/climatic-effects.pdf', width = 16, height = 6)
 
+# plot climate independent linear time trends
+cplot <- effect_sf %>%
+  filter(vars == 'cyear', which_beta == 'beta_c') %>%
+  ggplot(aes(fill = posterior_med)) +
+  geom_sf(size = .1, color = scales::alpha(1, .5)) +
+  scale_fill_gradient2(low = lowcolor, high = hicolor, "") +
+  theme_minimal()+
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid.major = element_line(color = NA),
+        panel.spacing = unit(0, "lines"))  +
+  ggtitle('A. Estimated annual time trend: number of fires > 1000 acres')
 
-c_df %>%
-  ggplot(aes(x = n_fire, y = exp(med_c))) +
-  geom_point() +
-  geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
-  geom_segment(aes(xend = n_fire, y = exp(lo_c), yend = exp(hi_c)))
+splot <- effect_sf %>%
+  filter(vars == 'cyear', which_beta == 'beta') %>%
+  ggplot(aes(fill = posterior_med)) +
+  geom_sf(size = .1, color = scales::alpha(1, .5)) +
+  scale_fill_gradient2(low = lowcolor, high = hicolor, "") +
+  theme_minimal()+
+  theme(axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid.major = element_line(color = NA),
+        panel.spacing = unit(0, "lines"))  +
+  ggtitle('B. Estimated annual time trend: burn area exceedance > 1000 acres')
 
-mu_df %>%
-  left_join(dplyr::select(c_df, NA_L3NAME, ym, med_c, lo_c, hi_c)) %>%
-  ggplot(aes(x = med_c, y = log(R_ACRES - 1e3))) +
-  geom_point(shape = 1, size = .5, alpha = .3) +
-  facet_wrap(~NA_L3NAME)
+plot_grid(cplot, splot, nrow = 2)
+ggsave('fig/time-trends.pdf', width = 7, height = 10)
+
+# Compare predicted to expected counts for training data
+# c_df %>%
+#   right_join(train_counts) %>%
+#   ggplot(aes(x = n_fire, y = exp(med_c))) +
+#   geom_point() +
+#   geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
+#   geom_segment(aes(xend = n_fire, y = exp(lo_c), yend = exp(hi_c)))
+
+
+
+# Posterior predictions  --------------------------------------------------
+
+# 1: Predict the number of fire events for the entire record, inc. training
+#     and test sets.
+
+# 1a. make predictions for the training set
+train_counts_pred <- rpois(length(c(post$mu_counts)),
+                           lambda = exp(c(post$mu_counts))) %>%
+  matrix(nrow = nrow(post$mu_counts), ncol = ncol(post$mu_counts))
+
+# for each ecoregion by timestep, simulate burn area exceedance of each event
+mu_exceedance <- array(dim = train_counts_pred)
