@@ -472,3 +472,36 @@ c_df %>%
   geom_segment(aes(xend = n_fire, y = exp(lo), yend = exp(hi)), alpha = .1)
 
 
+## Posterior predictive checks for extremes
+n_draw <- dim(post$mu)[1]
+n_preds <- dim(post$mu)[3]
+block_maxima <- matrix(nrow = n_draw, ncol = n_preds)
+area_sums <- matrix(nrow = n_draw, ncol = n_preds)
+n_events <- rpois(n_draw * n_preds,
+                  lambda = exp(c(post$mu[, 3, ]))) %>%
+  matrix(nrow = n_draw, ncol = n_preds)
+
+pb <- txtProgressBar(max = n_draw, style = 3)
+for (i in 1:n_draw) {
+  for (j in 1:n_preds) {
+    if (n_events[i, j] > 0) {
+      burn_areas <- 1e3 + exp(rnorm(n = n_events[i, j],
+                                    mean = post$mu[i, 1, j],
+                                    sd = exp(post$mu[i, 2, j])))
+      block_maxima[i, j] <- max(burn_areas)
+      area_sums[i, j] <- sum(burn_areas)
+    }
+  }
+  setTxtProgressBar(pb, i)
+}
+
+ppred_df <- reshape2::melt(block_maxima,
+                           varnames = c('iter', 'idx'),
+                           value.name = 'max_burn_area') %>%
+  bind_cols(reshape2::melt(area_sums,
+            varnames = c('iter', 'idx'),
+            value.name = 'total_burn_area')) %>%
+  as_tibble %>%
+  dplyr::select(-iter1, -idx1)
+
+write_rds(ppred_df, 'ppred_df.rds')
