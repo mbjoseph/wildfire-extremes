@@ -18,8 +18,8 @@ m_fit <- read_rds('m_fit.rds')
 # Evaluate convergence ----------------------------------------------------
 traceplot(m_fit, inc_warmup = TRUE)
 
-traceplot(m_fit, pars = c('tau', 'sigma', 'c_sq', 'alpha'))
-
+traceplot(m_fit, pars = c('tau', 'sigma', 'c', 'alpha'))
+traceplot(m_fit, pars = c('Rho_beta', 'Rho_eps'))
 plot(m_fit, pars = 'beta') +
   geom_vline(xintercept = 0, linetype = 'dashed') +
   coord_flip()
@@ -113,6 +113,7 @@ plot_mu_ts <- function(df) {
     theme(legend.position = 'none')
 }
 
+unique(burn_mu_df$NA_L1NAME)
 
 burn_mu_df %>%
   filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
@@ -183,7 +184,7 @@ plot_size_vs_var <- function(burn_mu_df, var) {
                             yend = "exp(hi)"),
                  alpha = .1) +
     geom_point(shape = 1, size = .1) +
-    facet_wrap(~ paste(NA_L1CODE, NA_L2NAME, sep = ':')) +
+    facet_wrap(~ paste(NA_L1CODE, NA_L3NAME, sep = ':')) +
     xlab(var) +
     ylab("Expected burn area exceedance over 1000 acres") +
     scale_y_log10() +

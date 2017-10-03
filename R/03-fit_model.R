@@ -1,10 +1,8 @@
 source('R/02-explore.R')
 
-
 stan_d <- list(
   N = N,
   T = T,
-  L = 2,
   p = ncol(X),
   log_area = log(burn_covs$area * 1e-10),
 
@@ -19,14 +17,17 @@ stan_d <- list(
   n_w = length(sparse_X$w),
   w = sparse_X$w,
   v = sparse_X$v,
-  u = sparse_X$u)
+  u = sparse_X$u,
+  M = 3,
+  slab_df = 3,
+  slab_scale = 5)
 
 
 
 # Fancy model, nonstationary variance -------------------------------------
-pars <- c('beta', 'tau', 'alpha', 'sigma', 'c_sq', 'mu')
-m_init <- stan_model('stan/st-basis-ns-sigma.stan')
-m_fit <- sampling(m2_init,
+pars <- c('beta', 'tau', 'alpha', 'sigma', 'c', 'mu', 'Rho_beta', 'Rho_eps')
+m_init <- stan_model('stan/st-basis-ns-lognorm.stan')
+m_fit <- sampling(m_init,
                    data = stan_d,
                    pars = pars,
                    cores = 4,

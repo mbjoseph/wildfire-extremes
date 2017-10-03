@@ -143,7 +143,9 @@ stopifnot(length(burn_combos[!(burn_combos %in% count_combos)]) == 0)
 # Create design matrices --------------------------------------------------
 make_X <- function(df) {
   model.matrix(~ 0 +
-                 ctri +
+                 ctri * NA_L3NAME +
+                 ctri * NA_L2NAME +
+                 ctri * NA_L1NAME +
                  cyear * NA_L3NAME +
                  cyear * NA_L2NAME +
                  cyear * NA_L1NAME +
