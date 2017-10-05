@@ -17,56 +17,79 @@ data {
   vector[n_w] w;
   int<lower = 1> v[n_w];
   int<lower = 1> u[N * T + 1];
+
+  int<lower = 1, upper = 3> M; // num dimensions
+  real<lower = 0> slab_df;
+  real<lower = 0> slab_scale;
 }
 
 parameters {
-  vector[p] betaR[3];
-  vector<lower = 0>[p] lambda[3];
-  vector<lower = 0>[3] tau;
-  vector[3] alpha; // intercept
-  vector[N * T] epsR[3];
-  vector<lower = 0>[3] sigma;
-  vector<lower = 0>[3] c_sq;
+  matrix[M, p] betaR;
+  vector<lower = 0>[p] lambda[M];
+  vector<lower = 0>[M] tau;
+  vector[M] alpha; // intercept
+  matrix[M, N * T] epsR;
+  cholesky_factor_corr[M] L_eps;
+  vector<lower = 0>[M] sigma;
+  vector<lower = 0>[M] c_aux;
+  cholesky_factor_corr[M] L_beta;
 }
 
 transformed parameters {
-  vector[N * T] mu[3];
-  vector[p] beta[3];
-  vector[p] lambda_tilde[3];
-  vector[p] lambda_sq[3];
+  vector[N * T] mu[M];
+  matrix[M, p] beta;
+  matrix[M, p] lambda_tilde;
+  matrix[M, p] lambda_sq;
+  vector<lower = 0>[M] c;
+  matrix[M, N * T] eps;
+
+  eps = diag_pre_multiply(sigma, L_eps) * epsR;
+
+  c = slab_scale * sqrt(c_aux);
 
   // regularized horseshoe prior
-  for (i in 1:3) {
-    lambda_sq[i] = square(lambda[i]);
-    lambda_tilde[i] = sqrt(
-                            c_sq[i] * lambda_sq[i] ./
-                            (c_sq[i] + tau[i]^2 * lambda_sq[i])
+  for (i in 1:M) {
+    lambda_sq[i, ] = square(lambda[i])';
+    lambda_tilde[i, ] = sqrt(
+                            c[i]^2 * lambda_sq[i, ] ./
+                            (c[i]^2 + tau[i]^2 * lambda_sq[i, ])
                           );
-    beta[i] = betaR[i] .* lambda_tilde[i] * tau[i];
-    mu[i] = alpha[i] +
-              csr_matrix_times_vector(N * T, p, w, v, u, beta[i]) +
-              epsR[i] * sigma[i];
   }
 
+  // multivariate horseshoe
+  beta = diag_pre_multiply(tau, L_beta) *  betaR .* lambda_tilde;
+
+  for (i in 1:M)
+    mu[i] = alpha[i] +
+              csr_matrix_times_vector(N * T, p, w, v, u, beta[i, ]') +
+              eps[i, ]';
+
   // expected log counts need an offset for area
-  mu[3] = mu[3] + log_area;
+  mu[M] = mu[M] + log_area;
 }
 
 model {
-  for (i in 1:3) {
-    betaR[i] ~ normal(0, 1);
+  for (i in 1:M) {
     lambda[i] ~ cauchy(0, 1);
     epsR[i] ~ normal(0, 1);
   }
+  L_beta ~ lkj_corr_cholesky(2);
+  to_vector(betaR) ~ normal(0, 1);
 
-  c_sq ~ inv_gamma(1, 1);
+  c_aux ~ inv_gamma(0.5 * slab_df, 0.5 * slab_df);
   sigma ~ normal(0, 1);
+  L_eps ~ lkj_corr_cholesky(2);
   alpha ~ normal(0, 1);
   tau ~ normal(0, 1);
 
   // number of fires
-  counts ~ poisson_log(mu[3][count_idx]);
+  counts ~ poisson_log(mu[M][count_idx]);
 
   // fire sizes
   sizes ~ weibull(exp(mu[1])[burn_idx], exp(mu[2])[burn_idx]);
+}
+
+generated quantities {
+  matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
+  matrix[M, M] Rho_eps = multiply_lower_tri_self_transpose(L_eps);
 }
