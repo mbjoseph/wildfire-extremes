@@ -18,8 +18,8 @@ m_fit <- read_rds('m_fit.rds')
 # Evaluate convergence ----------------------------------------------------
 traceplot(m_fit, inc_warmup = TRUE)
 
-traceplot(m_fit, pars = c('tau', 'sigma', 'c_sq', 'alpha'))
-
+traceplot(m_fit, pars = c('tau', 'sigma', 'c', 'alpha'))
+traceplot(m_fit, pars = c('Rho_beta', 'Rho_eps'))
 plot(m_fit, pars = 'beta') +
   geom_vline(xintercept = 0, linetype = 'dashed') +
   coord_flip()
@@ -40,13 +40,15 @@ beta_df <- post$beta %>%
   group_by(dim, col) %>%
   summarize(mode = mlv(value, method = 'venter')$M,
             lo = hdi(value, credMass = .9)[1],
-            hi = hdi(value, credMass = .9)[2]) %>%
+            hi = hdi(value, credMass = .9)[2],
+            p_neg = mean(value < 0),
+            p_pos = mean(value > 0)) %>%
   ungroup %>%
   mutate(variable = colnames(X)[col],
-         over_zero = lo < 0 & hi > 0)
+         nonzero = p_neg > .9 | p_pos > .9)
 
 beta_df %>%
-  filter(!over_zero) %>%
+  filter(nonzero) %>%
   ggplot(aes(mode, variable)) +
   geom_point() +
   geom_vline(xintercept = 0, linetype = 'dashed') +
@@ -64,7 +66,7 @@ beta_df %>%
 
 # explore the possibility of allowing correlation between beta and beta_c
 beta_df %>%
-  select(-lo, -hi, -over_zero) %>%
+  select(-lo, -hi, -nonzero, -p_neg, -p_pos) %>%
   spread(dim, mode) %>%
   ggplot(aes(`1`, `3`)) +
   geom_point(alpha = .5) +
@@ -106,13 +108,14 @@ plot_mu_ts <- function(df) {
     facet_wrap(~ NA_L3NAME) +
     xlab('Date') +
     ylab("Expected burn area log exceedance") +
-    #scale_y_log10() +
+    scale_y_log10() +
     geom_vline(xintercept = cutoff_year, linetype = 'dashed', col = 'grey') +
     scale_color_gdocs() +
     scale_fill_gdocs() +
     theme(legend.position = 'none')
 }
 
+unique(burn_mu_df$NA_L1NAME)
 
 burn_mu_df %>%
   filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
@@ -171,6 +174,7 @@ sigma_mu_df %>%
 
 
 # Visualize covariate effects on exceedance -------------------------------
+label_size <- 7
 plot_size_vs_var <- function(burn_mu_df, var) {
   burn_mu_df %>%
     right_join(as_tibble(train_burns)) %>%
@@ -182,12 +186,12 @@ plot_size_vs_var <- function(burn_mu_df, var) {
                             y = "exp(lo)",
                             yend = "exp(hi)"),
                  alpha = .1) +
-    geom_point(shape = 1, size = .1) +
-    facet_wrap(~ paste(NA_L1CODE, NA_L2NAME, sep = ':')) +
+    geom_point(shape = 1, size = .3) +
+    facet_wrap(~ paste(NA_L1CODE, NA_L3NAME, sep = ':')) +
     xlab(var) +
     ylab("Expected burn area exceedance over 1000 acres") +
     scale_y_log10() +
-    theme(strip.text = element_text(size=6),
+    theme(strip.text = element_text(size=label_size),
           legend.position = 'none') +
     guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5))) +
     scale_color_gdocs('Level 1 ecoregion') +
@@ -316,7 +320,7 @@ plot_c_vs_var <- function(df, var) {
     xlab(var) +
     ylab("Expected # fires > 1000 acres per sq. meter") +
     scale_y_log10() +
-    theme(strip.text = element_text(size=6),
+    theme(strip.text = element_text(size=label_size),
           legend.position = 'none') +
     guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5))) +
     scale_color_gdocs()
@@ -465,11 +469,15 @@ ggsave('fig/time-trends.pdf', width = 7, height = 10)
 # Compare predicted to expected counts for training data
 c_df %>%
   dplyr::select(ym, NA_L3NAME, mode, lo, hi) %>%
-  right_join(train_counts) %>%
-  ggplot(aes(x = n_fire, y = exp(mode))) +
-  geom_point(alpha = .1) +
+  right_join(count_df) %>%
+  mutate(is_train = year < cutoff_year) %>%
+  ggplot(aes(x = n_fire, y = exp(mode), color = is_train)) +
+  facet_wrap(~ NA_L3NAME) +
+  geom_point(alpha = .5) +
   geom_abline(slope = 1, intercept = 0, linetype = 'dashed', color = 'blue') +
-  geom_segment(aes(xend = n_fire, y = exp(lo), yend = exp(hi)), alpha = .1)
+  geom_segment(aes(xend = n_fire, y = exp(lo), yend = exp(hi)), alpha = .1) +
+  scale_x_log10() +
+  scale_y_log10()
 
 
 ## Posterior predictive checks for extremes
