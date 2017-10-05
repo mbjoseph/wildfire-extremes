@@ -18,7 +18,8 @@ w_fit <- read_rds('w_fit.rds')
 # Evaluate convergence ----------------------------------------------------
 traceplot(w_fit, inc_warmup = TRUE)
 
-traceplot(w_fit, pars = c('tau', 'sigma', 'c_sq', 'alpha'))
+traceplot(w_fit, pars = c('tau', 'sigma', 'c', 'alpha'))
+traceplot(w_fit, pars = c('Rho_beta', 'Rho_eps'))
 
 plot(w_fit, pars = 'beta') +
   geom_vline(xintercept = 0, linetype = 'dashed') +
@@ -61,19 +62,6 @@ beta_df %>%
   facet_wrap(~ dim, scales = 'free_x')
 
 
-
-# explore the possibility of allowing correlation between beta and beta_c
-beta_df %>%
-  select(-lo, -hi, -over_zero) %>%
-  spread(dim, mode) %>%
-  ggplot(aes(`1`, `3`)) +
-  geom_point(alpha = .5) +
-  geom_vline(xintercept = 0,linetype = 'dashed') +
-  geom_hline(yintercept = 0,linetype = 'dashed') +
-  xlab('Effect on number of events') +
-  ylab('Effect on event size')
-# does seem to be evidence for correpsondence - maybe multivariate horseshoe
-
 # Visualize some predictions ----------------------------------------------
 
 burn_covs$row <- 1:nrow(burn_covs)
@@ -90,12 +78,12 @@ mu_df <- post$mu %>%
 ## Visualize the modal burn area exceedance pdf
 weibull_df <- mu_df %>%
   filter(response != 3) %>%
-  select(-lo, -hi) %>%
+  dplyr::select(-lo, -hi) %>%
   mutate(mode = exp(mode)) %>% # log link
   spread(response, mode) %>%
-  mutate(lo = 1e3 + 1e5 * qweibull(.025, shape = `1`, scale = `2`),
-         med = 1e3 + 1e5 * qweibull(.5, shape = `1`, scale = `2`),
-         hi = 1e3 + 1e5 * qweibull(.975, shape = `1`, scale = `2`)) %>%
+  mutate(lo = 1e3 + weibull_scale_adj * qweibull(.025, shape = `1`, scale = `2`),
+         med = 1e3 + weibull_scale_adj * qweibull(.5, shape = `1`, scale = `2`),
+         hi = 1e3 + weibull_scale_adj * qweibull(.975, shape = `1`, scale = `2`)) %>%
   full_join(tbl_df(burn_covs)) %>%
   left_join(dplyr::distinct(tbl_df(ecoregions),
                             NA_L3NAME, NA_L1CODE)) %>%
@@ -342,7 +330,8 @@ effect_combos <- expand.grid(NA_L3NAME = er_names$NA_L3NAME,
                                       'cyear')) %>%
   tbl_df %>%
   left_join(er_names)
-effect_combos$beta <- NA
+effect_combos$beta_shape <- NA
+effect_combos$beta_scale <- NA
 effect_combos$beta_c <- NA
 
 for (i in 1:nrow(effect_combos)) {
@@ -354,7 +343,8 @@ for (i in 1:nrow(effect_combos)) {
     var_idx * grepl(effect_combos$NA_L2NAME[i], beta_df$variable) +
     var_idx * grepl(effect_combos$NA_L3NAME[i], beta_df$variable)
 
-  effect_combos$beta[i] <- sum(beta_df$mode[index > 0 & beta_df$dim == 1])
+  effect_combos$beta_shape[i] <- sum(beta_df$mode[index > 0 & beta_df$dim == 1])
+  effect_combos$beta_scale[i] <- sum(beta_df$mode[index > 0 & beta_df$dim == 2])
   effect_combos$beta_c[i] <- sum(beta_df$mode[index > 0 & beta_df$dim == 3])
 }
 
@@ -371,8 +361,11 @@ ggplot() +
 effect_sf <- effect_combos %>%
   gather(which_beta, posterior_mode, -vars, -starts_with('NA')) %>%
   full_join(simple_ecoregions) %>%
-  mutate(response = ifelse(which_beta == 'beta',
-                           'Burn area exceedance > 1000 acres', 'Number of fires > 1000 acres'),
+  mutate(response = ifelse(which_beta == 'beta_shape',
+                           'Weibull shape parameter',
+                           ifelse(which_beta == 'beta_scale',
+                                  'Weibull scale parameter',
+                                  'Number of fires > 1000 acres')),
          variable = ifelse(vars == 'cpr',
                            'Precipitation (same month)',
                            ifelse(vars == 'cpr12',
@@ -405,16 +398,22 @@ p1 <- effect_sf %>%
   ggtitle('A. Estimated effects: number of fires > 1000 acres')
 
 p2 <- effect_sf %>%
-  filter(which_beta == 'beta', vars != 'cyear') %>%
+  filter(which_beta == 'beta_shape', vars != 'cyear') %>%
   effect_map() +
-  ggtitle('B. Estimated effects: burn area exceedance > 1000 acres')
+  ggtitle('B. Estimated effects: burn area exceedance shape parameter')
 
-plot_grid(p1, p2, nrow = 2)
+p3 <- effect_sf %>%
+  filter(which_beta == 'beta_scale', vars != 'cyear') %>%
+  effect_map() +
+  ggtitle('C. Estimated effects: burn area exceedance scale parameter')
+
+
+plot_grid(p1, p2, p3, nrow = 3)
 ggsave(filename = 'fig/climatic-effects.pdf', width = 16, height = 6)
 
 # plot climate independent linear time trends
-cplot <- effect_sf %>%
-  filter(vars == 'cyear', which_beta == 'beta_c') %>%
+effect_sf %>%
+  filter(vars == 'cyear') %>%
   ggplot(aes(fill = posterior_mode)) +
   geom_sf(size = .1, color = scales::alpha(1, .5)) +
   scale_fill_gradient2(low = lowcolor, high = hicolor, "") +
@@ -423,24 +422,11 @@ cplot <- effect_sf %>%
         axis.text = element_blank(),
         axis.ticks = element_blank(),
         panel.grid.major = element_line(color = NA),
-        panel.spacing = unit(0, "lines"))  +
-  ggtitle('A. Estimated annual time trend: number of fires > 1000 acres')
+        panel.spacing = unit(0, "lines")) +
+  facet_wrap(~ response) +
+  ggtitle('Estimated time trend')
 
-splot <- effect_sf %>%
-  filter(vars == 'cyear', which_beta == 'beta') %>%
-  ggplot(aes(fill = posterior_mode)) +
-  geom_sf(size = .1, color = scales::alpha(1, .5)) +
-  scale_fill_gradient2(low = lowcolor, high = hicolor, "") +
-  theme_minimal()+
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.grid.major = element_line(color = NA),
-        panel.spacing = unit(0, "lines"))  +
-  ggtitle('B. Estimated annual time trend: burn area exceedance > 1000 acres')
 
-plot_grid(cplot, splot, nrow = 2)
-ggsave('fig/time-trends.pdf', width = 7, height = 10)
 
 # Compare predicted to expected counts for training data
 c_df %>%
@@ -465,9 +451,10 @@ pb <- txtProgressBar(max = n_draw, style = 3)
 for (i in 1:n_draw) {
   for (j in 1:n_preds) {
     if (n_events[i, j] > 0) {
-      burn_areas <- 1e3 + exp(rnorm(n = n_events[i, j],
-                                    mean = post$mu[i, 1, j],
-                                    sd = exp(post$mu[i, 2, j])))
+      burn_areas <- 1e3 +
+        weibull_scale_adj * rweibull(n_events[i, j],
+                                     shape = exp(post$mu[i, 2, j]),
+                                     scale = exp(post$mu[i, 1, j]))
       block_maxima[i, j] <- max(burn_areas)
       area_sums[i, j] <- sum(burn_areas)
     }
@@ -484,4 +471,4 @@ ppred_df <- reshape2::melt(block_maxima,
   as_tibble %>%
   dplyr::select(-iter1, -idx1)
 
-write_rds(ppred_df, 'ppred_df.rds')
+write_rds(ppred_df, 'weib_ppred_df.rds')
