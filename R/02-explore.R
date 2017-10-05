@@ -83,6 +83,9 @@ er_df <- dplyr::select(data.frame(ecoregions),
 st_covs <- ecoregion_summaries %>%
   mutate(dim = 1) %>%
   full_join(mutate(ecoregion_summaries, dim = 2)) %>%
+  left_join(er_df) %>%
+  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)",
+         year > 1983) %>%
   mutate(cpet = c(scale(pet)),
          cpr = c(scale(pr)),
          ctmx = c(scale(tmmx)),
@@ -92,10 +95,8 @@ st_covs <- ecoregion_summaries %>%
          timestep_factor = factor(ym),
          cyear = c(scale(year)),
          ctri = c(scale(log(tri)))) %>%
-  left_join(er_df) %>%
-  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)",
-         year > 1983) %>%
-  left_join(area_df)
+  left_join(area_df) %>%
+  droplevels
 
 st_covs <- st_covs[!duplicated(st_covs), ]
 st_covs$id <- 1:nrow(st_covs)
@@ -143,9 +144,7 @@ stopifnot(length(burn_combos[!(burn_combos %in% count_combos)]) == 0)
 # Create design matrices --------------------------------------------------
 make_X <- function(df) {
   model.matrix(~ 0 +
-                 ctri * NA_L3NAME +
-                 ctri * NA_L2NAME +
-                 ctri * NA_L1NAME +
+                 ctri +
                  cyear * NA_L3NAME +
                  cyear * NA_L2NAME +
                  cyear * NA_L1NAME +
