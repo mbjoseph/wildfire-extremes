@@ -29,21 +29,6 @@ mtbs %>%
   geom_point() +
   facet_wrap(~ NA_L3NAME)
 
-
-
-
-# Create spatial neighbors ------------------------------------------------
-if (!file.exists('nb.rds')) {
-  nb <- as(ecoregions, "Spatial") %>%
-    poly2nb
-  write_rds(nb, path = 'nb.rds')
-}
-nb <- read_rds('nb.rds')
-W <- nb %>%
-  nb2mat(zero.policy = TRUE, style = 'B')
-plot(raster(W), col = viridis(10))
-
-# aggregate neighbor matrix to ecoregion level
 ecoregion_df <- as(ecoregions, "Spatial") %>%
   data.frame
 
@@ -56,11 +41,6 @@ area_df <- ecoregion_df %>%
 
 count_df <- count_df %>%
   left_join(area_df)
-
-
-W_ag <- spdep::aggregate.nb(nb, IDs = ecoregion_df$NA_L3NAME) %>%
-  nb2mat(zero.policy = TRUE, style = "B")
-plot(raster(W_ag), col = viridis(10))
 
 
 # visualize spatiotemporal covariates
@@ -76,49 +56,44 @@ ecoregion_summaries %>%
   geom_line() +
   facet_wrap(~ NA_L3NAME)
 
-er_df <- dplyr::select(data.frame(ecoregions),
+er_df <- dplyr::distinct(data.frame(ecoregions),
                        NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
   as_tibble
 
 st_covs <- ecoregion_summaries %>%
-  mutate(dim = 1) %>%
-  full_join(mutate(ecoregion_summaries, dim = 2)) %>%
   left_join(er_df) %>%
-  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)",
-         year > 1983) %>%
+  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)", year > 1983) %>%
   mutate(cpet = c(scale(pet)),
          cpr = c(scale(pr)),
          ctmx = c(scale(tmmx)),
          cvs = c(scale(vs)),
          cpr12 = c(scale(prev_12mo_precip)),
-         dim = factor(dim),
-         timestep_factor = factor(ym),
          cyear = c(scale(year)),
-         ctri = c(scale(log(tri)))) %>%
+         ctri = c(scale(log(tri))),
+         chd = c(scale(log(housing_density)))) %>%
   left_join(area_df) %>%
   droplevels
 
 st_covs <- st_covs[!duplicated(st_covs), ]
 st_covs$id <- 1:nrow(st_covs)
 
+
 # Create training sets, including years 1984 - 2004
 cutoff_year <- 2010
 
 train_counts <- count_df %>%
   filter(year < cutoff_year) %>%
-  left_join(filter(st_covs, dim == 1))
+  left_join(st_covs)
 
 train_burns <- mtbs %>%
   filter(FIRE_YEAR < cutoff_year) %>%
-  left_join(filter(st_covs, dim == 2))
+  left_join(st_covs)
 
 # this data frame has no duplicate ecoregion X timestep combos
 count_covs <- st_covs %>%
-  filter(dim == 1) %>%
   distinct(NA_L3NAME, ym, .keep_all = TRUE)
 
 burn_covs <- st_covs %>%
-  filter(dim == 2) %>%
   distinct(NA_L3NAME, ym, .keep_all = TRUE)
 
 N <- length(unique(st_covs$NA_L3NAME))
@@ -145,6 +120,9 @@ stopifnot(length(burn_combos[!(burn_combos %in% count_combos)]) == 0)
 make_X <- function(df) {
   model.matrix(~ 0 +
                  ctri +
+                 chd * NA_L3NAME +
+                 chd * NA_L2NAME +
+                 chd * NA_L1NAME +
                  cyear * NA_L3NAME +
                  cyear * NA_L2NAME +
                  cyear * NA_L1NAME +

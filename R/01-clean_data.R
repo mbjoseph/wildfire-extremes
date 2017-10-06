@@ -94,9 +94,15 @@ if (!file.exists('lagged_precip.rds')) {
     write_rds('lagged_precip.rds')
 }
 
+
+housing_df <- read_csv('data/processed/housing_density.csv') %>%
+  mutate(ym = as.yearmon(paste(year, sprintf("%02d", month), sep = "-"))) %>%
+  arrange(NA_L3NAME, year, month)
+
 ecoregion_summaries <- ecoregion_summaries %>%
   left_join(read_rds('lagged_precip.rds')) %>%
-  left_join(read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gridmet/ecoregion_tri.csv'))
+  left_join(read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gridmet/ecoregion_tri.csv')) %>%
+  left_join(housing_df)
+
 
 count_df <- left_join(count_df, ecoregion_summaries)
-

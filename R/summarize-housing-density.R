@@ -3,6 +3,7 @@
 library(raster)
 library(snowfall)
 library(rgdal)
+library(purrr)
 
 source('R/helpers.R')
 
@@ -62,12 +63,41 @@ extraction_df <- extractions %>%
   summarize(wmean = weighted.mean(value, Shape_Area)) %>%
   ungroup
 
-library(plotly)
+# Then interpolate for each month and year from 1984 - 2015
+# using a simple linear sequence
+impute_density <- function(df) {
+  year_seq <- min(df$year):max(df$year)
+  predict_seq <- seq(min(df$year),
+                     max(df$year),
+                     length.out = (length(year_seq) - 1) * 12)
+  preds <- approx(x = df$year,
+         y = df$wmean,
+         xout = predict_seq)
+  res <- as_tibble(preds) %>%
+    rename(t = x, wmean = y) %>%
+    mutate(year = floor(t),
+           month = rep(1:12, times = length(year_seq) - 1)) %>%
+    filter(year < 2030)
+  res$NA_L3NAME <- unique(df$NA_L3NAME)
+  res
+}
 
-p <- extraction_df %>%
-  ggplot(aes(year, wmean, group = NA_L3NAME)) +
-  geom_line() +
+res <- extraction_df %>%
+  split(.$NA_L3NAME) %>%
+  map(~impute_density(.)) %>%
+  bind_rows %>%
+  rename(housing_density = wmean)
+
+
+# evaluate the linear interpolation
+extraction_df %>%
+  ggplot(aes(year, wmean)) +
   geom_point() +
-  ylab('Average housing density')
+  geom_point(aes(t, housing_density),
+             data = res, color = 'blue',
+             size = .1, alpha = .1) +
+  facet_wrap(~ NA_L3NAME)
 
-ggplotly(p)
+
+res %>%
+  write_csv('data/processed/housing_density.csv')
