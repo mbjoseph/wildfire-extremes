@@ -221,7 +221,9 @@ plot_size_vs_var(burn_mu_df, var = 'pet') +
   xlab('Mean potential evapotranspiration')
 ggsave(filename = 'fig/fire-size-pet.pdf', width = pw, height = ph)
 
-
+plot_size_vs_var(burn_mu_df, var = 'housing_density') +
+  xlab('Mean housing density')
+ggsave(filename = 'fig/fire-size-housing-den.pdf', width = pw, height = ph)
 
 
 
@@ -346,6 +348,11 @@ plot_c_vs_var(c_df, 'pet') +
   xlab('Mean daily potential evapotranspiration')
 ggsave(filename = 'fig/fire-num-pet.pdf', width = pw, height = ph)
 
+plot_c_vs_var(c_df, 'housing_density') +
+  xlab('Mean housing density') +
+  facet_wrap(~ NA_L3NAME, scales = 'free')
+ggsave(filename = 'fig/fire-num-pet.pdf', width = pw, height = ph)
+
 
 # Mapping covariate effects -----------------------------------------------
 
@@ -363,7 +370,7 @@ er_names <- distinct(ecoregion_df, NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
 effect_combos <- expand.grid(NA_L3NAME = er_names$NA_L3NAME,
                              vars = c('cpr', 'ctmx',
                                       'cvs', 'cpr12',
-                                      'cyear')) %>%
+                                      'cyear', 'chd')) %>%
   tbl_df %>%
   left_join(er_names)
 effect_combos$beta <- NA
@@ -397,15 +404,13 @@ effect_sf <- effect_combos %>%
   full_join(simple_ecoregions) %>%
   mutate(response = ifelse(which_beta == 'beta',
                            'Burn area exceedance > 1000 acres', 'Number of fires > 1000 acres'),
-         variable = ifelse(vars == 'cpr',
-                           'Precipitation (same month)',
-                           ifelse(vars == 'cpr12',
-                                  'Precipitation (previous 12 months)',
-                                  ifelse(vars == 'cvs',
-                                         'Wind speed',
-                                         ifelse(vars == 'ctmx',
-                                                'Air temperature',
-                                                'Time trend')))))
+         variable = case_when(
+           .$vars == 'cpr' ~ 'Precipitation (same month)',
+           .$vars == 'cpr12' ~ 'Precipitation (prev. 12 months)',
+           .$vars == 'cvs' ~ 'Wind speed',
+           .$vars == 'ctmx' ~ 'Air temperature',
+           .$vars == 'cyear' ~ 'Time trend',
+           .$vars == 'chd' ~ 'Housing density'))
 
 lowcolor <- 'royalblue4'
 hicolor <- 'red3'
