@@ -141,9 +141,6 @@ make_X <- function(df) {
                data = df)
 }
 
-Xc <- make_X(count_covs)
-sparse_Xc <- extract_sparse_parts(Xc)
-
 # need to ensure that all ecoregions show up here
 X <- make_X(burn_covs)
 sparse_X <- extract_sparse_parts(X)
@@ -168,7 +165,4 @@ stopifnot(all(burn_covs$ym[burn_idx] == train_burns$ym))
 stopifnot(all(count_covs$NA_L3NAME[count_idx] == train_counts$NA_L3NAME))
 stopifnot(all(count_covs$ym[count_idx] == train_counts$ym))
 
-
-# note whether there are columns in Xc that are not in X
-colnames(Xc)[!(colnames(Xc) %in% colnames(X))]
 
