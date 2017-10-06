@@ -26,14 +26,13 @@ pars <- c('beta', 'tau', 'alpha', 'sigma', 'c', 'mu', 'Rho_beta', 'Rho_eps')
 
 
 # Fancy model, nonstationary variance -------------------------------------
-
 m_init <- stan_model('stan/st-basis-ns-lognorm.stan')
 m_fit <- sampling(m_init,
                    data = stan_d,
                    pars = pars,
                    cores = 4,
                    init_r = 0.01,
-                   iter = 800,
+                   iter = 1000,
                    refresh = 1)
 write_rds(m_fit, 'm_fit.rds')
 
