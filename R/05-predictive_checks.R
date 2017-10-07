@@ -35,10 +35,9 @@ empirical_totals %>%
 
 predicted_totals <- ppred_df %>%
   group_by(idx) %>%
-  summarize(pred_total = mlv(total_burn_area, method = 'venter')$M,
-            median = median(total_burn_area),
-            lo = hdi(total_burn_area, credMass = .9)[1],
-            hi = hdi(total_burn_area, credMass = .9)[2])
+  summarize(pred_total = median(total_burn_area),
+            lo = quantile(total_burn_area, .05),
+            hi = quantile(total_burn_area, .95))
 
 burn_covs$idx <- 1:nrow(burn_covs)
 
@@ -87,13 +86,13 @@ empirical_maxima %>%
   scale_y_log10()
 
 predicted_maxima <- ppred_df %>%
-  group_by(idx) %>%
   filter(!is.na(max_burn_area)) %>%
-  summarize(pred_max = mlv(max_burn_area, method = 'venter')$M,
-            median = median(max_burn_area),
-            lo = hdi(max_burn_area, credMass = .9)[1],
-            hi = hdi(max_burn_area, credMass = .9)[2]) %>%
+  group_by(idx) %>%
+  summarize(pred_max = median(max_burn_area),
+            lo = quantile(max_burn_area, .05),
+            hi = quantile(max_burn_area, .95)) %>%
   full_join(burn_covs)
+
 
 max_ppred_df <- full_join(empirical_maxima, predicted_maxima) %>%
   filter(actual_max > 0)
