@@ -19,8 +19,8 @@ stan_d <- list(
   v = sparse_X$v,
   u = sparse_X$u,
   M = 3,
-  slab_df = 3,
-  slab_scale = 5)
+  slab_df = 2,
+  slab_scale = 2)
 
 pars <- c('beta', 'tau', 'alpha', 'sigma', 'c', 'mu', 'Rho_beta', 'Rho_eps')
 

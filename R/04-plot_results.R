@@ -64,7 +64,6 @@ beta_df %>%
 
 
 
-# explore the possibility of allowing correlation between beta and beta_c
 beta_df %>%
   select(-lo, -hi, -nonzero, -p_neg, -p_pos) %>%
   spread(dim, mode) %>%
@@ -74,7 +73,6 @@ beta_df %>%
   geom_hline(yintercept = 0,linetype = 'dashed') +
   xlab('Effect on number of events') +
   ylab('Effect on event size')
-# does seem to be evidence for correpsondence - maybe multivariate horseshoe
 
 # Visualize some predictions ----------------------------------------------
 
