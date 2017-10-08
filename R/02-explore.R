@@ -72,13 +72,14 @@ st_covs <- ecoregion_summaries %>%
          ctri = c(scale(log(tri))),
          chd = c(scale(log(housing_density)))) %>%
   left_join(area_df) %>%
-  droplevels
+  droplevels %>%
+  mutate(er_ym = paste(NA_L3NAME, ym, sep = "_")) %>%
+  arrange(ym, NA_L3NAME)
 
-st_covs <- st_covs[!duplicated(st_covs), ]
+assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
 
-
-# Create training sets, including years 1984 - 2004
+# Create training sets, including years from 1984 to cutoff_year - 1
 cutoff_year <- 2010
 
 train_counts <- count_df %>%
@@ -90,30 +91,10 @@ train_burns <- mtbs %>%
   left_join(st_covs)
 
 # this data frame has no duplicate ecoregion X timestep combos
-count_covs <- st_covs %>%
-  distinct(NA_L3NAME, ym, .keep_all = TRUE)
-
-burn_covs <- st_covs %>%
-  distinct(NA_L3NAME, ym, .keep_all = TRUE)
-
 N <- length(unique(st_covs$NA_L3NAME))
 T <- length(unique(st_covs$ym))
 
-stopifnot(identical(nrow(burn_covs), N * T))
-stopifnot(identical(nrow(count_covs), N * T))
-
-# make sure that count and burn covariate data frames have all the same
-# ecoregion X timestep values
-count_combos <- count_covs %>%
-  distinct(NA_L3NAME, ym) %>%
-  mutate(combo = paste(NA_L3NAME, ym, sep = '-')) %>%
-  `[[`('combo')
-burn_combos <- burn_covs %>%
-  distinct(NA_L3NAME, ym) %>%
-  mutate(combo = paste(NA_L3NAME, ym, sep = '-')) %>%
-  `[[`('combo')
-
-stopifnot(length(burn_combos[!(burn_combos %in% count_combos)]) == 0)
+assert_that(identical(nrow(st_covs), N * T))
 
 
 # Create design matrices --------------------------------------------------
@@ -142,27 +123,40 @@ make_X <- function(df) {
 }
 
 # need to ensure that all ecoregions show up here
-X <- make_X(burn_covs)
+X <- make_X(st_covs)
 sparse_X <- extract_sparse_parts(X)
 
-burn_idx <- rep(NA, nrow(train_burns))
-for (i in 1:nrow(train_burns)) {
-  burn_idx[i] <- which(burn_covs$NA_L3NAME == train_burns$NA_L3NAME[i] &
-                         burn_covs$ym == train_burns$ym[i])
-}
+# design matrix for training counts
+# is a subset of the rows of X, based on which rows show up in train_counts
+eps_idx_train <- match(train_counts$er_ym, st_covs$er_ym)
+X_tc <- X[eps_idx_train, ]
+assert_that(identical(nrow(X_tc), nrow(train_counts)))
+sparse_X_tc <- extract_sparse_parts(X_tc)
 
-count_idx <- rep(NA, nrow(train_counts))
-for (i in 1:nrow(train_counts)) {
-  count_idx[i] <- which(count_covs$NA_L3NAME == train_counts$NA_L3NAME[i] &
-                        count_covs$ym == train_counts$ym[i])
-}
+eps_idx_future <- setdiff(1:nrow(st_covs), eps_idx_train)
+plot(eps_idx_train, xlim = c(0, nrow(st_covs)), ylim = c(0, nrow(st_covs)))
+points(eps_idx_future, eps_idx_future, col = 2)
+
+# design matrix for training burn areas
+# is a subset of X, based on which unique rows are in train_burns
+train_burn_covs <- train_burns %>%
+  distinct(er_ym, .keep_all = TRUE)
+
+# train_burn_covs has no duplicate er_ym's: should be fewer rows than train_burns
+assert_that(nrow(train_burn_covs) < nrow(train_burns))
+
+X_tb <- X[match(train_burn_covs$er_ym, st_covs$er_ym), ]
+assert_that(identical(nrow(X_tb), nrow(train_burn_covs)))
+sparse_X_tb <- extract_sparse_parts(X_tb)
+
+# indices to match epsilon parameters for burn areas to those computed for counts
+burn_eps_idx <- match(train_burn_covs$er_ym, train_counts$er_ym)
+assert_that(train_burn_covs$er_ym[1] == train_counts$er_ym[burn_eps_idx[1]])
+
+# indices to match each fire event to a row in the design matrix for burns
+burn_idx <- match(train_burns$er_ym, train_burn_covs$er_ym)
 
 # check to make sure the indices were correct
-stopifnot(max(burn_idx) <= nrow(burn_covs))
-stopifnot(max(count_idx) <= nrow(count_covs))
-stopifnot(all(burn_covs$NA_L3NAME[burn_idx] == train_burns$NA_L3NAME))
-stopifnot(all(burn_covs$ym[burn_idx] == train_burns$ym))
-stopifnot(all(count_covs$NA_L3NAME[count_idx] == train_counts$NA_L3NAME))
-stopifnot(all(count_covs$ym[count_idx] == train_counts$ym))
-
-
+assert_that(max(burn_idx) <= nrow(st_covs))
+assert_that(all(train_burn_covs$NA_L3NAME[burn_idx] == train_burns$NA_L3NAME))
+assert_that(all(train_burn_covs$ym[burn_idx] == train_burns$ym))
