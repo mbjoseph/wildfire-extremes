@@ -44,11 +44,14 @@ mtbs <- mtbs %>%
 count_df <- mtbs %>%
   tbl_df %>%
   dplyr::select(-geometry) %>%
-  group_by(NA_L3NAME, ym) %>%
+  group_by(NA_L3NAME, FIRE_YEAR, FIRE_MON) %>%
   summarize(n_fire = n()) %>%
   ungroup %>%
-  complete(ym, NA_L3NAME, fill = list(n_fire = 0)) %>%
-  arrange(ym)
+  complete(FIRE_YEAR, FIRE_MON, NA_L3NAME, fill = list(n_fire = 0)) %>%
+  mutate(ym = as.yearmon(paste(FIRE_YEAR, sprintf("%02d", FIRE_MON),
+                               sep = "-"))) %>%
+  arrange(ym) %>%
+  filter(ym > 'Jan 1984') # first record is feb 1984 in mtbs data
 
 stopifnot(0 == sum(is.na(count_df$NA_L3NAME)))
 stopifnot(sum(count_df$n_fire) == nrow(mtbs))
@@ -67,8 +70,7 @@ ecoregion_summaries <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gri
          ym = as.yearmon(paste(year,
                  sprintf("%02d", month),
                  sep = "-"))) %>%
-  spread(variable, wmean) %>%
-  filter(year < 2017)
+  spread(variable, wmean)
 
 # Compute previous 12 months total precip
 if (!file.exists('lagged_precip.rds')) {
@@ -102,7 +104,9 @@ housing_df <- read_csv('data/processed/housing_density.csv') %>%
 ecoregion_summaries <- ecoregion_summaries %>%
   left_join(read_rds('lagged_precip.rds')) %>%
   left_join(read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gridmet/ecoregion_tri.csv')) %>%
-  left_join(housing_df)
+  left_join(housing_df) %>%
+  filter(year < 2017,
+         ym > 'Jan 1984')
 
 count_df <- left_join(count_df, ecoregion_summaries)
 

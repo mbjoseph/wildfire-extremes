@@ -33,14 +33,48 @@ empirical_totals %>%
   facet_wrap(~ NA_L3NAME) +
   scale_y_log10()
 
+burn_covs$idx <- 1:nrow(burn_covs)
+
+# compute Bayesian posterior predictive p-values
+pvdf <- empirical_totals %>%
+  full_join(select(burn_covs, idx, ym, NA_L3NAME)) %>%
+  full_join(select(ppred_df, idx, total_burn_area)) %>%
+  filter(actual_total > 0) %>%
+  group_by(ym, NA_L3NAME) %>%
+  summarize(pval = mean(total_burn_area >= actual_total)) %>%
+  mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
+                       'Train', 'Test'))
+
+hist(pvdf$pval, breaks = 100)
+
+pvdf %>%
+  ggplot(aes(ym, pval, color = Data)) +
+  geom_point() +
+  facet_wrap(~ NA_L3NAME) +
+  geom_hline(yintercept = .5, linetype = 'dashed') +
+  geom_hline(yintercept = c(.05, .95), linetype = 'dotted', alpha = .4) +
+  scale_color_gdocs()
+
+pvdf %>%
+  left_join(er_df) %>%
+  ggplot(aes(pval, ..density.., fill = Data, color = Data)) +
+  geom_density(alpha = .2) +
+  geom_rug(aes(pval, color = Data), inherit.aes = FALSE) +
+  scale_fill_gdocs() +
+  scale_color_gdocs() +
+  geom_vline(xintercept = c(.05, .95), linetype = 'dotted') +
+  facet_wrap(~ NA_L1NAME) +
+  xlab('Bayesian posterior predictive p-value for total burn area') +
+  ylab('Count') +
+  xlim(0, 1)
+
+# graphical predictive check
 predicted_totals <- ppred_df %>%
   group_by(idx) %>%
-  summarize(pred_total = mlv(total_burn_area, method = 'venter')$M,
-            median = median(total_burn_area),
-            lo = hdi(total_burn_area, credMass = .9)[1],
-            hi = hdi(total_burn_area, credMass = .9)[2])
+  summarize(pred_total = median(total_burn_area),
+            lo = quantile(total_burn_area, .05),
+            hi = quantile(total_burn_area, .95))
 
-burn_covs$idx <- 1:nrow(burn_covs)
 
 predicted_totals <- predicted_totals %>%
   full_join(burn_covs)
@@ -87,13 +121,13 @@ empirical_maxima %>%
   scale_y_log10()
 
 predicted_maxima <- ppred_df %>%
-  group_by(idx) %>%
   filter(!is.na(max_burn_area)) %>%
-  summarize(pred_max = mlv(max_burn_area, method = 'venter')$M,
-            median = median(max_burn_area),
-            lo = hdi(max_burn_area, credMass = .9)[1],
-            hi = hdi(max_burn_area, credMass = .9)[2]) %>%
+  group_by(idx) %>%
+  summarize(pred_max = median(max_burn_area),
+            lo = quantile(max_burn_area, .05),
+            hi = quantile(max_burn_area, .95)) %>%
   full_join(burn_covs)
+
 
 max_ppred_df <- full_join(empirical_maxima, predicted_maxima) %>%
   filter(actual_max > 0)
