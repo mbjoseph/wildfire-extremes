@@ -210,10 +210,6 @@ plot_size_vs_var(burn_mu_df, var = 'vs') +
   xlab('Mean daily wind speed')
 ggsave(filename = 'fig/fire-size-wind-speed.pdf', width = pw, height = ph)
 
-plot_size_vs_var(burn_mu_df, var = 'pet') +
-  xlab('Mean potential evapotranspiration')
-ggsave(filename = 'fig/fire-size-pet.pdf', width = pw, height = ph)
-
 plot_size_vs_var(burn_mu_df, var = 'housing_density') +
   xlab('Mean housing density')
 ggsave(filename = 'fig/fire-size-housing-den.pdf', width = pw, height = ph)
@@ -336,10 +332,6 @@ ggsave(filename = 'fig/fire-num-tmmx.pdf', width = pw, height = ph)
 plot_c_vs_var(c_df, 'vs') +
   xlab('Mean daily wind speed')
 ggsave(filename = 'fig/fire-num-wind-speed.pdf', width = pw, height = ph)
-
-plot_c_vs_var(c_df, 'pet') +
-  xlab('Mean daily potential evapotranspiration')
-ggsave(filename = 'fig/fire-num-pet.pdf', width = pw, height = ph)
 
 plot_c_vs_var(c_df, 'housing_density') +
   xlab('Mean housing density') +
@@ -469,6 +461,7 @@ c_df %>%
   dplyr::select(ym, NA_L3NAME, median, lo, hi) %>%
   right_join(count_df) %>%
   mutate(is_train = year < cutoff_year) %>%
+  filter(!is_train) %>%
   ggplot(aes(x = n_fire, y = exp(median), color = is_train)) +
   facet_wrap(~ NA_L3NAME) +
   geom_point(alpha = .5) +
