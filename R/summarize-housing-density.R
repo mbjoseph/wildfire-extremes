@@ -44,7 +44,7 @@ extraction_df <- extractions %>%
   bind_cols %>%
   as_tibble %>%
   mutate(index = ID) %>%
-  select(-starts_with("ID")) %>%
+  dplyr::select(-starts_with("ID")) %>%
   rename(ID = index) %>%
   mutate(NA_L3NAME = data.frame(ecoregion_shp)$NA_L3NAME,
          Shape_Area = data.frame(ecoregion_shp)$Shape_Area) %>%
