@@ -96,6 +96,9 @@ if (!file.exists('lagged_precip.rds')) {
     write_rds('lagged_precip.rds')
 }
 
+if (!file.exists('data/processed/housing_density.csv')) {
+  system('bash bash/fetch-density.sh')
+}
 
 housing_df <- read_csv('data/processed/housing_density.csv') %>%
   mutate(ym = as.yearmon(paste(year, sprintf("%02d", month), sep = "-"))) %>%
