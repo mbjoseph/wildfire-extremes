@@ -52,23 +52,12 @@ extraction_df <- extractions %>%
   gather(variable, value, -NA_L3NAME, -Shape_Area, -ID) %>%
   filter(!is.na(value))
 
-# pdsi has a different naming scheme, need to process differently
-pdsi_df <- extraction_df %>%
-  filter(grepl('pdsi', variable)) %>%
-  separate(variable,
-           into = c('variable', 'year', 'month'),
-           sep = "_") %>%
-  filter(year > 1982)
-
-non_pdsi_df <- extraction_df %>%
-  filter(!grepl('pdsi', variable)) %>%
+ecoregion_summaries <- extraction_df %>%
   separate(variable,
            into = c("interval", "variable", "timestep"),
            sep = "_") %>%
   separate(timestep, into = c("year", "month"), sep = "\\.") %>%
-  select(-interval)
-
-ecoregion_summaries <- full_join(pdsi_df, non_pdsi_df) %>%
+  select(-interval) %>%
   group_by(NA_L3NAME, variable, year, month) %>%
   summarize(wmean = weighted.mean(value, Shape_Area)) %>%
   ungroup %>%
@@ -77,4 +66,3 @@ ecoregion_summaries <- full_join(pdsi_df, non_pdsi_df) %>%
   arrange(year, month, variable, NA_L3NAME)
 
 write_csv(ecoregion_summaries, "data/processed/ecoregion_summaries.csv")
-
