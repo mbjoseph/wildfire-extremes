@@ -112,7 +112,7 @@ model {
   c_aux ~ inv_gamma(0.5 * slab_df, 0.5 * slab_df);
   sigma ~ normal(0, 1);
   L_eps ~ lkj_corr_cholesky(2);
-  alpha ~ normal(0, 1);
+  alpha ~ normal(0, 5);
   tau ~ normal(0, 1);
 
   // number of fires
