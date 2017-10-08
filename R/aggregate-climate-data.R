@@ -62,6 +62,7 @@ summarize_by_month <- function(file, mask_shp) {
   projection(corrected_res) <- CRS(p4string)
   masked_res <- mask(corrected_res, mask_shp)
   writeRaster(masked_res, out_name, format = "GTiff")
+  unlink(file)
   return(paste("File", out_name, "written"))
 }
 
