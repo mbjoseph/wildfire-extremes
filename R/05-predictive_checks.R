@@ -33,18 +33,18 @@ empirical_totals %>%
   facet_wrap(~ NA_L3NAME) +
   scale_y_log10()
 
-burn_covs$idx <- 1:nrow(burn_covs)
+st_covs$idx <- 1:nrow(st_covs)
 
 # compute Bayesian posterior predictive p-values
 pvdf <- empirical_totals %>%
-  full_join(select(burn_covs, idx, ym, NA_L3NAME)) %>%
+  full_join(select(st_covs, idx, ym, NA_L3NAME)) %>%
   full_join(select(ppred_df, idx, total_burn_area)) %>%
   filter(actual_total > 0) %>%
   group_by(ym, NA_L3NAME) %>%
   summarize(pval = mean(total_burn_area >= actual_total)) %>%
   mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
                        'Train', 'Test'))
-
+gc()
 hist(pvdf$pval, breaks = 100)
 
 pvdf %>%
@@ -77,7 +77,7 @@ predicted_totals <- ppred_df %>%
 
 
 predicted_totals <- predicted_totals %>%
-  full_join(burn_covs)
+  full_join(st_covs)
 
 total_ppred_df <- full_join(empirical_totals, predicted_totals)
 
@@ -126,7 +126,7 @@ predicted_maxima <- ppred_df %>%
   summarize(pred_max = median(max_burn_area),
             lo = quantile(max_burn_area, .05),
             hi = quantile(max_burn_area, .95)) %>%
-  full_join(burn_covs)
+  full_join(st_covs)
 
 
 max_ppred_df <- full_join(empirical_maxima, predicted_maxima) %>%
