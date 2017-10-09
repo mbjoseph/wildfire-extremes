@@ -56,14 +56,20 @@ ecoregion_summaries %>%
   geom_line() +
   facet_wrap(~ NA_L3NAME)
 
+ecoregion_summaries %>%
+  ggplot(aes(ym, rmin)) +
+  geom_line() +
+  facet_wrap(~ NA_L3NAME)
+
 er_df <- dplyr::distinct(data.frame(ecoregions),
                        NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
-  as_tibble
+  as_tibble %>%
+  filter(NA_L2NAME != 'UPPER GILA MOUNTAINS (?)')
 
 st_covs <- ecoregion_summaries %>%
   left_join(er_df) %>%
   filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)", year > 1983) %>%
-  mutate(cpet = c(scale(pet)),
+  mutate(crmin = c(scale(rmin)),
          cpr = c(scale(pr)),
          ctmx = c(scale(tmmx)),
          cvs = c(scale(vs)),
@@ -101,6 +107,12 @@ assert_that(identical(nrow(st_covs), N * T))
 make_X <- function(df) {
   model.matrix(~ 0 +
                  ctri +
+                 cvs * ctmx * NA_L3NAME +
+                 cvs * ctmx * NA_L2NAME +
+                 cvs * ctmx * NA_L1NAME +
+                 crmin * NA_L3NAME +
+                 crmin * NA_L2NAME +
+                 crmin * NA_L1NAME +
                  chd * NA_L3NAME +
                  chd * NA_L2NAME +
                  chd * NA_L1NAME +
@@ -134,8 +146,11 @@ assert_that(identical(nrow(X_tc), nrow(train_counts)))
 sparse_X_tc <- extract_sparse_parts(X_tc)
 
 eps_idx_future <- setdiff(1:nrow(st_covs), eps_idx_train)
-plot(eps_idx_train, xlim = c(0, nrow(st_covs)), ylim = c(0, nrow(st_covs)))
-points(eps_idx_future, eps_idx_future, col = 2)
+plot(eps_idx_train,
+     xlim = c(0, nrow(st_covs)),
+     ylim = c(0, nrow(st_covs)),
+     type = 'l')
+lines(eps_idx_future, eps_idx_future, col = 2)
 
 # design matrix for training burn areas
 # is a subset of X, based on which unique rows are in train_burns
@@ -160,3 +175,4 @@ burn_idx <- match(train_burns$er_ym, train_burn_covs$er_ym)
 assert_that(max(burn_idx) <= nrow(st_covs))
 assert_that(all(train_burn_covs$NA_L3NAME[burn_idx] == train_burns$NA_L3NAME))
 assert_that(all(train_burn_covs$ym[burn_idx] == train_burns$ym))
+
