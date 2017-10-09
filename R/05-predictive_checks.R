@@ -43,12 +43,14 @@ pvdf <- empirical_totals %>%
   group_by(ym, NA_L3NAME) %>%
   summarize(pval = mean(total_burn_area >= actual_total)) %>%
   mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
-                       'Train', 'Test'))
+                       'Train', 'Test'),
+         extreme = pval < 0.05 | pval > 0.95)
 gc()
 hist(pvdf$pval, breaks = 100)
 
 pvdf %>%
-  ggplot(aes(ym, pval, color = Data)) +
+  ggplot(aes(ym, pval, color = Data,
+             alpha = extreme)) +
   geom_point() +
   facet_wrap(~ NA_L3NAME) +
   geom_hline(yintercept = .5, linetype = 'dashed') +
@@ -139,11 +141,11 @@ max_ppred_df %>%
   theme_minimal() +
   scale_x_log10() +
   scale_y_log10() +
-  geom_point() +
+  geom_point(shape = 1) +
   geom_segment(aes(xend = actual_max,
                    y = lo,
                    yend = hi),
-               alpha = .1) +
+               alpha = .2) +
   geom_abline(slope = 1, intercept = 0,
               linetype = 'dashed') +
   scale_color_gdocs() +
