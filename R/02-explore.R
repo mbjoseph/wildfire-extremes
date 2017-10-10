@@ -107,12 +107,9 @@ assert_that(identical(nrow(st_covs), N * T))
 make_X <- function(df) {
   model.matrix(~ 0 +
                  ctri +
-                 cpr12 * NA_L3NAME +
-                 cpr12 * NA_L2NAME +
-                 cpr12 * NA_L1NAME +
-                 crmin * ctmx * cvs * NA_L3NAME +
-                 crmin * ctmx * cvs * NA_L2NAME +
-                 crmin * ctmx * cvs * NA_L1NAME +
+                 cpr12 * crmin * ctmx * cvs * NA_L3NAME +
+                 cpr12 * crmin * ctmx * cvs * NA_L2NAME +
+                 cpr12 * crmin * ctmx * cvs * NA_L1NAME +
                  cyear * NA_L3NAME +
                  cyear * NA_L2NAME +
                  cyear * NA_L1NAME +
