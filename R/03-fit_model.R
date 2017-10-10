@@ -73,6 +73,6 @@ w_fit <- sampling(w_init,
                   pars = pars,
                   cores = 4,
                   init_r = 0.01,
-                  iter = 800,
+                  iter = 1000,
                   refresh = 1)
 write_rds(w_fit, 'w_fit.rds')
