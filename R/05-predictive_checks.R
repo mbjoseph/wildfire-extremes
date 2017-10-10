@@ -7,8 +7,6 @@ library(sf)
 library(rmapshaper)
 library(tidyverse)
 library(rstan)
-library(modeest)
-library(HDInterval)
 
 source('R/02-explore.R')
 
@@ -155,3 +153,64 @@ max_ppred_df %>%
   theme(legend.position = 'none') +
   coord_equal()
 ggsave(filename = 'fig/ppc-burn-max.pdf', width = 20, height = 6)
+
+
+
+# Fraction of the year with fires -----------------------------------------
+empirical_pwf <- count_df %>%
+  group_by(FIRE_YEAR, NA_L3NAME) %>%
+  summarize(pwf = mean(n_fire > 0)) %>%
+  ungroup %>%
+  rename(year = FIRE_YEAR)
+
+empirical_pwf %>%
+  ggplot(aes(year, pwf)) +
+  facet_wrap(~NA_L3NAME) +
+  geom_line()
+
+predicted_pwf <- ppred_df %>%
+  full_join(st_covs) %>%
+  group_by(iter, year, NA_L3NAME) %>%
+  summarize(pwf = mean(n_events > 0)) %>%
+  ungroup %>%
+  group_by(year, NA_L3NAME) %>%
+  summarize(pred_pwf = median(pwf),
+            lo = quantile(pwf, .025),
+            hi = quantile(pwf, .975)) %>%
+  ungroup
+
+full_join(empirical_pwf, predicted_pwf) %>%
+  mutate(is_train = year < cutoff_year) %>%
+  filter(!is_train) %>%
+  ggplot(aes(year)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi, fill = is_train),
+              alpha = .5) +
+  geom_point(aes(y = pwf)) +
+  facet_wrap(~NA_L3NAME) +
+  scale_fill_gdocs() +
+  xlab('Year') +
+  ylab('Proportion of year with fires')
+
+# Investigate why the model is overpredicting the fraction of year
+predicted_counts <- ppred_df %>%
+  full_join(select(st_covs, idx, NA_L3NAME, ym)) %>%
+  group_by(NA_L3NAME, ym) %>%
+  summarize(pred_num = median(n_events),
+            lo = quantile(n_events, .05),
+            hi = quantile(n_events, .95)) %>%
+  ungroup
+
+predicted_counts %>%
+  full_join(count_df) %>%
+  mutate(is_train = year < cutoff_year) %>%
+  filter(!is_train) %>%
+  ggplot(aes(ym)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi, fill = is_train),
+              alpha = .5) +
+  geom_point(aes(y = n_fire), size = .5) +
+  facet_wrap(~NA_L3NAME) +
+  scale_fill_gdocs() +
+  xlab('Year') +
+  ylab('Number of fires') +
+  scale_y_log10()
+
