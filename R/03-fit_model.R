@@ -6,7 +6,7 @@ assert_that(identical(levels(area_df$NA_L3NAME),
 stan_d <- list(
   N = N,
   T = T,
-  p = ncol(X),
+  p = length(colnamesX),
 
   n_count = nrow(train_counts),
   counts = train_counts$n_fire,
@@ -48,7 +48,8 @@ stan_d <- list(
   eps_idx_train = eps_idx_train,
   eps_idx_future = eps_idx_future)
 
-pars <- c('beta', 'tau', 'alpha', 'sigma', 'c', 'mu_full', 'Rho_beta', 'Rho_eps')
+pars <- c('beta', 'tau', 'alpha', 'sigma', 'c', 'mu_full', 'Rho_beta', 'Rho_eps',
+          'loglik_c', 'loglik_f')
 
 
 # Fancy model, nonstationary variance -------------------------------------

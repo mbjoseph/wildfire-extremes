@@ -127,8 +127,18 @@ generated quantities {
   matrix[M, N*T - n_count] eps_future;
   matrix[M, N * T] eps_full;
   vector[N * T] mu_full[M];
+  vector[n_count] loglik_c;
+  vector[n_fire] loglik_f;
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
   matrix[M, M] Rho_eps = multiply_lower_tri_self_transpose(L_eps);
+
+  for (i in 1:n_count) {
+    loglik_c[i] = poisson_log_lpmf(counts[i] | mu_count[i]);
+  }
+
+  for (i in 1:n_fire) {
+    loglik_f[i] = normal_lpdf(sizes[i] | mu_burn[1][burn_idx[i]], exp(mu_burn[2][burn_idx[i]]));
+  }
 
   // simulate new process adjustments
   for (i in 1:M){

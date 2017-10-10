@@ -323,7 +323,7 @@ beta_df <- post$beta %>%
             p_neg = mean(value < 0),
             p_pos = mean(value > 0)) %>%
   ungroup %>%
-  mutate(variable = colnames(X)[col],
+  mutate(variable = colnamesX[col],
          nonzero = p_neg > .8 | p_pos > .8)
 
 beta_df %>%
@@ -356,12 +356,9 @@ beta_df %>%
 
 
 
-beta_df <- beta_df %>%
-  mutate(variable = colnames(X)[col])
-
 search_string <- paste(
   c('ctmx', 'cpr', 'cpr12', 'chd', 'crmin',
-    'cvs', 'cvs:ctmx', 'cyear'), # excludes tri, since effect is constant
+    'cvs', 'cyear'), # excludes tri, since effect is constant
   collapse = '|'
 )
 
@@ -461,14 +458,17 @@ effect_sf <- effect_combos %>%
     .$dim == 2 ~ 'St. dev. burn area exceedance > 1000 acres',
     .$dim == 3 ~ 'Number of fires > 1000 acres'),
     variable = case_when(
-      .$which_coef == 'cpr' ~ 'Precipitation (same month)',
-      .$which_coef == 'cpr12' ~ 'Precipitation (prev. 12 months)',
-      .$which_coef == 'cvs' ~ 'Wind speed',
-      .$which_coef == 'ctmx' ~ 'Air temperature',
-      .$which_coef == 'cyear' ~ 'Time trend',
-      .$which_coef == 'chd' ~ 'Housing density',
-      .$which_coef == 'crmin' ~ 'Minimum relative humidity',
-      .$which_coef == 'cvs:ctmx' ~ 'Interaction: wind speed & air temp.')
+      .$which_coef == 'cpr' ~ 'Main effect: precipitation (same month)',
+      .$which_coef == 'cpr12' ~ 'Main effect: precipitation (prev. 12 months)',
+      .$which_coef == 'cvs' ~ 'Main effect: wind speed',
+      .$which_coef == 'ctmx' ~ 'Main effect: air temperature',
+      .$which_coef == 'cyear' ~ 'Main effect: time trend',
+      .$which_coef == 'chd' ~ 'Main effect: housing density',
+      .$which_coef == 'crmin' ~ 'Main effect: minimum relative humidity',
+      .$which_coef == 'ctmx:cvs' ~ '2 way interaction: wind speed & air temp.',
+      .$which_coef == 'crmin:ctmx' ~ '2 way interaction: humidity & air temp.',
+      .$which_coef == 'crmin:cvs' ~ '2 way interaction: humidity & wind speed',
+      .$which_coef == 'crmin:ctmx:cvs' ~ '3 way interaction: humidity, air temp. and wind speed')
   )
 
 lowcolor <- 'royalblue4'
@@ -511,10 +511,11 @@ ggsave(filename = 'fig/climatic-effects.pdf', width = 16, height = 9)
 c_df %>%
   dplyr::select(ym, NA_L3NAME, median, lo, hi) %>%
   right_join(count_df) %>%
+  full_join(er_df) %>%
   mutate(is_train = year < cutoff_year) %>%
   filter(!is_train) %>%
   ggplot(aes(x = n_fire, y = exp(median), color = is_train)) +
-  facet_wrap(~ NA_L3NAME) +
+  facet_wrap(~ NA_L1NAME) +
   geom_point(alpha = .5) +
   geom_abline(slope = 1, intercept = 0, linetype = 'dashed', color = 'blue') +
   geom_segment(aes(xend = n_fire, y = exp(lo), yend = exp(hi)), alpha = .1) +
@@ -523,25 +524,26 @@ c_df %>%
 
 
 ## Posterior predictive checks for extremes
-n_draw <- dim(post$mu)[1]
-n_preds <- dim(post$mu)[3]
+n_draw <- dim(post$mu_full)[1]
+n_preds <- dim(post$mu_full)[3]
 block_maxima <- matrix(nrow = n_draw, ncol = n_preds)
 area_sums <- matrix(nrow = n_draw, ncol = n_preds)
 n_events <- rpois(n_draw * n_preds,
-                  lambda = exp(c(post$mu[, 3, ]))) %>%
+                  lambda = exp(c(post$mu_full[, 3, ]))) %>%
   matrix(nrow = n_draw, ncol = n_preds)
+sum(is.na(n_events))
 
 pb <- txtProgressBar(max = n_draw, style = 3)
 for (i in 1:n_draw) {
   for (j in 1:n_preds) {
-    if (n_events[i, j] > 0) {
-      burn_areas <- 1e3 + exp(rnorm(n = n_events[i, j],
-                                    mean = post$mu[i, 1, j],
-                                    sd = exp(post$mu[i, 2, j])))
-      block_maxima[i, j] <- max(burn_areas)
-      area_sums[i, j] <- sum(burn_areas)
+    if (!is.na(n_events[i, j]) & n_events[i, j] > 0) {
+        burn_areas <- 1e3 + exp(rnorm(n = n_events[i, j],
+                                      mean = post$mu[i, 1, j],
+                                      sd = exp(post$mu[i, 2, j])))
+        block_maxima[i, j] <- max(burn_areas)
+        area_sums[i, j] <- sum(burn_areas)
+      }
     }
-  }
   setTxtProgressBar(pb, i)
 }
 
@@ -551,8 +553,12 @@ ppred_df <- reshape2::melt(block_maxima,
   bind_cols(reshape2::melt(area_sums,
                            varnames = c('iter', 'idx'),
                            value.name = 'total_burn_area')) %>%
+  bind_cols(reshape2::melt(n_events,
+                           varnames = c('iter', 'idx'),
+                           value.name = 'n_events')) %>%
   as_tibble %>%
-  dplyr::select(-iter1, -idx1)
+  dplyr::select(-ends_with('1'), -ends_with('2')) %>%
+  filter(!is.na(n_events))
 
 write_rds(ppred_df, 'ppred_df.rds')
 

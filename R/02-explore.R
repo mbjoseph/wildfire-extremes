@@ -107,36 +107,28 @@ assert_that(identical(nrow(st_covs), N * T))
 make_X <- function(df) {
   model.matrix(~ 0 +
                  ctri +
-                 cvs * ctmx * NA_L3NAME +
-                 cvs * ctmx * NA_L2NAME +
-                 cvs * ctmx * NA_L1NAME +
-                 crmin * NA_L3NAME +
-                 crmin * NA_L2NAME +
-                 crmin * NA_L1NAME +
-                 chd * NA_L3NAME +
-                 chd * NA_L2NAME +
-                 chd * NA_L1NAME +
+                 cpr12 * NA_L3NAME +
+                 cpr12 * NA_L2NAME +
+                 cpr12 * NA_L1NAME +
+                 crmin * ctmx * cvs * NA_L3NAME +
+                 crmin * ctmx * cvs * NA_L2NAME +
+                 crmin * ctmx * cvs * NA_L1NAME +
                  cyear * NA_L3NAME +
                  cyear * NA_L2NAME +
                  cyear * NA_L1NAME +
+                 chd * NA_L3NAME +
+                 chd * NA_L2NAME +
+                 chd * NA_L1NAME +
                  cpr * NA_L3NAME +
-                 cpr12 * NA_L3NAME +
-                 ctmx * NA_L3NAME +
-                 cvs * NA_L3NAME +
                  cpr * NA_L2NAME +
-                 cpr12 * NA_L2NAME +
-                 ctmx * NA_L2NAME +
-                 cvs * NA_L2NAME +
-                 cpr * NA_L1NAME +
-                 cpr12 * NA_L1NAME +
-                 ctmx * NA_L1NAME +
-                 cvs * NA_L1NAME,
+                 cpr * NA_L1NAME,
                data = df)
 }
 
 # need to ensure that all ecoregions show up here
 X <- make_X(st_covs)
 sparse_X <- extract_sparse_parts(X)
+colnamesX <- colnames(X)
 
 # design matrix for training counts
 # is a subset of the rows of X, based on which rows show up in train_counts
@@ -176,3 +168,7 @@ assert_that(max(burn_idx) <= nrow(st_covs))
 assert_that(all(train_burn_covs$NA_L3NAME[burn_idx] == train_burns$NA_L3NAME))
 assert_that(all(train_burn_covs$ym[burn_idx] == train_burns$ym))
 
+rm(X)
+rm(X_tc)
+rm(X_tb)
+gc()
