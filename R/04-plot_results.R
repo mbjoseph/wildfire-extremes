@@ -3,13 +3,11 @@ library(rstan)
 library(sf)
 library(rmapshaper)
 library(tidyverse)
+library(magick)
+library(snowfall)
 
 source('R/02-explore.R')
-
-
 m_fit <- read_rds('m_fit.rds')
-
-
 
 
 # Evaluate convergence ----------------------------------------------------
@@ -30,49 +28,10 @@ gc()
 
 
 
-# Coefficients that seem to be far from zero ------------------------------
-beta_df <- post$beta %>%
-  reshape2::melt(varnames = c('iter', 'dim', 'col')) %>%
-  tbl_df %>%
-  group_by(dim, col) %>%
-  summarize(median = median(value),
-            lo = quantile(value, 0.05),
-            hi = quantile(value, 0.95),
-            p_neg = mean(value < 0),
-            p_pos = mean(value > 0)) %>%
-  ungroup %>%
-  mutate(variable = colnames(X)[col],
-         nonzero = p_neg > .8 | p_pos > .8)
-
-beta_df %>%
-  filter(nonzero) %>%
-  ggplot(aes(median, variable)) +
-  geom_point() +
-  geom_vline(xintercept = 0, linetype = 'dashed') +
-  geom_segment(aes(x = lo, xend = hi, yend = variable)) +
-  facet_wrap(~ dim, scales = 'free') +
-  theme(axis.text.y = element_text(size = 7))
-
-beta_df %>%
-  ggplot(aes(median, variable)) +
-  geom_point() +
-  geom_vline(xintercept = 0, linetype = 'dashed') +
-  geom_segment(aes(x = lo, xend = hi, yend = variable)) +
-  facet_wrap(~ dim, scales = 'free_x')
-
-
-
-beta_df %>%
-  select(-lo, -hi, -nonzero, -p_neg, -p_pos) %>%
-  spread(dim, median) %>%
-  ggplot(aes(`1`, `3`)) +
-  geom_point(alpha = .5) +
-  geom_vline(xintercept = 0,linetype = 'dashed') +
-  geom_hline(yintercept = 0,linetype = 'dashed') +
-  xlab('Effect on number of events') +
-  ylab('Effect on event size')
 
 # Visualize some predictions ----------------------------------------------
+st_covs$row <- 1:nrow(st_covs)
+
 mu_df <- post$mu_full %>%
   reshape2::melt(varnames = c('iter', 'response', 'row')) %>%
   tbl_df %>%
@@ -83,7 +42,6 @@ mu_df <- post$mu_full %>%
   ungroup
 
 ## Visualize expected burn area exceedance values
-st_covs$row <- 1:nrow(st_covs)
 burn_mu_df <- mu_df %>%
   filter(response == 1) %>%
   full_join(st_covs) %>%
@@ -354,6 +312,50 @@ ggsave(filename = 'fig/fire-num-pet.pdf', width = pw, height = ph)
 # + l1_adj
 # + l2_adj
 # + l3_adj
+# Coefficients that seem to be far from zero ------------------------------
+beta_df <- post$beta %>%
+  reshape2::melt(varnames = c('iter', 'dim', 'col')) %>%
+  tbl_df %>%
+  group_by(dim, col) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.05),
+            hi = quantile(value, 0.95),
+            p_neg = mean(value < 0),
+            p_pos = mean(value > 0)) %>%
+  ungroup %>%
+  mutate(variable = colnames(X)[col],
+         nonzero = p_neg > .8 | p_pos > .8)
+
+beta_df %>%
+  filter(nonzero) %>%
+  ggplot(aes(median, variable)) +
+  geom_point() +
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  geom_segment(aes(x = lo, xend = hi, yend = variable)) +
+  facet_wrap(~ dim, scales = 'free') +
+  theme(axis.text.y = element_text(size = 7))
+
+beta_df %>%
+  ggplot(aes(median, variable)) +
+  geom_point() +
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  geom_segment(aes(x = lo, xend = hi, yend = variable)) +
+  facet_wrap(~ dim, scales = 'free_x')
+
+
+
+beta_df %>%
+  select(-lo, -hi, -nonzero, -p_neg, -p_pos) %>%
+  spread(dim, median) %>%
+  ggplot(aes(`1`, `3`)) +
+  geom_point(alpha = .5) +
+  geom_vline(xintercept = 0,linetype = 'dashed') +
+  geom_hline(yintercept = 0,linetype = 'dashed') +
+  xlab('Effect on number of events') +
+  ylab('Effect on event size')
+
+
+
 beta_df <- beta_df %>%
   mutate(variable = colnames(X)[col])
 
@@ -553,3 +555,64 @@ ppred_df <- reshape2::melt(block_maxima,
   dplyr::select(-iter1, -idx1)
 
 write_rds(ppred_df, 'ppred_df.rds')
+
+
+
+# Create an animated gif showing seasonality ------------------------------
+anim_df <- mu_df %>%
+  select(response, row, median) %>%
+  filter(response != 2) %>%
+  full_join(select(st_covs, row, NA_L3NAME, ym, year, month)) %>%
+  spread(response, median) %>%
+  rename(mu_burn = `1`,
+         log_lambda = `3`)
+
+# create a frame for each year/month
+sn_df <- anim_df %>%
+  left_join(er_df)
+
+dir.create('gif')
+ym_vals <- sort(unique(anim_df$ym))
+
+save_frame <- function(ym_val) {
+  out_order <- sprintf('%03d', which(ym_vals == ym_val))
+  out_name <- file.path('gif', paste('frame', out_order, sep = "-"))
+  out_name <- paste0(out_name, '.png')
+  frame <- sn_df %>%
+    filter(ym <= ym_val) %>%
+    mutate(is_current = as.numeric(ym == ym_val)) %>%
+    ggplot(aes(log_lambda, mu_burn,
+               alpha = is_current,
+               size = is_current,
+               color = month)) +
+    geom_point() +
+    facet_wrap(~ NA_L3NAME) +
+    xlab('log(lambda)') +
+    ylab('mu (fire size)') +
+    ggtitle(floor(ym_val)) +
+    scale_alpha(range = c(0.3, 1)) +
+    scale_size(range = c(1, 4)) +
+    scale_color_gradient2(midpoint = 6,
+                          low = 'dodgerblue',
+                          mid = 'red',
+                          high = 'dodgerblue',
+                          limits = c(1, 12)) +
+    xlim(min(sn_df$log_lambda), max(sn_df$log_lambda)) +
+    ylim(min(sn_df$mu_burn), max(sn_df$mu_burn)) +
+    theme_minimal() +
+    theme(legend.position = 'none')
+
+  ggsave(filename = out_name, plot = frame, width = 18, height = 12, dpi = 60)
+}
+
+sfInit(parallel = TRUE, cpus = parallel::detectCores())
+sfLibrary(tidyverse)
+sfExport(list = c("ym_vals", 'sn_df'))
+sfSapply(ym_vals, fun = save_frame)
+sfStop()
+
+ims <- list.files('gif', full.names = TRUE) %>%
+  image_read()
+
+animation <- image_animate(ims, fps = 25)
+image_write(animation, path = 'out.gif')
