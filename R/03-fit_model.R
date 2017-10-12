@@ -51,16 +51,22 @@ stan_d <- list(
 pars <- c('beta', 'tau', 'alpha', 'sigma', 'c', 'mu_full', 'Rho_beta', 'Rho_eps',
           'loglik_c', 'loglik_f')
 
+control_list <- list(
+  adapt_delta = 0.9,
+  max_treedepth = 11
+)
+
 
 # Fancy model, nonstationary variance -------------------------------------
 m_init <- stan_model('stan/st-basis-ns-lognorm.stan')
 m_fit <- sampling(m_init,
-                   data = stan_d,
-                   pars = pars,
-                   cores = 4,
-                   init_r = 0.01,
-                   iter = 1000,
-                   refresh = 1)
+                  data = stan_d,
+                  pars = pars,
+                  cores = 4,
+                  init_r = 0.01,
+                  iter = 1000,
+                  refresh = 1,
+                  control = control_list)
 write_rds(m_fit, 'm_fit.rds')
 
 # Fancy Weibull model --------------------------------------------------------
@@ -74,5 +80,6 @@ w_fit <- sampling(w_init,
                   cores = 4,
                   init_r = 0.01,
                   iter = 1000,
-                  refresh = 1)
+                  refresh = 1,
+                  control = control_list)
 write_rds(w_fit, 'w_fit.rds')
