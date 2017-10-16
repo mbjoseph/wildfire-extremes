@@ -62,7 +62,8 @@ ecoregion_summaries %>%
   facet_wrap(~ NA_L3NAME)
 
 er_df <- dplyr::distinct(data.frame(ecoregions),
-                       NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
+                       NA_L3NAME, NA_L2NAME, NA_L1NAME,
+                       NA_L2CODE, NA_L1CODE) %>%
   as_tibble %>%
   filter(NA_L2NAME != 'UPPER GILA MOUNTAINS (?)')
 
@@ -81,6 +82,31 @@ st_covs <- ecoregion_summaries %>%
   droplevels %>%
   mutate(er_ym = paste(NA_L3NAME, ym, sep = "_")) %>%
   arrange(ym, NA_L3NAME)
+
+# Compute spatial means, temporal means, and residuals
+st_covs <- st_covs %>%
+  group_by(NA_L3NAME) %>%
+  mutate(sp_mean_crmin = mean(crmin),
+         sp_mean_cpr = mean(cpr),
+         sp_mean_ctmx = mean(ctmx),
+         sp_mean_cvs = mean(cvs),
+         sp_mean_cpr12 = mean(cpr12),
+         sp_mean_chd = mean(chd)) %>%
+  ungroup() %>%
+  group_by(ym) %>%
+  mutate(t_mean_crmin = mean(crmin),
+         t_mean_cpr = mean(cpr),
+         t_mean_ctmx = mean(ctmx),
+         t_mean_cvs = mean(cvs),
+         t_mean_cpr12 = mean(cpr12),
+         t_mean_chd = mean(chd)) %>%
+  ungroup() %>%
+  mutate(r_crmin = crmin - t_mean_crmin - sp_mean_crmin,
+         r_cpr = cpr - t_mean_cpr - sp_mean_cpr,
+         r_ctmx = ctmx - t_mean_ctmx - sp_mean_ctmx,
+         r_cvs = cvs - t_mean_cvs - sp_mean_cvs,
+         r_cpr12 = cpr12 - t_mean_cpr12 - sp_mean_cpr12,
+         r_chd = chd - t_mean_chd - sp_mean_chd)
 
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
@@ -103,19 +129,45 @@ T <- length(unique(st_covs$ym))
 assert_that(identical(nrow(st_covs), N * T))
 
 
+
+
 # Create design matrices --------------------------------------------------
 make_X <- function(df) {
   model.matrix(~ 0 +
                  ctri +
-                 chd * cpr12 * crmin * ctmx * cvs * NA_L3NAME +
-                 chd * cpr12 * crmin * ctmx * cvs * NA_L2NAME +
-                 chd * cpr12 * crmin * ctmx * cvs * NA_L1NAME +
+                 sp_mean_crmin +
+                 sp_mean_cpr +
+                 sp_mean_ctmx +
+                 sp_mean_cvs +
+                 sp_mean_cpr12 +
+                 sp_mean_chd +
+                 t_mean_crmin +
+                 t_mean_cpr +
+                 t_mean_ctmx +
+                 t_mean_cvs +
+                 t_mean_cpr12 +
+                 t_mean_chd +
+                 r_crmin * NA_L3NAME +
+                 r_cpr * NA_L3NAME +
+                 r_ctmx * NA_L3NAME +
+                 r_cvs * NA_L3NAME +
+                 r_cpr12 * NA_L3NAME +
+                 r_chd * NA_L3NAME +
+                 r_crmin * NA_L2NAME +
+                 r_cpr * NA_L2NAME +
+                 r_ctmx * NA_L2NAME +
+                 r_cvs * NA_L2NAME +
+                 r_cpr12 * NA_L2NAME +
+                 r_chd * NA_L2NAME +
+                 r_crmin * NA_L1NAME +
+                 r_cpr * NA_L1NAME +
+                 r_ctmx * NA_L1NAME +
+                 r_cvs * NA_L1NAME +
+                 r_cpr12 * NA_L1NAME +
+                 r_chd * NA_L1NAME +
                  cyear * NA_L3NAME +
                  cyear * NA_L2NAME +
-                 cyear * NA_L1NAME +
-                 cpr * NA_L3NAME +
-                 cpr * NA_L2NAME +
-                 cpr * NA_L1NAME,
+                 cyear * NA_L1NAME,
                data = df)
 }
 
@@ -166,3 +218,5 @@ rm(X)
 rm(X_tc)
 rm(X_tb)
 gc()
+
+weibull_scale_adj <- 1e4
