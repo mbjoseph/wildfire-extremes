@@ -52,8 +52,7 @@ pars <- c('beta', 'tau', 'alpha', 'sigma', 'c', 'mu_full', 'Rho_beta', 'Rho_eps'
           'loglik_c', 'loglik_f')
 
 control_list <- list(
-  adapt_delta = 0.9,
-  max_treedepth = 11
+  adapt_delta = 0.8
 )
 
 
@@ -70,8 +69,7 @@ m_fit <- sampling(m_init,
 write_rds(m_fit, 'm_fit.rds')
 
 # Fancy Weibull model --------------------------------------------------------
-weibull_scale_adj <- 1e4
-stan_d$sizes <- train_burns$R_ACRES / weibull_scale_adj
+stan_d$sizes <- (train_burns$R_ACRES - 1e3) / weibull_scale_adj
 
 w_init <- stan_model('stan/st-basis-ns-weibull.stan')
 w_fit <- sampling(w_init,
@@ -82,4 +80,6 @@ w_fit <- sampling(w_init,
                   iter = 1000,
                   refresh = 1,
                   control = control_list)
-write_rds(w_fit, 'w_fit.rds')
+write_rds(w_fit, paste0('wfit_',
+                        Sys.time() %>% gsub(' ', '_', x = .),
+                        '.rds'))

@@ -4,15 +4,22 @@ library(sf)
 library(rmapshaper)
 library(tidyverse)
 library(rstan)
-library(modeest)
-library(HDInterval)
+library(loo)
 
 source('R/02-explore.R')
 
 
 w_fit <- read_rds('w_fit.rds')
 
+size_ll <- extract_log_lik(w_fit, parameter_name = 'loglik_f')
+loo_size <- loo(size_ll)
+loo_size
+plot(loo_size)
 
+count_ll <- extract_log_lik(w_fit, parameter_name = 'loglik_c')
+loo_count <- loo(count_ll)
+loo_count
+plot(loo_count)
 
 
 # Evaluate convergence ----------------------------------------------------
@@ -39,52 +46,41 @@ beta_df <- post$beta %>%
   reshape2::melt(varnames = c('iter', 'dim', 'col')) %>%
   tbl_df %>%
   group_by(dim, col) %>%
-  summarize(mode = mlv(value, method = 'venter')$M,
-            lo = hdi(value, credMass = .9)[1],
-            hi = hdi(value, credMass = .9)[2]) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.05),
+            hi = quantile(value, 0.95),
+            p_neg = mean(value < 0),
+            p_pos = mean(value > 0)) %>%
   ungroup %>%
-  mutate(variable = colnames(X)[col],
-         over_zero = lo < 0 & hi > 0)
+  mutate(variable = colnamesX[col],
+         nonzero = p_neg > .8 | p_pos > .8)
 
 beta_df %>%
-  filter(!over_zero) %>%
-  ggplot(aes(mode, variable)) +
+  filter(nonzero) %>%
+  ggplot(aes(median, variable)) +
   geom_point() +
   geom_vline(xintercept = 0, linetype = 'dashed') +
   geom_segment(aes(x = lo, xend = hi, yend = variable)) +
-  facet_wrap(~ dim, scales = 'free')
-
-beta_df %>%
-  ggplot(aes(mode, variable)) +
-  geom_point() +
-  geom_vline(xintercept = 0, linetype = 'dashed') +
-  geom_segment(aes(x = lo, xend = hi, yend = variable)) +
-  facet_wrap(~ dim, scales = 'free_x')
+  facet_wrap(~ dim, scales = 'free') +
+  theme(axis.text.y = element_text(size = 7))
 
 
 # Visualize some predictions ----------------------------------------------
+st_covs$row <- 1:nrow(st_covs)
 
-burn_covs$row <- 1:nrow(burn_covs)
-
-mu_df <- post$mu %>%
+mu_df <- post$mu_full %>%
   reshape2::melt(varnames = c('iter', 'response', 'row')) %>%
   tbl_df %>%
   group_by(response, row) %>%
-  summarize(mode = mlv(value, method = 'venter')$M,
-            lo = hdi(value, credMass = .9)[1],
-            hi = hdi(value, credMass = .9)[2]) %>%
+  summarize(median = median(value),
+            lo = quantile(value, 0.05),
+            hi = quantile(value, 0.95)) %>%
   ungroup
 
-## Visualize the modal burn area exceedance pdf
-weibull_df <- mu_df %>%
-  filter(response != 3) %>%
-  dplyr::select(-lo, -hi) %>%
-  mutate(mode = exp(mode)) %>% # log link
-  spread(response, mode) %>%
-  mutate(lo = 1e3 + weibull_scale_adj * qweibull(.025, shape = `1`, scale = `2`),
-         med = 1e3 + weibull_scale_adj * qweibull(.5, shape = `1`, scale = `2`),
-         hi = 1e3 + weibull_scale_adj * qweibull(.975, shape = `1`, scale = `2`)) %>%
-  full_join(tbl_df(burn_covs)) %>%
+## Visualize expected burn area exceedance values
+burn_mu_df <- mu_df %>%
+  filter(response == 1) %>%
+  full_join(st_covs) %>%
   left_join(dplyr::distinct(tbl_df(ecoregions),
                             NA_L3NAME, NA_L1CODE)) %>%
   mutate(facet_factor = paste0(NA_L1CODE, NA_L3NAME))
@@ -92,102 +88,59 @@ weibull_df <- mu_df %>%
 # changes over time
 plot_mu_ts <- function(df) {
   df %>%
-    ggplot(aes(ym, med, fill = NA_L1NAME)) +
+    ggplot(aes(ym, exp(median), fill = NA_L1NAME)) +
     theme_minimal() +
-    geom_ribbon(aes(ymin = lo, ymax = hi),
+    geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
                 alpha = .5, color = NA) +
-    geom_line(size = .3) +
+    geom_line(size = .1) +
     facet_wrap(~ NA_L3NAME) +
     xlab('Date') +
-    ylab("Predicted fire size (acres)") +
+    ylab("Weibull shape parameter") +
     scale_y_log10() +
-    geom_vline(xintercept = cutoff_year, linetype = 'dashed', col = 'grey') +
+    geom_vline(xintercept = cutoff_year,
+               linetype = 'dashed', col = 'grey') +
     scale_color_gdocs() +
     scale_fill_gdocs() +
     theme(legend.position = 'none')
 }
 
+unique(burn_mu_df$NA_L1NAME)
 
-weibull_df %>%
+burn_mu_df %>%
   filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
   plot_mu_ts
 
-weibull_df %>%
+burn_mu_df %>%
   filter(NA_L1NAME == 'NORTH AMERICAN DESERTS') %>%
   plot_mu_ts
 
-weibull_df %>%
+burn_mu_df %>%
   filter(NA_L1NAME == 'GREAT PLAINS') %>%
   plot_mu_ts
 
-weibull_df %>%
+burn_mu_df %>%
   filter(NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
   plot_mu_ts
 
 
-
-
-# true values vs. predicted means
-weibull_df %>%
-  right_join(tbl_df(train_burns)) %>%
-  ggplot(aes(R_ACRES, med)) +
-  geom_point(size = .2, alpha = .2) +
-  geom_segment(aes(xend = R_ACRES,
-                   y = lo, yend = hi), alpha = .2) +
-  scale_x_log10() +
+# Visualize changes in scale parameter through time ----------------------
+# burn areas
+mu_df %>%
+  filter(response == 2) %>%
+  full_join(st_covs) %>%
+  left_join(er_df) %>%
+  mutate(facet_factor = paste0(NA_L2CODE, NA_L3NAME)) %>%
+  ggplot(aes(ym, exp(median), fill = NA_L1CODE)) +
+  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
+              alpha = .5,
+              color = NA) +
+  geom_line(size = .1) +
+  facet_wrap(~ facet_factor) +
+  xlab('Date') +
+  ylab("Weibull scale parameter") +
   scale_y_log10() +
-  geom_abline(slope = 1, intercept = 0, linetype = 'dashed') +
-  facet_wrap(~ NA_L3NAME) +
-  xlab('Observed fire size') +
-  ylab("Expected fire size")
-
-
-
-# Visualize covariate effects on exceedance -------------------------------
-plot_size_vs_var <- function(weibull_df, var) {
-  weibull_df %>%
-    right_join(as_tibble(train_burns)) %>%
-    distinct(ym, NA_L3NAME, .keep_all = TRUE) %>%
-    ggplot(aes_string(var, "med",
-                      color = "NA_L1NAME")) +
-    theme_minimal() +
-    geom_segment(aes_string(xend = var,
-                            y = "lo",
-                            yend = "hi"),
-                 alpha = .1) +
-    geom_point(shape = 1, size = .1) +
-    facet_wrap(~ paste(NA_L1CODE, NA_L2NAME, sep = ':')) +
-    xlab(var) +
-    ylab("Expected burn area") +
-    scale_y_log10() +
-    theme(strip.text = element_text(size=6),
-          legend.position = 'none') +
-    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5))) +
-    scale_color_gdocs('Level 1 ecoregion') +
-    scale_x_log10()
-}
-
-pw <- 10
-ph <- 6
-
-plot_size_vs_var(weibull_df, var = 'pr') +
-  xlab('Total precipitation (same month)')
-
-plot_size_vs_var(weibull_df, var = 'prev_12mo_precip') +
-  xlab('Previous 12 months precipitation')
-
-plot_size_vs_var(weibull_df, var = 'tmmx') +
-  xlab('Mean daily maximum air temperature')
-
-plot_size_vs_var(weibull_df, var = 'vs') +
-  xlab('Mean daily wind speed')
-
-plot_size_vs_var(weibull_df, var = 'pet') +
-  xlab('Mean potential evapotranspiration')
-
-
-
-
+  theme(legend.position = 'none') +
+  scale_fill_gdocs()
 
 
 
@@ -195,16 +148,15 @@ plot_size_vs_var(weibull_df, var = 'pet') +
 train_counts$row_c <- 1:nrow(train_counts)
 c_df <- mu_df %>%
   filter(response == 3) %>%
-  full_join(as_tibble(burn_covs))
+  full_join(st_covs)
 
 c_df <- c_df %>%
-  left_join(dplyr::distinct(tbl_df(ecoregions),
-                            NA_L3NAME, NA_L1CODE)) %>%
-  mutate(facet_factor = paste0(NA_L1CODE, NA_L3NAME))
+  left_join(er_df) %>%
+  mutate(facet_factor = paste0(NA_L2CODE, NA_L3NAME))
 
 plot_c_ts <- function(df) {
   df  %>%
-    ggplot(aes(x=ym, y = exp(mode))) +
+    ggplot(aes(x=ym, y = exp(median))) +
     theme_minimal() +
     geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi),
                     fill = NA_L2NAME),
@@ -266,92 +218,115 @@ c_df %>%
   scale_y_continuous()
 
 
+# Compare predicted to expected counts for training data
+c_df %>%
+  dplyr::select(ym, NA_L3NAME, median, lo, hi) %>%
+  right_join(count_df) %>%
+  full_join(er_df) %>%
+  mutate(is_train = year < cutoff_year) %>%
+  filter(!is_train) %>%
+  ggplot(aes(x = n_fire, y = exp(median), color = is_train)) +
+  facet_wrap(~ NA_L1NAME) +
+  geom_point(alpha = .5) +
+  geom_abline(slope = 1, intercept = 0, linetype = 'dashed', color = 'blue') +
+  geom_segment(aes(xend = n_fire, y = exp(lo), yend = exp(hi)), alpha = .5) +
+  scale_x_log10() +
+  scale_y_log10(limits = c(.001, 1e4))
 
-plot_c_vs_var <- function(df, var) {
-  df %>%
-    distinct(ym, NA_L3NAME, .keep_all = TRUE) %>%
-    filter(year < cutoff_year) %>%
-    ggplot(aes_string(var, "exp(mode - log(area))",
-                      color = "NA_L1NAME")) +
-    scale_x_log10() +
-    theme_minimal() +
-    geom_segment(aes_string(xend = var,
-                            y = "exp(lo - log(area))",
-                            yend = "exp(hi - log(area))"),
-                 alpha = .02) +
-    geom_point(shape = 1, size = .1, alpha = .3) +
-    facet_wrap(~ paste(NA_L1CODE, NA_L2NAME, sep = ':')) +
-    xlab(var) +
-    ylab("Expected # fires > 1000 acres per sq. meter") +
-    scale_y_log10() +
-    theme(strip.text = element_text(size=6),
-          legend.position = 'none') +
-    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 1.5))) +
-    scale_color_gdocs()
-}
 
-plot_c_vs_var(c_df, 'pr') +
-  xlab('Monthly precipitation')
-ggsave(filename = 'fig/fire-num-precip.pdf', width = pw, height = ph)
-
-plot_c_vs_var(c_df, var = 'prev_12mo_precip') +
-  xlab('Previous 12 months precipitation')
-ggsave(filename = 'fig/fire-num-12mo-precip.pdf', width = pw, height = ph)
-
-plot_c_vs_var(c_df, 'tmmx') +
-  xlab('Mean daily maximum air temperature')
-ggsave(filename = 'fig/fire-num-tmmx.pdf', width = pw, height = ph)
-
-plot_c_vs_var(c_df, 'vs') +
-  xlab('Mean daily wind speed')
-ggsave(filename = 'fig/fire-num-wind-speed.pdf', width = pw, height = ph)
-
-plot_c_vs_var(c_df, 'pet') +
-  xlab('Mean daily potential evapotranspiration')
-ggsave(filename = 'fig/fire-num-pet.pdf', width = pw, height = ph)
 
 
 # Mapping covariate effects -----------------------------------------------
 
-# to map the effect of variable x for an l3 ecoregion we need:
-# main effect of x
-# + l1_adj
-# + l2_adj
-# + l3_adj
-beta_df <- beta_df %>%
-  mutate(variable = colnames(X)[col])
+search_string <- paste(
+  c('ctmx', 'cpr', 'cpr12', 'chd', 'crmin',
+    'cvs', 'cyear'), # excludes tri, since effect is constant
+  collapse = '|'
+)
 
-er_names <- distinct(ecoregion_df, NA_L3NAME, NA_L2NAME, NA_L1NAME) %>%
-  tbl_df
+l3_slopes <- beta_df %>%
+  filter(grepl('NA_L3', variable),
+         grepl(':', variable)) %>%
+  select(dim, col, median, variable) %>%
+  mutate(NA_L3NAME = gsub(search_string, '', variable),
+         NA_L3NAME = gsub(':', '', NA_L3NAME),
+         NA_L3NAME = gsub('NA_L3NAME', '', NA_L3NAME)) %>%
+  group_by(dim, col) %>%
+  mutate(which_coef = gsub(NA_L3NAME, '', variable),
+         which_coef = gsub('NA_L3NAME:|:NA_L3NAME', '', which_coef)) %>%
+  ungroup %>%
+  rename(l3med = median) %>%
+  select(-variable, - col)
 
-effect_combos <- expand.grid(NA_L3NAME = er_names$NA_L3NAME,
-                             vars = c('cpr', 'ctmx',
-                                      'cvs', 'cpr12',
-                                      'cyear')) %>%
-  tbl_df %>%
-  left_join(er_names)
-effect_combos$beta_shape <- NA
-effect_combos$beta_scale <- NA
-effect_combos$beta_c <- NA
+# create dataframe will all combos of ecoregion, coef, and dim
+combo_df <- expand.grid(NA_L3NAME = unique(er_df$NA_L3NAME),
+                        dim = unique(l3_slopes$dim),
+                        which_coef = unique(l3_slopes$which_coef)) %>%
+  as_tibble %>%
+  arrange(NA_L3NAME)
 
-for (i in 1:nrow(effect_combos)) {
-  var_idx <- grepl(effect_combos$vars[i], beta_df$variable)
-  main_eff_idx <- grepl(paste0('^', effect_combos$vars[i], '$'),
-                        beta_df$variable)
-  index <-  main_eff_idx +
-    var_idx * grepl(effect_combos$NA_L1NAME[i], beta_df$variable) +
-    var_idx * grepl(effect_combos$NA_L2NAME[i], beta_df$variable) +
-    var_idx * grepl(effect_combos$NA_L3NAME[i], beta_df$variable)
+l3_slopes <- full_join(l3_slopes, combo_df) %>%
+  arrange(NA_L3NAME, dim, which_coef) %>%
+  full_join(er_df)
 
-  effect_combos$beta_shape[i] <- sum(beta_df$mode[index > 0 & beta_df$dim == 1])
-  effect_combos$beta_scale[i] <- sum(beta_df$mode[index > 0 & beta_df$dim == 2])
-  effect_combos$beta_c[i] <- sum(beta_df$mode[index > 0 & beta_df$dim == 3])
-}
+l2_slopes <- beta_df %>%
+  filter(grepl('NA_L2', variable),
+         grepl(':', variable)) %>%
+  select(dim, col, median, variable)%>%
+  mutate(NA_L2NAME = gsub(search_string, '', variable),
+         NA_L2NAME = gsub(':', '', NA_L2NAME),
+         NA_L2NAME = gsub('NA_L2NAME', '', NA_L2NAME)) %>%
+  group_by(dim, col) %>%
+  mutate(which_coef = gsub(NA_L2NAME, '', variable),
+         which_coef = gsub('NA_L2NAME:|:NA_L2NAME', '', which_coef)) %>%
+  ungroup %>%
+  rename(l2med = median) %>%
+  select(-variable, - col)
+
+l2_in <- unique(er_df$NA_L2NAME) %in% l2_slopes$NA_L2NAME
+assert_that(unique(er_df$NA_L2NAME)[!l2_in] ==
+              unique(er_df$NA_L2NAME) %>% sort %>% `[`(1))
+
+
+l1_slopes <- beta_df %>%
+  filter(grepl('NA_L1', variable),
+         grepl(':', variable)) %>%
+  select(dim, col, median, variable) %>%
+  mutate(NA_L1NAME = gsub(search_string, '', variable),
+         NA_L1NAME = gsub(':', '', NA_L1NAME),
+         NA_L1NAME = gsub('NA_L1NAME', '', NA_L1NAME)) %>%
+  group_by(dim, col) %>%
+  mutate(which_coef = gsub(NA_L1NAME, '', variable),
+         which_coef = gsub('NA_L1NAME:|:NA_L1NAME', '', which_coef)) %>%
+  ungroup %>%
+  rename(l1med = median) %>%
+  select(-variable, - col)
+
+l1_in <- unique(er_df$NA_L1NAME) %in% l1_slopes$NA_L1NAME
+assert_that(unique(er_df$NA_L1NAME)[!l1_in] ==
+              unique(er_df$NA_L1NAME) %>% sort %>% `[`(1))
+
+overall_effs <- beta_df %>%
+  filter(!grepl('NA_', variable)) %>%
+  select(dim, median, variable) %>%
+  rename(which_coef = variable)
+
+effect_combos <- l3_slopes %>%
+  left_join(l2_slopes) %>%
+  left_join(l1_slopes) %>%
+  left_join(overall_effs) %>%
+  filter(NA_L2NAME != 'UPPER GILA MOUNTAINS (?)') %>%
+  arrange(NA_L3NAME) %>%
+  group_by(dim, NA_L3NAME, which_coef) %>%
+  # need to deal with R's alphabetical slope nonsense, which will have
+  # NA values for the alphabetically first L1-L3 ecoregions
+  summarize(l3_slope = sum(median, l1med, l2med, l3med, na.rm = TRUE)) %>%
+  ungroup
 
 # simplify ecoregion data frame for easy plotting
 simple_ecoregions <- ecoregions %>%
   as('Spatial') %>%
-  ms_simplify(keep = 0.01) %>%
+  ms_simplify(keep = 0.005) %>%
   as('sf')
 
 ggplot() +
@@ -359,30 +334,19 @@ ggplot() +
           aes(fill = Shape_Area))
 
 effect_sf <- effect_combos %>%
-  gather(which_beta, posterior_mode, -vars, -starts_with('NA')) %>%
   full_join(simple_ecoregions) %>%
-  mutate(response = ifelse(which_beta == 'beta_shape',
-                           'Weibull shape parameter',
-                           ifelse(which_beta == 'beta_scale',
-                                  'Weibull scale parameter',
-                                  'Number of fires > 1000 acres')),
-         variable = ifelse(vars == 'cpr',
-                           'Precipitation (same month)',
-                           ifelse(vars == 'cpr12',
-                                  'Precipitation (previous 12 months)',
-                                  ifelse(vars == 'cvs',
-                                         'Wind speed',
-                                         ifelse(vars == 'ctmx',
-                                                'Air temperature',
-                                                'Time trend')))))
+  mutate(response = case_when(
+    .$dim == 1 ~ 'Weibull shape parameter',
+    .$dim == 2 ~ 'Weibull scale parameter',
+    .$dim == 3 ~ 'Number of fires > 1000 acres'))
 
 lowcolor <- 'royalblue4'
 hicolor <- 'red3'
 
 effect_map <- function(df) {
-  ggplot(df, aes(fill = posterior_mode)) +
+  ggplot(df, aes(fill = l3_slope)) +
     geom_sf(size = .1, color = scales::alpha(1, .5)) +
-    facet_wrap( ~ variable, nrow = 1, strip.position = 'bottom') +
+    facet_wrap( ~ which_coef, strip.position = 'bottom') +
     scale_fill_gradient2(low = lowcolor, high = hicolor, "") +
     theme_minimal()+
     theme(axis.title = element_blank(),
@@ -393,72 +357,61 @@ effect_map <- function(df) {
 }
 
 p1 <- effect_sf %>%
-  filter(which_beta == 'beta_c', vars != 'cyear') %>%
+  filter(dim == 1) %>%
   effect_map() +
-  ggtitle('A. Estimated effects: number of fires > 1000 acres')
+  ggtitle('A. Estimated effects: Weibull shape parameter')
 
 p2 <- effect_sf %>%
-  filter(which_beta == 'beta_shape', vars != 'cyear') %>%
+  filter(dim == 2) %>%
   effect_map() +
-  ggtitle('B. Estimated effects: burn area exceedance shape parameter')
+  ggtitle('B. Estimated effects: Weibull scale parameter')
 
 p3 <- effect_sf %>%
-  filter(which_beta == 'beta_scale', vars != 'cyear') %>%
+  filter(dim == 3) %>%
   effect_map() +
-  ggtitle('C. Estimated effects: burn area exceedance scale parameter')
-
-
-plot_grid(p1, p2, p3, nrow = 3)
-ggsave(filename = 'fig/climatic-effects.pdf', width = 16, height = 6)
-
-# plot climate independent linear time trends
-effect_sf %>%
-  filter(vars == 'cyear') %>%
-  ggplot(aes(fill = posterior_mode)) +
-  geom_sf(size = .1, color = scales::alpha(1, .5)) +
-  scale_fill_gradient2(low = lowcolor, high = hicolor, "") +
-  theme_minimal()+
-  theme(axis.title = element_blank(),
-        axis.text = element_blank(),
-        axis.ticks = element_blank(),
-        panel.grid.major = element_line(color = NA),
-        panel.spacing = unit(0, "lines")) +
-  facet_wrap(~ response) +
-  ggtitle('Estimated time trend')
+  ggtitle('C. Estimated effects: number of fires > 1000 acres')
 
 
 
-# Compare predicted to expected counts for training data
-c_df %>%
-  dplyr::select(ym, NA_L3NAME, mode, lo, hi) %>%
-  right_join(train_counts) %>%
-  ggplot(aes(x = n_fire, y = exp(mode))) +
-  geom_point(alpha = .1) +
-  geom_abline(slope = 1, intercept = 0, linetype = 'dashed', color = 'blue') +
-  geom_segment(aes(xend = n_fire, y = exp(lo), yend = exp(hi)), alpha = .1)
 
+## Posterior predictive checks ---------------------------
 
-## Posterior predictive checks for extremes
-n_draw <- dim(post$mu)[1]
-n_preds <- dim(post$mu)[3]
+# set breakpoints for histogram
+max_breaks <- 200
+mtbs_hist <- hist(mtbs$R_ACRES, breaks = max_breaks, right = FALSE)
+
+n_draw <- dim(post$mu_full)[1]
+n_preds <- dim(post$mu_full)[3]
+hist_counts <- matrix(nrow = n_draw, ncol = max_breaks*1.5)
+hist_mids <- matrix(nrow = n_draw, ncol = max_breaks*1.5)
 block_maxima <- matrix(nrow = n_draw, ncol = n_preds)
 area_sums <- matrix(nrow = n_draw, ncol = n_preds)
 n_events <- rpois(n_draw * n_preds,
-                  lambda = exp(c(post$mu[, 3, ]))) %>%
+                  lambda = exp(c(post$mu_full[, 3, ]))) %>%
   matrix(nrow = n_draw, ncol = n_preds)
+sum(is.na(n_events))
 
 pb <- txtProgressBar(max = n_draw, style = 3)
 for (i in 1:n_draw) {
+  ba_vec <- list() # to hold all fire sizes for iteration i
+  counter <- 1
   for (j in 1:n_preds) {
-    if (n_events[i, j] > 0) {
+    if (!is.na(n_events[i, j]) & n_events[i, j] > 0) {
       burn_areas <- 1e3 +
-        weibull_scale_adj * rweibull(n_events[i, j],
-                                     shape = exp(post$mu[i, 2, j]),
-                                     scale = exp(post$mu[i, 1, j]))
+        weibull_scale_adj * rweibull(n = n_events[i, j],
+                                   shape = exp(post$mu[i, 1, j]),
+                                   scale = exp(post$mu[i, 2, j]))
       block_maxima[i, j] <- max(burn_areas)
       area_sums[i, j] <- sum(burn_areas)
+      ba_vec[[counter]] <- burn_areas
+      counter <- counter + 1
     }
   }
+  ba_vec <- unlist(ba_vec)
+  ba_hist <- hist(ba_vec, breaks = max_breaks, plot = FALSE, right = FALSE)
+  nbins <- length(ba_hist$counts)
+  hist_counts[i, 1:nbins] <- ba_hist$counts
+  hist_mids[i, 1:nbins] <- ba_hist$mids
   setTxtProgressBar(pb, i)
 }
 
@@ -468,7 +421,31 @@ ppred_df <- reshape2::melt(block_maxima,
   bind_cols(reshape2::melt(area_sums,
                            varnames = c('iter', 'idx'),
                            value.name = 'total_burn_area')) %>%
+  bind_cols(reshape2::melt(n_events,
+                           varnames = c('iter', 'idx'),
+                           value.name = 'n_events')) %>%
   as_tibble %>%
-  dplyr::select(-iter1, -idx1)
+  dplyr::select(-ends_with('1'), -ends_with('2')) %>%
+  filter(!is.na(n_events))
 
-write_rds(ppred_df, 'weib_ppred_df.rds')
+write_rds(ppred_df, 'ppred_df.rds')
+
+
+hist_df <- reshape2::melt(hist_counts,
+                          varnames = c('iter', 'bin'),
+                          value.name = 'count') %>%
+  bind_cols(reshape2::melt(hist_mids,
+                           varnames = c('iter', 'bin'),
+                           value.name = 'midpoint')) %>%
+  as_tibble %>%
+  select(-ends_with('1')) %>%
+  arrange(iter, bin) %>%
+  na.omit %>%
+  mutate(approx_burn_area = count * midpoint) %>%
+  group_by(iter) %>%
+  mutate(cum_burn_area = cumsum(approx_burn_area)) %>%
+  ungroup
+
+write_rds(hist_df, 'ppc_hist.rds')
+write_rds(mtbs_hist, 'mtbs_hist.rds')
+

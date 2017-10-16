@@ -7,7 +7,10 @@ library(magick)
 library(snowfall)
 
 source('R/02-explore.R')
-m_fit <- read_rds('m_fit.rds')
+
+most_recent_fit <- list.files(pattern = 'wfit')
+
+m_fit <- read_rds(most_recent_fit)
 
 
 # Evaluate convergence ----------------------------------------------------
@@ -324,7 +327,7 @@ beta_df <- post$beta %>%
             p_pos = mean(value > 0)) %>%
   ungroup %>%
   mutate(variable = colnamesX[col],
-         nonzero = p_neg > .8 | p_pos > .8)
+         nonzero = p_neg > .9 | p_pos > .9)
 
 beta_df %>%
   filter(nonzero) %>%

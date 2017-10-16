@@ -103,7 +103,8 @@ pred_gt %>%
   ggplot(aes(log(grand_total_pred))) +
   geom_histogram(bins = 300) +
   geom_vline(xintercept = log(actual_gt), color = 'red', linetype = 'dashed') +
-  scale_y_log10()
+  scale_y_log10() +
+  scale_x_log10()
 
 mean(pred_gt$grand_total_pred >= actual_gt)
 # oh farts, we are predicting way more total burn area than what's observed...
