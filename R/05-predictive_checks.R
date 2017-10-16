@@ -55,19 +55,6 @@ pvdf %>%
   geom_hline(yintercept = c(.05, .95), linetype = 'dotted', alpha = .4) +
   scale_color_gdocs()
 
-pvdf %>%
-  left_join(er_df) %>%
-  ggplot(aes(pval, ..density.., fill = Data, color = Data)) +
-  geom_density(alpha = .2) +
-  geom_rug(aes(pval, color = Data), inherit.aes = FALSE) +
-  scale_fill_gdocs() +
-  scale_color_gdocs() +
-  geom_vline(xintercept = c(.05, .95), linetype = 'dotted') +
-  facet_wrap(~ NA_L1NAME) +
-  xlab('Bayesian posterior predictive p-value for total burn area') +
-  ylab('Count') +
-  xlim(0, 1)
-
 # graphical predictive check
 predicted_totals <- ppred_df %>%
   group_by(idx) %>%
@@ -102,6 +89,24 @@ total_ppred_df %>%
   theme(legend.position = 'none') +
   coord_equal()
 ggsave(filename = 'fig/ppc-burn-area.pdf', width = 20, height = 6)
+
+
+## compare total burn area over entire record --------------------
+pred_gt <- ppred_df %>%
+  group_by(iter) %>%
+  summarize(grand_total_pred = sum(total_burn_area)) %>%
+  ungroup
+
+actual_gt <- sum(mtbs$R_ACRES)
+
+pred_gt %>%
+  ggplot(aes(log(grand_total_pred))) +
+  geom_histogram(bins = 300) +
+  geom_vline(xintercept = log(actual_gt), color = 'red', linetype = 'dashed') +
+  scale_y_log10()
+
+mean(pred_gt$grand_total_pred >= actual_gt)
+# oh farts, we are predicting way more total burn area than what's observed...
 
 
 # compare empirical maxima to predicted
@@ -190,6 +195,7 @@ full_join(empirical_pwf, predicted_pwf) %>%
   scale_fill_gdocs() +
   xlab('Year') +
   ylab('Proportion of year with fires')
+ggsave(filename = 'fig/ppc-p-year.pdf', width = 20, height = 9)
 
 # Investigate why the model is overpredicting the fraction of year
 predicted_counts <- ppred_df %>%
