@@ -17,7 +17,7 @@ stan_d <- list(
   er_idx_full = as.numeric(factor(st_covs$NA_L3NAME)),
 
   n_fire = nrow(train_burns),
-  sizes = log(train_burns$R_ACRES - 1e3),
+  sizes = (train_burns$R_ACRES - 1e3) / weibull_scale_adj,
   burn_idx = burn_idx,
 
   n_w = length(sparse_X$w),
@@ -42,44 +42,36 @@ stan_d <- list(
   burn_eps_idx = burn_eps_idx,
 
   M = 3,
-  slab_df = 2,
-  slab_scale = 2,
+  slab_df = 5,
+  slab_scale = 1,
 
   eps_idx_train = eps_idx_train,
   eps_idx_future = eps_idx_future)
 
-pars <- c('beta', 'tau', 'alpha', 'sigma', 'c', 'mu_full', 'Rho_beta', 'Rho_eps',
-          'loglik_c', 'loglik_f')
+pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
+          'loglik_c', 'loglik_f', 'phi')
 
 control_list <- list(
-  adapt_delta = 0.8
+  adapt_delta = 0.8,
+  max_treedepth = 10
 )
 
 
-# Fancy model, nonstationary variance -------------------------------------
-m_init <- stan_model('stan/st-basis-ns-lognorm.stan')
-m_fit <- sampling(m_init,
-                  data = stan_d,
-                  pars = pars,
-                  cores = 4,
-                  init_r = 0.01,
-                  iter = 1000,
-                  refresh = 1,
-                  control = control_list)
-write_rds(m_fit, 'm_fit.rds')
-
 # Fancy Weibull model --------------------------------------------------------
-stan_d$sizes <- (train_burns$R_ACRES - 1e3) / weibull_scale_adj
 
-w_init <- stan_model('stan/st-basis-ns-weibull.stan')
+w_init <- stan_model('stan/st-basis-nb-weibull.stan')
 w_fit <- sampling(w_init,
                   data = stan_d,
                   pars = pars,
-                  cores = 4,
+                  chains = 3,
+                  cores = 3,
                   init_r = 0.01,
-                  iter = 1000,
+                  iter = 1200,
                   refresh = 1,
                   control = control_list)
 write_rds(w_fit, paste0('wfit_',
                         Sys.time() %>% gsub(' ', '_', x = .),
                         '.rds'))
+
+
+

@@ -8,8 +8,8 @@ library(loo)
 
 source('R/02-explore.R')
 
-
-w_fit <- read_rds('w_fit.rds')
+most_recent_fit <- list.files(pattern = 'wfit')
+w_fit <- read_rds(most_recent_fit)
 
 size_ll <- extract_log_lik(w_fit, parameter_name = 'loglik_f')
 loo_size <- loo(size_ll)
@@ -17,16 +17,18 @@ loo_size
 plot(loo_size)
 
 count_ll <- extract_log_lik(w_fit, parameter_name = 'loglik_c')
-loo_count <- loo(count_ll)
+loo_count <- loo(count_ll, cores = 1)
 loo_count
 plot(loo_count)
 
+rm(size_ll, loo_size, count_ll, loo_count)
+gc()
 
 # Evaluate convergence ----------------------------------------------------
 traceplot(w_fit, inc_warmup = TRUE)
 
-traceplot(w_fit, pars = c('tau', 'sigma', 'c', 'alpha'))
-traceplot(w_fit, pars = c('Rho_beta', 'Rho_eps'))
+traceplot(w_fit, pars = c('tau', 'c', 'alpha', 'phi'))
+traceplot(w_fit, pars = c('Rho_beta'))
 
 plot(w_fit, pars = 'beta') +
   geom_vline(xintercept = 0, linetype = 'dashed') +
@@ -64,6 +66,25 @@ beta_df %>%
   facet_wrap(~ dim, scales = 'free') +
   theme(axis.text.y = element_text(size = 7))
 
+wide_beta <- beta_df %>%
+  select(col, dim, median, variable) %>%
+  spread(dim, median)
+
+p12 <- wide_beta  %>%
+  ggplot(aes(`1`, `2`)) +
+  geom_point()
+
+p13 <- wide_beta  %>%
+  ggplot(aes(`1`, `3`)) +
+  geom_point()
+
+p23 <- wide_beta  %>%
+  ggplot(aes(`2`, `3`)) +
+  geom_point()
+
+p <- plot_grid(p12, p13, p23, nrow = 1)
+p
+
 
 # Visualize some predictions ----------------------------------------------
 st_covs$row <- 1:nrow(st_covs)
@@ -77,25 +98,16 @@ mu_df <- post$mu_full %>%
             hi = quantile(value, 0.95)) %>%
   ungroup
 
-## Visualize expected burn area exceedance values
-burn_mu_df <- mu_df %>%
-  filter(response == 1) %>%
-  full_join(st_covs) %>%
-  left_join(dplyr::distinct(tbl_df(ecoregions),
-                            NA_L3NAME, NA_L1CODE)) %>%
-  mutate(facet_factor = paste0(NA_L1CODE, NA_L3NAME))
-
-# changes over time
+## Visualize parameter time series
 plot_mu_ts <- function(df) {
   df %>%
     ggplot(aes(ym, exp(median), fill = NA_L1NAME)) +
     theme_minimal() +
     geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
-                alpha = .5, color = NA) +
+                alpha = .8, color = NA) +
     geom_line(size = .1) +
-    facet_wrap(~ NA_L3NAME) +
+    facet_wrap(~ facet_factor) +
     xlab('Date') +
-    ylab("Weibull shape parameter") +
     scale_y_log10() +
     geom_vline(xintercept = cutoff_year,
                linetype = 'dashed', col = 'grey') +
@@ -104,127 +116,49 @@ plot_mu_ts <- function(df) {
     theme(legend.position = 'none')
 }
 
-unique(burn_mu_df$NA_L1NAME)
+# shape parameter
+mu_df %>%
+  filter(response == 1) %>%
+  full_join(st_covs) %>%
+  left_join(dplyr::distinct(tbl_df(ecoregions),
+                            NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
+  plot_mu_ts +
+  ylab('Weibull shape parameter')
 
-burn_mu_df %>%
-  filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
-  plot_mu_ts
-
-burn_mu_df %>%
-  filter(NA_L1NAME == 'NORTH AMERICAN DESERTS') %>%
-  plot_mu_ts
-
-burn_mu_df %>%
-  filter(NA_L1NAME == 'GREAT PLAINS') %>%
-  plot_mu_ts
-
-burn_mu_df %>%
-  filter(NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
-  plot_mu_ts
-
-
-# Visualize changes in scale parameter through time ----------------------
-# burn areas
+# scale parameter
 mu_df %>%
   filter(response == 2) %>%
   full_join(st_covs) %>%
-  left_join(er_df) %>%
-  mutate(facet_factor = paste0(NA_L2CODE, NA_L3NAME)) %>%
-  ggplot(aes(ym, exp(median), fill = NA_L1CODE)) +
-  geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
-              alpha = .5,
-              color = NA) +
-  geom_line(size = .1) +
-  facet_wrap(~ facet_factor) +
-  xlab('Date') +
-  ylab("Weibull scale parameter") +
-  scale_y_log10() +
-  theme(legend.position = 'none') +
-  scale_fill_gdocs()
+  left_join(dplyr::distinct(tbl_df(ecoregions),
+                            NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
+  plot_mu_ts +
+  ylab('Weibull scale parameter')
 
-
-
-# Visualize effects on expected number of counts --------------------------
-train_counts$row_c <- 1:nrow(train_counts)
-c_df <- mu_df %>%
+# mean
+mu_df %>%
   filter(response == 3) %>%
-  full_join(st_covs)
-
-c_df <- c_df %>%
-  left_join(er_df) %>%
-  mutate(facet_factor = paste0(NA_L2CODE, NA_L3NAME))
-
-plot_c_ts <- function(df) {
-  df  %>%
-    ggplot(aes(x=ym, y = exp(median))) +
-    theme_minimal() +
-    geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi),
-                    fill = NA_L2NAME),
-                alpha = .8,
-                col = NA) +
-    geom_line(size = .2) +
-    facet_wrap(~facet_factor) +
-    xlab('Time') +
-    ylab('Expected # of burns over 1000 acres') +
-    scale_y_log10() +
-    theme(legend.position = 'none') +
-    geom_vline(xintercept = cutoff_year, linetype = 'dashed', col = 'grey') +
-    scale_fill_gdocs()
-}
-
-c_df %>%
-  plot_c_ts
-
-c_df %>%
-  filter(NA_L1NAME == 'EASTERN TEMPERATE FORESTS') %>%
-  plot_c_ts
-
-c_df %>%
-  filter(NA_L1NAME == 'GREAT PLAINS') %>%
-  plot_c_ts
-
-c_df %>%
-  filter(NA_L1NAME == 'NORTH AMERICAN DESERTS') %>%
-  plot_c_ts
-
-c_df %>%
-  filter(NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
-  plot_c_ts
-
-# plot some on natural scale
-c_df %>%
-  filter(NA_L3NAME == 'Southern Rockies') %>%
-  plot_c_ts +
-  scale_y_continuous()
-
-c_df %>%
-  filter(NA_L3NAME == 'Canadian Rockies') %>%
-  plot_c_ts +
-  scale_y_continuous()
-
-c_df %>%
-  filter(NA_L3NAME == 'Idaho Batholith') %>%
-  plot_c_ts +
-  scale_y_continuous()
-
-c_df %>%
-  filter(NA_L3NAME == 'Piedmont') %>%
-  plot_c_ts +
-  scale_y_continuous()
-
-c_df %>%
-  filter(NA_L3NAME == 'Cross Timbers') %>%
-  plot_c_ts +
-  scale_y_continuous()
+  full_join(st_covs) %>%
+  left_join(dplyr::distinct(tbl_df(ecoregions),
+                            NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
+  plot_mu_ts +
+  ylab('Negative binomial mean')
 
 
 # Compare predicted to expected counts for training data
-c_df %>%
+mu_df %>%
+  filter(response == 3) %>%
+  full_join(st_covs) %>%
+  left_join(dplyr::distinct(tbl_df(ecoregions),
+                            NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
   dplyr::select(ym, NA_L3NAME, median, lo, hi) %>%
   right_join(count_df) %>%
   full_join(er_df) %>%
   mutate(is_train = year < cutoff_year) %>%
-  filter(!is_train) %>%
+  #filter(!is_train) %>%
   ggplot(aes(x = n_fire, y = exp(median), color = is_train)) +
   facet_wrap(~ NA_L1NAME) +
   geom_point(alpha = .5) +

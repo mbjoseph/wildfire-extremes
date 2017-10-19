@@ -10,6 +10,7 @@ library(rstan)
 library(cowplot)
 library(ggthemes)
 library(sf)
+library(splines)
 source("R/01-clean_data.R")
 
 
@@ -108,6 +109,8 @@ st_covs <- st_covs %>%
          r_cpr12 = cpr12 - t_mean_cpr12 - sp_mean_cpr12,
          r_chd = chd - t_mean_chd - sp_mean_chd)
 
+
+
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
 
@@ -147,34 +150,20 @@ make_X <- function(df) {
                  t_mean_cvs +
                  t_mean_cpr12 +
                  t_mean_chd +
-                 r_crmin * NA_L3NAME +
-                 r_cpr * NA_L3NAME +
-                 r_ctmx * NA_L3NAME +
-                 r_cvs * NA_L3NAME +
-                 r_cpr12 * NA_L3NAME +
-                 r_chd * NA_L3NAME +
-                 r_crmin * NA_L2NAME +
-                 r_cpr * NA_L2NAME +
-                 r_ctmx * NA_L2NAME +
-                 r_cvs * NA_L2NAME +
-                 r_cpr12 * NA_L2NAME +
-                 r_chd * NA_L2NAME +
-                 r_crmin * NA_L1NAME +
-                 r_cpr * NA_L1NAME +
-                 r_ctmx * NA_L1NAME +
-                 r_cvs * NA_L1NAME +
-                 r_cpr12 * NA_L1NAME +
-                 r_chd * NA_L1NAME +
-                 cyear * NA_L3NAME +
-                 cyear * NA_L2NAME +
-                 cyear * NA_L1NAME,
+                 cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L3NAME +
+                 cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L2NAME +
+                 cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L1NAME,
                data = df)
 }
 
-# need to ensure that all ecoregions show up here
+# discard all 3-way or higher interactions
 X <- make_X(st_covs)
+num_interacting_variables <- lengths(regmatches(colnames(X),
+                                                gregexpr(":", colnames(X))))
+X <- X[, num_interacting_variables <= 1]
 sparse_X <- extract_sparse_parts(X)
 colnamesX <- colnames(X)
+
 
 # design matrix for training counts
 # is a subset of the rows of X, based on which rows show up in train_counts
