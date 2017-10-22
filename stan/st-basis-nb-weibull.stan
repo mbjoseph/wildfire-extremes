@@ -35,7 +35,7 @@ data {
   int<lower = 1, upper = N * T + 1> n_u_tb;
   int<lower = 1> u_tb[n_u_tb];
 
-  int<lower = 1, upper = 3> M; // num dimensions
+  int<lower = 1, upper = 4> M; // num dimensions
   real<lower = 0> slab_df;
   real<lower = 0> slab_scale;
 }
@@ -53,11 +53,10 @@ parameters {
   vector[M] alpha; // intercept
   vector<lower = 0>[M] c_aux;
   cholesky_factor_corr[M] L_beta;
-  real<lower = 0> phi;
 }
 
 transformed parameters {
-  vector[n_count] mu_count;
+  vector[n_count] mu_count[2];
   vector[n_burn_mu] mu_burn[2];
   matrix[M, p] beta;
   matrix[M, p] lambda_tilde;
@@ -82,9 +81,13 @@ transformed parameters {
     mu_burn[i] = alpha[i] +
                + csr_matrix_times_vector(n_burn_mu, p, w_tb, v_tb, u_tb, beta[i, ]');
 
-   mu_count = alpha[3]
-             + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[3, ]')
-             + log_area_train;
+  for (i in 3:4)
+    // mu_count[1] is log(phi), mu_count[2] is log(mu)
+    mu_count[i - 2] = alpha[i] // minus two so that i=3 implies first element (i - 2 = 1)
+                    + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[i, ]');
+
+   // add offset for count expected value
+   mu_count[2] = mu_count[2] + log_area_train;
 }
 
 model {
@@ -95,10 +98,9 @@ model {
   c_aux ~ inv_gamma(0.5 * slab_df, 0.5 * slab_df);
   alpha ~ normal(0, 5);
   tau ~ normal(0, 1);
-  phi ~ normal(0, 5);
 
   // number of fires
-  counts ~ neg_binomial_2_log(mu_count, phi);
+  counts ~ neg_binomial_2_log(mu_count[2], exp(mu_count[1]));
 
   // fire sizes
   sizes ~ weibull(exp(mu_burn[1])[burn_idx], exp(mu_burn[2])[burn_idx]);
@@ -111,7 +113,7 @@ generated quantities {
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
 
   for (i in 1:n_count) {
-    loglik_c[i] = neg_binomial_2_log_lpmf(counts[i] | mu_count[i], phi);
+    loglik_c[i] = neg_binomial_2_log_lpmf(counts[i] | mu_count[2][i], exp(mu_count[1][i]));
   }
 
   for (i in 1:n_fire) {
