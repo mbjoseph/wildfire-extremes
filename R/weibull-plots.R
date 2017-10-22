@@ -8,11 +8,15 @@ library(loo)
 
 source('R/02-explore.R')
 
-most_recent_fit <- list.files(pattern = 'wfit')
+
+most_recent_fit <- list.files(pattern = 'wfit') %>%
+  sort(decreasing = TRUE) %>%
+  `[`(1)
 w_fit <- read_rds(most_recent_fit)
 
+
 size_ll <- extract_log_lik(w_fit, parameter_name = 'loglik_f')
-loo_size <- loo(size_ll)
+loo_size <- loo(size_ll, cores = 1)
 loo_size
 plot(loo_size)
 
@@ -27,7 +31,7 @@ gc()
 # Evaluate convergence ----------------------------------------------------
 traceplot(w_fit, inc_warmup = TRUE)
 
-traceplot(w_fit, pars = c('tau', 'c', 'alpha', 'phi'))
+traceplot(w_fit, pars = c('tau', 'c', 'alpha'))
 traceplot(w_fit, pars = c('Rho_beta'))
 
 plot(w_fit, pars = 'beta') +
@@ -158,7 +162,7 @@ mu_df %>%
   right_join(count_df) %>%
   full_join(er_df) %>%
   mutate(is_train = year < cutoff_year) %>%
-  #filter(!is_train) %>%
+  filter(!is_train) %>%
   ggplot(aes(x = n_fire, y = exp(median), color = is_train)) +
   facet_wrap(~ NA_L1NAME) +
   geom_point(alpha = .5) +
@@ -166,145 +170,6 @@ mu_df %>%
   geom_segment(aes(xend = n_fire, y = exp(lo), yend = exp(hi)), alpha = .5) +
   scale_x_log10() +
   scale_y_log10(limits = c(.001, 1e4))
-
-
-
-
-# Mapping covariate effects -----------------------------------------------
-
-search_string <- paste(
-  c('ctmx', 'cpr', 'cpr12', 'chd', 'crmin',
-    'cvs', 'cyear'), # excludes tri, since effect is constant
-  collapse = '|'
-)
-
-l3_slopes <- beta_df %>%
-  filter(grepl('NA_L3', variable),
-         grepl(':', variable)) %>%
-  select(dim, col, median, variable) %>%
-  mutate(NA_L3NAME = gsub(search_string, '', variable),
-         NA_L3NAME = gsub(':', '', NA_L3NAME),
-         NA_L3NAME = gsub('NA_L3NAME', '', NA_L3NAME)) %>%
-  group_by(dim, col) %>%
-  mutate(which_coef = gsub(NA_L3NAME, '', variable),
-         which_coef = gsub('NA_L3NAME:|:NA_L3NAME', '', which_coef)) %>%
-  ungroup %>%
-  rename(l3med = median) %>%
-  select(-variable, - col)
-
-# create dataframe will all combos of ecoregion, coef, and dim
-combo_df <- expand.grid(NA_L3NAME = unique(er_df$NA_L3NAME),
-                        dim = unique(l3_slopes$dim),
-                        which_coef = unique(l3_slopes$which_coef)) %>%
-  as_tibble %>%
-  arrange(NA_L3NAME)
-
-l3_slopes <- full_join(l3_slopes, combo_df) %>%
-  arrange(NA_L3NAME, dim, which_coef) %>%
-  full_join(er_df)
-
-l2_slopes <- beta_df %>%
-  filter(grepl('NA_L2', variable),
-         grepl(':', variable)) %>%
-  select(dim, col, median, variable)%>%
-  mutate(NA_L2NAME = gsub(search_string, '', variable),
-         NA_L2NAME = gsub(':', '', NA_L2NAME),
-         NA_L2NAME = gsub('NA_L2NAME', '', NA_L2NAME)) %>%
-  group_by(dim, col) %>%
-  mutate(which_coef = gsub(NA_L2NAME, '', variable),
-         which_coef = gsub('NA_L2NAME:|:NA_L2NAME', '', which_coef)) %>%
-  ungroup %>%
-  rename(l2med = median) %>%
-  select(-variable, - col)
-
-l2_in <- unique(er_df$NA_L2NAME) %in% l2_slopes$NA_L2NAME
-assert_that(unique(er_df$NA_L2NAME)[!l2_in] ==
-              unique(er_df$NA_L2NAME) %>% sort %>% `[`(1))
-
-
-l1_slopes <- beta_df %>%
-  filter(grepl('NA_L1', variable),
-         grepl(':', variable)) %>%
-  select(dim, col, median, variable) %>%
-  mutate(NA_L1NAME = gsub(search_string, '', variable),
-         NA_L1NAME = gsub(':', '', NA_L1NAME),
-         NA_L1NAME = gsub('NA_L1NAME', '', NA_L1NAME)) %>%
-  group_by(dim, col) %>%
-  mutate(which_coef = gsub(NA_L1NAME, '', variable),
-         which_coef = gsub('NA_L1NAME:|:NA_L1NAME', '', which_coef)) %>%
-  ungroup %>%
-  rename(l1med = median) %>%
-  select(-variable, - col)
-
-l1_in <- unique(er_df$NA_L1NAME) %in% l1_slopes$NA_L1NAME
-assert_that(unique(er_df$NA_L1NAME)[!l1_in] ==
-              unique(er_df$NA_L1NAME) %>% sort %>% `[`(1))
-
-overall_effs <- beta_df %>%
-  filter(!grepl('NA_', variable)) %>%
-  select(dim, median, variable) %>%
-  rename(which_coef = variable)
-
-effect_combos <- l3_slopes %>%
-  left_join(l2_slopes) %>%
-  left_join(l1_slopes) %>%
-  left_join(overall_effs) %>%
-  filter(NA_L2NAME != 'UPPER GILA MOUNTAINS (?)') %>%
-  arrange(NA_L3NAME) %>%
-  group_by(dim, NA_L3NAME, which_coef) %>%
-  # need to deal with R's alphabetical slope nonsense, which will have
-  # NA values for the alphabetically first L1-L3 ecoregions
-  summarize(l3_slope = sum(median, l1med, l2med, l3med, na.rm = TRUE)) %>%
-  ungroup
-
-# simplify ecoregion data frame for easy plotting
-simple_ecoregions <- ecoregions %>%
-  as('Spatial') %>%
-  ms_simplify(keep = 0.005) %>%
-  as('sf')
-
-ggplot() +
-  geom_sf(data = simple_ecoregions,
-          aes(fill = Shape_Area))
-
-effect_sf <- effect_combos %>%
-  full_join(simple_ecoregions) %>%
-  mutate(response = case_when(
-    .$dim == 1 ~ 'Weibull shape parameter',
-    .$dim == 2 ~ 'Weibull scale parameter',
-    .$dim == 3 ~ 'Number of fires > 1000 acres'))
-
-lowcolor <- 'royalblue4'
-hicolor <- 'red3'
-
-effect_map <- function(df) {
-  ggplot(df, aes(fill = l3_slope)) +
-    geom_sf(size = .1, color = scales::alpha(1, .5)) +
-    facet_wrap( ~ which_coef, strip.position = 'bottom') +
-    scale_fill_gradient2(low = lowcolor, high = hicolor, "") +
-    theme_minimal()+
-    theme(axis.title = element_blank(),
-          axis.text = element_blank(),
-          axis.ticks = element_blank(),
-          panel.grid.major = element_line(color = NA),
-          panel.spacing = unit(0, "lines"))
-}
-
-p1 <- effect_sf %>%
-  filter(dim == 1) %>%
-  effect_map() +
-  ggtitle('A. Estimated effects: Weibull shape parameter')
-
-p2 <- effect_sf %>%
-  filter(dim == 2) %>%
-  effect_map() +
-  ggtitle('B. Estimated effects: Weibull scale parameter')
-
-p3 <- effect_sf %>%
-  filter(dim == 3) %>%
-  effect_map() +
-  ggtitle('C. Estimated effects: number of fires > 1000 acres')
-
 
 
 
@@ -320,8 +185,9 @@ hist_counts <- matrix(nrow = n_draw, ncol = max_breaks*1.5)
 hist_mids <- matrix(nrow = n_draw, ncol = max_breaks*1.5)
 block_maxima <- matrix(nrow = n_draw, ncol = n_preds)
 area_sums <- matrix(nrow = n_draw, ncol = n_preds)
-n_events <- rpois(n_draw * n_preds,
-                  lambda = exp(c(post$mu_full[, 3, ]))) %>%
+n_events <- rnbinom(n_draw * n_preds,
+                    size = exp(c(post$mu_full[, 3, ])),
+                    mu = exp(c(post$mu_full[, 4, ]))) %>%
   matrix(nrow = n_draw, ncol = n_preds)
 sum(is.na(n_events))
 
