@@ -41,7 +41,7 @@ stan_d <- list(
 
   burn_eps_idx = burn_eps_idx,
 
-  M = 3,
+  M = 4,
   slab_df = 5,
   slab_scale = 1,
 
@@ -49,7 +49,7 @@ stan_d <- list(
   eps_idx_future = eps_idx_future)
 
 pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
-          'loglik_c', 'loglik_f', 'phi')
+          'loglik_c', 'loglik_f')
 
 control_list <- list(
   adapt_delta = 0.8,
@@ -57,16 +57,15 @@ control_list <- list(
 )
 
 
-# Fancy Weibull model --------------------------------------------------------
-
+# Fancy model --------------------------------------------------------
 w_init <- stan_model('stan/st-basis-nb-weibull.stan')
+
 w_fit <- sampling(w_init,
                   data = stan_d,
                   pars = pars,
-                  chains = 3,
-                  cores = 3,
+                  cores = 4,
                   init_r = 0.01,
-                  iter = 1200,
+                  iter = 1000,
                   refresh = 1,
                   control = control_list)
 write_rds(w_fit, paste0('wfit_',
