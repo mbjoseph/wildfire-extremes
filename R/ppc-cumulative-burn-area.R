@@ -16,8 +16,8 @@ hist_df %>%
   ggplot(aes(log(midpoint), log(cum_burn_area), group = iter)) +
   geom_line(alpha = .1) +
   geom_line(data = mtbs_hist_df, color = 'red') +
-  coord_cartesian(ylim = c(16.5, 25),
-                  xlim = c(7.5, 20)) +
+  coord_cartesian(ylim = c(10.5, 21),
+                  xlim = c(5, 16)) +
   xlab('log(Burn area)') +
   ylab('log(Cumulative burn area)')
 
