@@ -84,6 +84,8 @@ st_covs <- ecoregion_summaries %>%
   mutate(er_ym = paste(NA_L3NAME, ym, sep = "_")) %>%
   arrange(ym, NA_L3NAME)
 
+
+
 # Compute spatial means, temporal means, and residuals
 st_covs <- st_covs %>%
   group_by(NA_L3NAME) %>%
@@ -109,6 +111,19 @@ st_covs <- st_covs %>%
          r_cpr12 = cpr12 - t_mean_cpr12 - sp_mean_cpr12,
          r_chd = chd - t_mean_chd - sp_mean_chd)
 
+
+# monthly basis functions
+monthly_basis <- bs(st_covs$month, df = 5, intercept = TRUE)
+colnames(monthly_basis) <- paste0('mb', 1:ncol(monthly_basis))
+
+
+basis_df <- monthly_basis %>%
+  as.matrix %>%
+  as_tibble %>%
+  lapply(FUN = c) %>%
+  bind_cols
+
+st_covs <- bind_cols(st_covs, basis_df)
 
 
 assert_that(!any(duplicated(st_covs)))
@@ -152,7 +167,22 @@ make_X <- function(df) {
                  t_mean_chd +
                  cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L3NAME +
                  cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L2NAME +
-                 cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L1NAME,
+                 cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L1NAME +
+                 mb1 * NA_L3NAME +
+                 mb1 * NA_L2NAME +
+                 mb1 * NA_L1NAME +
+                 mb2 * NA_L3NAME +
+                 mb2 * NA_L2NAME +
+                 mb2 * NA_L1NAME +
+                 mb3 * NA_L3NAME +
+                 mb3 * NA_L2NAME +
+                 mb3 * NA_L1NAME +
+                 mb4 * NA_L3NAME +
+                 mb4 * NA_L2NAME +
+                 mb4 * NA_L1NAME +
+                 mb5 * NA_L3NAME +
+                 mb5 * NA_L2NAME +
+                 mb5 * NA_L1NAME,
                data = df)
 }
 
