@@ -98,6 +98,7 @@ if (!file.exists('lagged_precip.rds')) {
 
 if (!file.exists('data/processed/housing_density.csv')) {
   system('bash bash/fetch-density.sh')
+  source('R/summarize-housing-density.R')
 }
 
 housing_df <- read_csv('data/processed/housing_density.csv') %>%

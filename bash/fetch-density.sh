@@ -19,6 +19,3 @@ gdal_rasterize -a HDEN00 -of GTiff -tr 4000 4000 $SHP data/processed/den00.tif
 gdal_rasterize -a HDEN10 -of GTiff -tr 4000 4000 $SHP data/processed/den10.tif
 gdal_rasterize -a HDEN20 -of GTiff -tr 4000 4000 $SHP data/processed/den20.tif
 gdal_rasterize -a HDEN30 -of GTiff -tr 4000 4000 $SHP data/processed/den30.tif
-
-# summarise at the ecoregion level
-Rscript --vanilla R/summarize-housing-density.R
