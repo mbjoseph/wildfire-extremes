@@ -101,3 +101,19 @@ write_rds(ln_fit, paste0('lnfit_',
                          Sys.time() %>% gsub(' ', '_', x = .),
                          '.rds'))
 
+
+gpd_d <- stan_d
+gpd_d$sizes <- train_burns$R_ACRES
+gpd_d$size_threshold <- 1e3
+gpd_init <- stan_model('stan/st-basis-nb-gpd.stan')
+gpd_fit <- sampling(
+  gpd_init,
+  data = gpd_d,
+  cores = 4,
+  init_r = 0.01,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list
+)
+
+
