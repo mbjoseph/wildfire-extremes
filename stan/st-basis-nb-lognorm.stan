@@ -57,11 +57,11 @@ parameters {
 
 transformed parameters {
   vector[n_count] mu_count[2];
-  vector[n_burn_mu] mu_burn;
+  vector[n_burn_mu] mu_burn[2];
   matrix[M, p] beta;
   matrix[M, p] lambda_tilde;
   vector[p] lambda_sq;
-  vector<lower = 0>[M] c;
+  vector[M] c;
 
   c = slab_scale * sqrt(c_aux);
 
@@ -77,12 +77,13 @@ transformed parameters {
   // multivariate horseshoe
   beta = diag_pre_multiply(tau, L_beta) *  betaR .* lambda_tilde;
 
-  mu_burn = alpha[1] +
-             + csr_matrix_times_vector(n_burn_mu, p, w_tb, v_tb, u_tb, beta[1, ]');
+  for (i in 1:2)
+    mu_burn[i] = alpha[i] +
+               + csr_matrix_times_vector(n_burn_mu, p, w_tb, v_tb, u_tb, beta[i, ]');
 
-  for (i in 2:3)
+  for (i in 3:4)
     // mu_count[1] is log(phi), mu_count[2] is log(mu)
-    mu_count[i - 1] = alpha[i]
+    mu_count[i - 2] = alpha[i] // minus two so that i=3 implies first element (i - 2 = 1)
                     + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[i, ]');
 
    // add offset for count expected value
@@ -102,7 +103,7 @@ model {
   counts ~ neg_binomial_2_log(mu_count[2], exp(mu_count[1]));
 
   // fire sizes
-  sizes ~ exponential(exp(mu_burn)[burn_idx]);
+  sizes ~ normal(mu_burn[1][burn_idx], exp(mu_burn[2])[burn_idx]);
 }
 
 generated quantities {
@@ -116,7 +117,7 @@ generated quantities {
   }
 
   for (i in 1:n_fire) {
-    loglik_f[i] = exponential_lpdf(sizes[i] | exp(mu_burn[burn_idx[i]]));
+    loglik_f[i] = normal_lpdf(sizes[i] | mu_burn[1][burn_idx[i]], exp(mu_burn[2][burn_idx[i]]));
   }
 
   // expected values

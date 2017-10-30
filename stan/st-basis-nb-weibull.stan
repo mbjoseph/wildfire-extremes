@@ -61,7 +61,7 @@ transformed parameters {
   matrix[M, p] beta;
   matrix[M, p] lambda_tilde;
   vector[p] lambda_sq;
-  vector<lower = 0>[M] c;
+  vector[M] c;
 
   c = slab_scale * sqrt(c_aux);
 

@@ -33,28 +33,6 @@ empirical_totals %>%
 
 st_covs$idx <- 1:nrow(st_covs)
 
-# compute Bayesian posterior predictive p-values
-pvdf <- empirical_totals %>%
-  full_join(select(st_covs, idx, ym, NA_L3NAME)) %>%
-  full_join(select(ppred_df, idx, total_burn_area)) %>%
-  filter(actual_total > 0) %>%
-  group_by(ym, NA_L3NAME) %>%
-  summarize(pval = mean(total_burn_area >= actual_total)) %>%
-  mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
-                       'Train', 'Test'),
-         extreme = pval < 0.05 | pval > 0.95)
-gc()
-hist(pvdf$pval, breaks = 100)
-
-pvdf %>%
-  ggplot(aes(ym, pval, color = Data,
-             alpha = extreme)) +
-  geom_point() +
-  facet_wrap(~ NA_L3NAME) +
-  geom_hline(yintercept = .5, linetype = 'dashed') +
-  geom_hline(yintercept = c(.05, .95), linetype = 'dotted', alpha = .4) +
-  scale_color_gdocs()
-
 # graphical predictive check
 predicted_totals <- ppred_df %>%
   group_by(idx) %>%
@@ -73,7 +51,6 @@ total_ppred_df %>%
                        'Train', 'Test')) %>%
   ggplot(aes(actual_total, pred_total, color = Data)) +
   theme_minimal() +
-  geom_point(shape = 19, alpha = .5) +
   scale_x_log10() +
   scale_y_log10() +
   geom_abline(slope = 1, intercept = 0,
@@ -81,14 +58,30 @@ total_ppred_df %>%
   geom_segment(aes(xend = actual_total,
                    y = lo,
                    yend = hi),
-               alpha = .05) +
+               alpha = .2) +
+  geom_point(shape = 19) +
   scale_color_gdocs() +
   facet_grid(Data ~ NA_L1NAME) +
   xlab('Empirical total burn area') +
   ylab('Predicted total burn area') +
   theme(legend.position = 'none') +
   coord_equal()
-ggsave(filename = 'fig/ppc-burn-area.pdf', width = 20, height = 6)
+ggsave(filename = 'fig/ppc-burn-area.pdf', width = 26, height = 10)
+
+# check interval coverage (~ 98% coverage for a 90% interval! :)
+total_ppred_df %>%
+  mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
+                       'Train', 'Test')) %>%
+  mutate(lo_lt_real = lo <= actual_total,
+         hi_gt_real = hi >= actual_total,
+         actual_in_interval = lo_lt_real & hi_gt_real) %>%
+  group_by(Data) %>%
+  summarize(coverage = mean(actual_in_interval))
+
+
+
+
+
 
 
 ## compare total burn area over entire record --------------------
@@ -101,13 +94,22 @@ actual_gt <- sum(mtbs$R_ACRES)
 
 pred_gt %>%
   ggplot(aes(log(grand_total_pred))) +
-  geom_histogram(bins = 300) +
+  geom_density() +
   geom_vline(xintercept = log(actual_gt), color = 'red', linetype = 'dashed') +
-  scale_y_log10() +
-  scale_x_log10()
+  scale_x_log10() +
+  annotation_logticks(sides = 'b') +
+  xlab('log(Grand total burn area)') +
+  ylab('Posterior density')
 
 mean(pred_gt$grand_total_pred >= actual_gt)
 # oh farts, we are predicting way more total burn area than what's observed...
+
+gc()
+
+
+
+
+
 
 
 # compare empirical maxima to predicted
@@ -158,11 +160,44 @@ max_ppred_df %>%
   ylab('Predicted max burn area') +
   theme(legend.position = 'none') +
   coord_equal()
-ggsave(filename = 'fig/ppc-burn-max.pdf', width = 20, height = 6)
+ggsave(filename = 'fig/ppc-burn-max.pdf', width = 26, height = 10)
+
+# check interval coverage (90% train, 87% test for 90% interval :)
+max_ppred_df %>%
+  mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
+                       'Train', 'Test')) %>%
+  mutate(lo_lt_real = lo <= actual_max,
+         hi_gt_real = hi >= actual_max,
+         actual_in_interval = lo_lt_real & hi_gt_real) %>%
+  group_by(Data) %>%
+  summarize(coverage = mean(actual_in_interval))
+gc()
+
+
+
 
 
 
 # Fraction of the year with fires -----------------------------------------
+rm(list = ls())
+# restart
+gc()
+
+library(raster)
+library(rstan)
+library(sf)
+library(rmapshaper)
+library(tidyverse)
+library(rstan)
+
+source('R/02-explore.R')
+st_covs$idx <- 1:nrow(st_covs)
+
+ppred_df <- read_rds('ppred_df.rds') %>%
+  mutate(total_burn_area = ifelse(is.na(total_burn_area),
+                                  0,
+                                  total_burn_area))
+
 empirical_pwf <- count_df %>%
   group_by(FIRE_YEAR, NA_L3NAME) %>%
   summarize(pwf = mean(n_fire > 0)) %>%
@@ -175,7 +210,10 @@ empirical_pwf %>%
   geom_line()
 
 predicted_pwf <- ppred_df %>%
-  full_join(st_covs) %>%
+  full_join(select(st_covs, idx, ym, year, NA_L3NAME)) %>%
+  mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
+                       'Train', 'Test')) %>%
+  filter(Data == 'Test') %>%
   group_by(iter, year, NA_L3NAME) %>%
   summarize(pwf = mean(n_events > 0)) %>%
   ungroup %>%
@@ -185,7 +223,7 @@ predicted_pwf <- ppred_df %>%
             hi = quantile(pwf, .975)) %>%
   ungroup
 
-full_join(empirical_pwf, predicted_pwf) %>%
+right_join(empirical_pwf, predicted_pwf) %>%
   mutate(is_train = year < cutoff_year) %>%
   filter(!is_train) %>%
   ggplot(aes(year)) +
@@ -220,4 +258,5 @@ predicted_counts %>%
   xlab('Year') +
   ylab('Number of fires') +
   scale_y_log10()
+ggsave(filename = 'fig/ppc-n-fire.pdf', width = 20, height = 9)
 

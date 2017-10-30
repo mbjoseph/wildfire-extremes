@@ -113,7 +113,7 @@ st_covs <- st_covs %>%
 
 
 # monthly basis functions
-monthly_basis <- bs(st_covs$month, df = 5, intercept = TRUE)
+monthly_basis <- bs(st_covs$month, df = 4, intercept = TRUE)
 colnames(monthly_basis) <- paste0('mb', 1:ncol(monthly_basis))
 
 
@@ -165,9 +165,12 @@ make_X <- function(df) {
                  t_mean_cvs +
                  t_mean_cpr12 +
                  t_mean_chd +
-                 cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L3NAME +
-                 cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L2NAME +
-                 cyear * r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L1NAME +
+                 r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L3NAME +
+                 r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L2NAME +
+                 r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L1NAME +
+                 cyear * NA_L3NAME +
+                 cyear * NA_L2NAME +
+                 cyear * NA_L1NAME +
                  mb1 * NA_L3NAME +
                  mb1 * NA_L2NAME +
                  mb1 * NA_L1NAME +
@@ -179,10 +182,7 @@ make_X <- function(df) {
                  mb3 * NA_L1NAME +
                  mb4 * NA_L3NAME +
                  mb4 * NA_L2NAME +
-                 mb4 * NA_L1NAME +
-                 mb5 * NA_L3NAME +
-                 mb5 * NA_L2NAME +
-                 mb5 * NA_L1NAME,
+                 mb4 * NA_L1NAME,
                data = df)
 }
 

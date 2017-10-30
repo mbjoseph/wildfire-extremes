@@ -1,32 +1,6 @@
-library(raster)
-library(rstan)
-library(sf)
-library(rmapshaper)
-library(tidyverse)
-library(rstan)
-library(loo)
-
 source('R/02-explore.R')
 
-
-most_recent_fit <- list.files(pattern = 'wfit') %>%
-  sort(decreasing = TRUE) %>%
-  `[`(1)
-w_fit <- read_rds(most_recent_fit)
-
-
-size_ll <- extract_log_lik(w_fit, parameter_name = 'loglik_f')
-loo_size <- loo(size_ll, cores = 1)
-loo_size
-plot(loo_size)
-
-count_ll <- extract_log_lik(w_fit, parameter_name = 'loglik_c')
-loo_count <- loo(count_ll, cores = 1)
-loo_count
-plot(loo_count)
-
-rm(size_ll, loo_size, count_ll, loo_count)
-gc()
+w_fit <- read_rds(path = list.files(pattern = 'wfit_.*'))
 
 # Evaluate convergence ----------------------------------------------------
 traceplot(w_fit, inc_warmup = TRUE)
@@ -53,13 +27,13 @@ beta_df <- post$beta %>%
   tbl_df %>%
   group_by(dim, col) %>%
   summarize(median = median(value),
-            lo = quantile(value, 0.05),
-            hi = quantile(value, 0.95),
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975),
             p_neg = mean(value < 0),
             p_pos = mean(value > 0)) %>%
   ungroup %>%
   mutate(variable = colnamesX[col],
-         nonzero = p_neg > .8 | p_pos > .8)
+         nonzero = p_neg > .95 | p_pos > .95)
 
 beta_df %>%
   filter(nonzero) %>%
@@ -72,22 +46,15 @@ beta_df %>%
 
 wide_beta <- beta_df %>%
   select(col, dim, median, variable) %>%
-  spread(dim, median)
+  spread(dim, median) %>%
+  rename(Weibull_shape = `1`,
+         Weibull_scale = `2`,
+         NegBinom_precision = `3`,
+         NegBinom_mean = `4`)
 
-p12 <- wide_beta  %>%
-  ggplot(aes(`1`, `2`)) +
-  geom_point()
-
-p13 <- wide_beta  %>%
-  ggplot(aes(`1`, `3`)) +
-  geom_point()
-
-p23 <- wide_beta  %>%
-  ggplot(aes(`2`, `3`)) +
-  geom_point()
-
-p <- plot_grid(p12, p13, p23, nrow = 1)
-p
+wide_beta %>%
+  select(-col, -variable) %>%
+  pairs
 
 
 # Visualize some predictions ----------------------------------------------
@@ -98,8 +65,16 @@ mu_df <- post$mu_full %>%
   tbl_df %>%
   group_by(response, row) %>%
   summarize(median = median(value),
-            lo = quantile(value, 0.05),
-            hi = quantile(value, 0.95)) %>%
+            lo = quantile(value, 0.025),
+            hi = quantile(value, 0.975),
+            q1 = quantile(value, .1),
+            q2 = quantile(value, .2),
+            q3 = quantile(value, .3),
+            q4 = quantile(value, .4),
+            q6 = quantile(value, .6),
+            q7 = quantile(value, .7),
+            q8 = quantile(value, .8),
+            q9 = quantile(value, .9)) %>%
   ungroup
 
 ## Visualize parameter time series
@@ -108,7 +83,15 @@ plot_mu_ts <- function(df) {
     ggplot(aes(ym, exp(median), fill = NA_L1NAME)) +
     theme_minimal() +
     geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
-                alpha = .8, color = NA) +
+                alpha = .3, color = NA) +
+    geom_ribbon(aes(ymin = exp(q1), ymax = exp(q9)),
+                alpha = .3, color = NA) +
+    geom_ribbon(aes(ymin = exp(q2), ymax = exp(q8)),
+                alpha = .3, color = NA) +
+    geom_ribbon(aes(ymin = exp(q3), ymax = exp(q7)),
+                alpha = .3, color = NA) +
+    geom_ribbon(aes(ymin = exp(q4), ymax = exp(q6)),
+                alpha = .3, color = NA) +
     geom_line(size = .1) +
     facet_wrap(~ facet_factor) +
     xlab('Date') +
@@ -140,9 +123,19 @@ mu_df %>%
   plot_mu_ts +
   ylab('Weibull scale parameter')
 
-# mean
+# neg. binom precision
 mu_df %>%
   filter(response == 3) %>%
+  full_join(st_covs) %>%
+  left_join(dplyr::distinct(tbl_df(ecoregions),
+                            NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
+  plot_mu_ts +
+  ylab('Negative binomial precision')
+
+# neg. binom mean
+mu_df %>%
+  filter(response == 4) %>%
   full_join(st_covs) %>%
   left_join(dplyr::distinct(tbl_df(ecoregions),
                             NA_L3NAME, NA_L1CODE)) %>%
@@ -153,7 +146,7 @@ mu_df %>%
 
 # Compare predicted to expected counts for training data
 mu_df %>%
-  filter(response == 3) %>%
+  filter(response == 4) %>%
   full_join(st_covs) %>%
   left_join(dplyr::distinct(tbl_df(ecoregions),
                             NA_L3NAME, NA_L1CODE)) %>%
@@ -171,13 +164,14 @@ mu_df %>%
   scale_x_log10() +
   scale_y_log10(limits = c(.001, 1e4))
 
-
+gc()
 
 ## Posterior predictive checks ---------------------------
 
 # set breakpoints for histogram
 max_breaks <- 200
 mtbs_hist <- hist(mtbs$R_ACRES, breaks = max_breaks, right = FALSE)
+write_rds(mtbs_hist, 'mtbs_hist.rds')
 
 n_draw <- dim(post$mu_full)[1]
 n_preds <- dim(post$mu_full)[3]
@@ -190,6 +184,7 @@ n_events <- rnbinom(n_draw * n_preds,
                     mu = exp(c(post$mu_full[, 4, ]))) %>%
   matrix(nrow = n_draw, ncol = n_preds)
 sum(is.na(n_events))
+gc()
 
 pb <- txtProgressBar(max = n_draw, style = 3)
 for (i in 1:n_draw) {
@@ -229,7 +224,8 @@ ppred_df <- reshape2::melt(block_maxima,
   filter(!is.na(n_events))
 
 write_rds(ppred_df, 'ppred_df.rds')
-
+rm(ppred_df)
+gc()
 
 hist_df <- reshape2::melt(hist_counts,
                           varnames = c('iter', 'bin'),
@@ -247,5 +243,4 @@ hist_df <- reshape2::melt(hist_counts,
   ungroup
 
 write_rds(hist_df, 'ppc_hist.rds')
-write_rds(mtbs_hist, 'mtbs_hist.rds')
 

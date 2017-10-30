@@ -56,21 +56,48 @@ control_list <- list(
   max_treedepth = 10
 )
 
+n_iter <- 1000
 
-# Fancy model --------------------------------------------------------
+# Fancy models --------------------------------------------------------
+
 w_init <- stan_model('stan/st-basis-nb-weibull.stan')
-
 w_fit <- sampling(w_init,
                   data = stan_d,
                   pars = pars,
                   cores = 4,
                   init_r = 0.01,
-                  iter = 1000,
+                  iter = n_iter,
                   refresh = 1,
                   control = control_list)
 write_rds(w_fit, paste0('wfit_',
                         Sys.time() %>% gsub(' ', '_', x = .),
                         '.rds'))
 
+g_init <- stan_model('stan/st-basis-nb-gamma.stan')
+g_fit <- sampling(g_init,
+                  data = stan_d,
+                  pars = pars,
+                  cores = 4,
+                  init_r = 0.01,
+                  iter = n_iter,
+                  refresh = 1,
+                  control = control_list)
+write_rds(g_fit, paste0('gfit_',
+                        Sys.time() %>% gsub(' ', '_', x = .),
+                        '.rds'))
 
+ln_init <- stan_model('stan/st-basis-nb-lognorm.stan')
+ln_d <- stan_d
+ln_d$sizes <- log(ln_d$sizes)
+ln_fit <- sampling(ln_init,
+                   data = ln_d,
+                   pars = pars,
+                   cores = 4,
+                   init_r = 0.01,
+                   iter = n_iter,
+                   refresh = 1,
+                   control = control_list)
+write_rds(ln_fit, paste0('lnfit_',
+                         Sys.time() %>% gsub(' ', '_', x = .),
+                         '.rds'))
 
