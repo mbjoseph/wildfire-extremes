@@ -76,7 +76,6 @@ st_covs <- ecoregion_summaries %>%
          ctmx = c(scale(tmmx)),
          cvs = c(scale(vs)),
          cpr12 = c(scale(prev_12mo_precip)),
-         cyear = c(scale(year)),
          ctri = c(scale(log(tri))),
          chd = c(scale(log(housing_density)))) %>%
   left_join(area_df) %>%
@@ -110,7 +109,6 @@ st_covs <- st_covs %>%
          r_cvs = cvs - t_mean_cvs - sp_mean_cvs,
          r_cpr12 = cpr12 - t_mean_cpr12 - sp_mean_cpr12,
          r_chd = chd - t_mean_chd - sp_mean_chd)
-
 
 # monthly basis functions
 monthly_basis <- bs(st_covs$month, df = 4, intercept = TRUE)
@@ -168,9 +166,6 @@ make_X <- function(df) {
                  r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L3NAME +
                  r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L2NAME +
                  r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L1NAME +
-                 cyear * NA_L3NAME +
-                 cyear * NA_L2NAME +
-                 cyear * NA_L1NAME +
                  mb1 * NA_L3NAME +
                  mb1 * NA_L2NAME +
                  mb1 * NA_L1NAME +
