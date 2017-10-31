@@ -115,5 +115,8 @@ gpd_fit <- sampling(
   refresh = 1,
   control = control_list
 )
+write_rds(gpd_fit, paste0('gpdfit_',
+                         Sys.time() %>% gsub(' ', '_', x = .),
+                         '.rds'))
 
 
