@@ -8,11 +8,6 @@ traceplot(w_fit, inc_warmup = TRUE)
 traceplot(w_fit, pars = c('tau', 'c', 'alpha'))
 traceplot(w_fit, pars = c('Rho_beta'))
 
-plot(w_fit, pars = 'beta') +
-  geom_vline(xintercept = 0, linetype = 'dashed') +
-  coord_flip()
-
-
 # Extract posterior draws and visualize results ---------------------------
 post <- rstan::extract(w_fit)
 str(post)
@@ -46,6 +41,7 @@ beta_df %>%
 
 wide_beta <- beta_df %>%
   select(col, dim, median, variable) %>%
+  mutate(median = exp(median)) %>%
   spread(dim, median) %>%
   rename(Weibull_shape = `1`,
          Weibull_scale = `2`,

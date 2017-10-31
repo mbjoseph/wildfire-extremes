@@ -107,8 +107,21 @@ mean(pred_gt$grand_total_pred >= actual_gt)
 gc()
 
 
+# What about the total number of fires ------------------------------------
+pred_n <- ppred_df %>%
+  group_by(iter) %>%
+  summarize(grand_total_n = sum(n_events)) %>%
+  ungroup
 
+actual_n <- nrow(mtbs)
 
+pred_n %>%
+  ggplot(aes(log(grand_total_n))) +
+  geom_density() +
+  geom_vline(xintercept = log(actual_n), color = 'red', linetype = 'dashed') +
+  xlab('log(Grand total burn number of fires)') +
+  ylab('Posterior density')
+mean(pred_gt$grand_total_pred >= actual_gt)
 
 
 
