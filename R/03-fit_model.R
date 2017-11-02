@@ -72,6 +72,8 @@ w_fit <- sampling(w_init,
 write_rds(w_fit, paste0('wfit_',
                         Sys.time() %>% gsub(' ', '_', x = .),
                         '.rds'))
+rm(w_fit)
+gc()
 
 g_init <- stan_model('stan/st-basis-nb-gamma.stan')
 g_fit <- sampling(g_init,
@@ -85,6 +87,9 @@ g_fit <- sampling(g_init,
 write_rds(g_fit, paste0('gfit_',
                         Sys.time() %>% gsub(' ', '_', x = .),
                         '.rds'))
+rm(g_fit)
+gc()
+
 
 ln_init <- stan_model('stan/st-basis-nb-lognorm.stan')
 ln_d <- stan_d
@@ -100,7 +105,8 @@ ln_fit <- sampling(ln_init,
 write_rds(ln_fit, paste0('lnfit_',
                          Sys.time() %>% gsub(' ', '_', x = .),
                          '.rds'))
-
+rm(ln_fit)
+gc()
 
 gpd_d <- stan_d
 gpd_d$sizes <- train_burns$R_ACRES
@@ -118,5 +124,6 @@ gpd_fit <- sampling(
 write_rds(gpd_fit, paste0('gpdfit_',
                          Sys.time() %>% gsub(' ', '_', x = .),
                          '.rds'))
-
+rm(gpd_fit)
+gc()
 

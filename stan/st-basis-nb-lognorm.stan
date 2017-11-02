@@ -12,7 +12,7 @@ data {
   int<lower = 1, upper = N> er_idx_full[N * T];
 
   int n_fire;
-  vector[n_fire] sizes;
+  vector<lower = 0>[n_fire] sizes;
   int<lower = 1, upper = N * T> burn_idx[n_fire];
 
   // full sparse matrix for all ecoregions X timesteps
@@ -103,7 +103,7 @@ model {
   counts ~ neg_binomial_2_log(mu_count[2], exp(mu_count[1]));
 
   // fire sizes
-  sizes ~ normal(mu_burn[1][burn_idx], exp(mu_burn[2])[burn_idx]);
+  sizes ~ lognormal(mu_burn[1][burn_idx], exp(mu_burn[2])[burn_idx]);
 }
 
 generated quantities {
@@ -117,7 +117,7 @@ generated quantities {
   }
 
   for (i in 1:n_fire) {
-    loglik_f[i] = normal_lpdf(sizes[i] | mu_burn[1][burn_idx[i]], exp(mu_burn[2][burn_idx[i]]));
+    loglik_f[i] = lognormal_lpdf(sizes[i] | mu_burn[1][burn_idx[i]], exp(mu_burn[2][burn_idx[i]]));
   }
 
   // expected values
