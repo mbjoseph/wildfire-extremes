@@ -52,8 +52,8 @@ pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
           'loglik_c', 'loglik_f')
 
 control_list <- list(
-  adapt_delta = 0.8,
-  max_treedepth = 10
+  adapt_delta = 0.9,
+  max_treedepth = 11
 )
 
 n_iter <- 1000
@@ -92,10 +92,8 @@ gc()
 
 
 ln_init <- stan_model('stan/st-basis-nb-lognorm.stan')
-ln_d <- stan_d
-ln_d$sizes <- log(ln_d$sizes)
 ln_fit <- sampling(ln_init,
-                   data = ln_d,
+                   data = stan_d,
                    pars = pars,
                    cores = 4,
                    init_r = 0.01,
@@ -109,8 +107,7 @@ rm(ln_fit)
 gc()
 
 gpd_d <- stan_d
-gpd_d$sizes <- train_burns$R_ACRES
-gpd_d$size_threshold <- 1e3
+gpd_d$size_threshold <- 0 # because we have converted to exceedances
 gpd_init <- stan_model('stan/st-basis-nb-gpd.stan')
 gpd_fit <- sampling(
   gpd_init,

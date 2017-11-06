@@ -78,12 +78,6 @@ total_ppred_df %>%
   group_by(Data) %>%
   summarize(coverage = mean(actual_in_interval))
 
-
-
-
-
-
-
 ## compare total burn area over entire record --------------------
 pred_gt <- ppred_df %>%
   group_by(iter) %>%
@@ -179,6 +173,7 @@ ggsave(filename = 'fig/ppc-burn-max.pdf', width = 26, height = 10)
 max_ppred_df %>%
   mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
                        'Train', 'Test')) %>%
+  na.omit %>%
   mutate(lo_lt_real = lo <= actual_max,
          hi_gt_real = hi >= actual_max,
          actual_in_interval = lo_lt_real & hi_gt_real) %>%
@@ -196,7 +191,6 @@ rm(list = ls())
 # restart
 gc()
 
-library(raster)
 library(rstan)
 library(sf)
 library(rmapshaper)
@@ -223,7 +217,7 @@ empirical_pwf %>%
   geom_line()
 
 predicted_pwf <- ppred_df %>%
-  full_join(select(st_covs, idx, ym, year, NA_L3NAME)) %>%
+  full_join(dplyr::select(st_covs, idx, ym, year, NA_L3NAME)) %>%
   mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
                        'Train', 'Test')) %>%
   filter(Data == 'Test') %>%
@@ -251,7 +245,7 @@ ggsave(filename = 'fig/ppc-p-year.pdf', width = 20, height = 9)
 
 # Investigate why the model is overpredicting the fraction of year
 predicted_counts <- ppred_df %>%
-  full_join(select(st_covs, idx, NA_L3NAME, ym)) %>%
+  full_join(dplyr::select(st_covs, idx, NA_L3NAME, ym)) %>%
   group_by(NA_L3NAME, ym) %>%
   summarize(pred_num = median(n_events),
             lo = quantile(n_events, .05),
@@ -270,6 +264,56 @@ predicted_counts %>%
   scale_fill_gdocs() +
   xlab('Year') +
   ylab('Number of fires') +
-  scale_y_log10()
+  scale_y_log10() +
+  theme_bw()
 ggsave(filename = 'fig/ppc-n-fire.pdf', width = 20, height = 9)
 
+# proportion of empirical points in prediction interval
+predicted_counts %>%
+  full_join(count_df) %>%
+  mutate(is_train = year < cutoff_year) %>%
+  filter(!is_train) %>%
+  group_by(NA_L3NAME) %>%
+  summarize(p_in = mean(n_fire >= lo & n_fire <= hi)) %>%
+  ggplot(aes(reorder(NA_L3NAME, p_in), p_in)) +
+  geom_point() +
+  coord_flip() +
+  ylab('Interval converage: number of fires') +
+  xlab('Ecoregion')
+
+
+
+# Cumulative burn area check ----------------------------------------------
+mtbs_hist <- read_rds('mtbs_hist.rds')
+hist_df <- read_rds('ppc_hist.rds')
+
+
+mtbs_hist_df <- tibble(count = mtbs_hist$counts,
+                       midpoint = mtbs_hist$mids) %>%
+  mutate(approx_burn_area = count * midpoint,
+         cum_burn_area = cumsum(approx_burn_area),
+         iter = 1,
+         p_burn_area = cum_burn_area / max(cum_burn_area))
+
+
+hist_df %>%
+  ggplot(aes(log(midpoint), log(cum_burn_area), group = iter)) +
+  geom_line(alpha = .1) +
+  geom_line(data = mtbs_hist_df, color = 'red') +
+  coord_cartesian(ylim = c(10.5, 21),
+                  xlim = c(5, 16)) +
+  xlab('log(Burn area)') +
+  ylab('log(Cumulative burn area)')
+
+# normalized by total burn area
+hist_df %>%
+  group_by(iter) %>%
+  mutate(total_burn_area = max(cum_burn_area),
+         p_burn_area = cum_burn_area / total_burn_area) %>%
+  ggplot(aes(log(midpoint), p_burn_area, group = iter)) +
+  geom_line(alpha = .1) +
+  geom_line(data = mtbs_hist_df, color = 'red') +
+  xlab('log(Burn area)') +
+  scale_x_log10() +
+  ylab('Cumulative proportion of total burn area') +
+  theme_bw()

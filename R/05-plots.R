@@ -1,17 +1,18 @@
 source('R/02-explore.R')
+library(extraDistr)
 
-w_fit <- read_rds(path = list.files(pattern = 'wfit_.*'))
+fit <- read_rds(path = list.files(pattern = 'gpdfit_.*'))
 
 # Evaluate convergence ----------------------------------------------------
-traceplot(w_fit, inc_warmup = TRUE)
+traceplot(fit, inc_warmup = TRUE)
 
-traceplot(w_fit, pars = c('tau', 'c', 'alpha'))
-traceplot(w_fit, pars = c('Rho_beta'))
+traceplot(fit, pars = c('tau', 'c', 'alpha'))
+traceplot(fit, pars = c('Rho_beta'))
 
 # Extract posterior draws and visualize results ---------------------------
-post <- rstan::extract(w_fit)
+post <- rstan::extract(fit)
 str(post)
-rm(w_fit)
+rm(fit)
 gc()
 
 
@@ -43,14 +44,16 @@ wide_beta <- beta_df %>%
   select(col, dim, median, variable) %>%
   mutate(median = exp(median)) %>%
   spread(dim, median) %>%
-  rename(Weibull_shape = `1`,
-         Weibull_scale = `2`,
+  rename(Lomax_shape = `1`,
+         Lomax_scale = `2`,
          NegBinom_precision = `3`,
          NegBinom_mean = `4`)
 
 wide_beta %>%
   select(-col, -variable) %>%
   pairs
+
+rm(wide_beta)
 
 
 # Visualize some predictions ----------------------------------------------
@@ -107,7 +110,7 @@ mu_df %>%
                             NA_L3NAME, NA_L1CODE)) %>%
   mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
   plot_mu_ts +
-  ylab('Weibull shape parameter')
+  ylab('Pareto 2 shape parameter')
 
 # scale parameter
 mu_df %>%
@@ -117,7 +120,7 @@ mu_df %>%
                             NA_L3NAME, NA_L1CODE)) %>%
   mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
   plot_mu_ts +
-  ylab('Weibull scale parameter')
+  ylab('Pareto 2 scale parameter')
 
 # neg. binom precision
 mu_df %>%
@@ -189,9 +192,9 @@ for (i in 1:n_draw) {
   for (j in 1:n_preds) {
     if (!is.na(n_events[i, j]) & n_events[i, j] > 0) {
       burn_areas <- 1e3 +
-        weibull_scale_adj * rweibull(n = n_events[i, j],
-                                   shape = exp(post$mu[i, 1, j]),
-                                   scale = exp(post$mu[i, 2, j]))
+        weibull_scale_adj * rlomax(n = n_events[i, j],
+                                   lambda = 1 / exp(post$mu_full[i, 1, j]),
+                                   kappa = exp(post$mu_full[i, 2, j]))
       block_maxima[i, j] <- max(burn_areas)
       area_sums[i, j] <- sum(burn_areas)
       ba_vec[[counter]] <- burn_areas
