@@ -20,7 +20,9 @@ gc()
 # Coefficients that seem to be far from zero ------------------------------
 beta_df <- post$beta %>%
   reshape2::melt(varnames = c('iter', 'dim', 'col')) %>%
-  tbl_df %>%
+  tbl_df
+
+beta_summary <- beta_df %>%
   group_by(dim, col) %>%
   summarize(median = median(value),
             lo = quantile(value, 0.025),
@@ -31,16 +33,17 @@ beta_df <- post$beta %>%
   mutate(variable = colnamesX[col],
          nonzero = p_neg > .95 | p_pos > .95)
 
-beta_df %>%
+beta_summary %>%
   filter(nonzero) %>%
-  ggplot(aes(median, variable)) +
-  geom_point() +
+  select(dim, col, p_neg, p_pos, variable) %>%
+  left_join(beta_df) %>%
+  ggplot(aes(value, variable)) +
+  geom_density_ridges() +
   geom_vline(xintercept = 0, linetype = 'dashed') +
-  geom_segment(aes(x = lo, xend = hi, yend = variable)) +
   facet_wrap(~ dim, scales = 'free') +
   theme(axis.text.y = element_text(size = 7))
 
-wide_beta <- beta_df %>%
+wide_beta <- beta_summary %>%
   select(col, dim, median, variable) %>%
   mutate(median = exp(median)) %>%
   spread(dim, median) %>%
@@ -54,7 +57,8 @@ wide_beta %>%
   pairs
 
 rm(wide_beta)
-
+rm(beta_df)
+gc()
 
 # Visualize some predictions ----------------------------------------------
 st_covs$row <- 1:nrow(st_covs)

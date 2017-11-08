@@ -317,3 +317,45 @@ hist_df %>%
   scale_x_log10() +
   ylab('Cumulative proportion of total burn area') +
   theme_bw()
+
+
+
+
+# Compare the empirical vs. predicted CDF for # fires -----------------------------
+max_breaks <- 200
+count_hist <- hist(count_df$n_fire, breaks = max_breaks, right = FALSE)
+count_hist_df <- tibble(count = count_hist$counts,
+                        midpoint = count_hist$mids,
+                        p_zero = mean(count_df$n_fire == 0)) %>%
+  mutate(cum_count = cumsum(count),
+         iter = 1,
+         p_count = cum_count / max(cum_count))
+
+ggplot(count_hist_df, aes(midpoint, p_count)) +
+  geom_line() +
+  geom_point(x = 0, aes(y = p_zero))
+
+# generate the histograms for each iteration of the posterior and compare
+pred_hist_df <- ppred_df %>%
+  split(.$iter) %>%
+  map(~ hist(.x$n_events, breaks = max_breaks, right = FALSE, plot = FALSE)) %>%
+  map(~ tibble(midpoint = .x$mids,
+               count = .x$counts) %>%
+        mutate(cum_count = cumsum(count),
+               p_count = cum_count / max(cum_count))) %>%
+  bind_rows(.id = 'iter')
+
+p_zero_df <- ppred_df %>%
+  group_by(iter) %>%
+  summarize(p_zero = mean(n_events == 0))
+
+pred_hist_df %>%
+  ggplot(aes(midpoint, p_count, group = iter)) +
+  geom_line(alpha = .05) +
+  geom_line(data = count_hist_df, color = 'red') +
+  geom_point(aes(x = 0, y = p_zero), alpha = .05,
+             data = p_zero_df) +
+  geom_point(aes(x = 0, y = p_zero), data = count_hist_df, col ='red') +
+  coord_cartesian(xlim = c(0, 20)) +
+  xlab('Number of fires') +
+  ylab('CDF(Number of fires)')
