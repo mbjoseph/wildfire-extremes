@@ -52,8 +52,8 @@ pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
           'loglik_c', 'loglik_f')
 
 control_list <- list(
-  adapt_delta = 0.9,
-  max_treedepth = 11
+  adapt_delta = 0.8,
+  max_treedepth = 10
 )
 
 n_iter <- 1000
@@ -74,6 +74,7 @@ write_rds(w_fit, paste0('wfit_',
                         '.rds'))
 rm(w_fit)
 gc()
+
 
 g_init <- stan_model('stan/st-basis-nb-gamma.stan')
 g_fit <- sampling(g_init,
@@ -124,3 +125,21 @@ write_rds(gpd_fit, paste0('gpdfit_',
 rm(gpd_fit)
 gc()
 
+
+
+zinb_gpd_d <- gpd_d
+zinb_gpd_d$M <- 5
+
+zinb_gpd_init <- stan_model('stan/st-basis-zinb-gpd.stan')
+zinb_gpd_fit <- sampling(
+  zinb_gpd_init,
+  data = zinb_gpd_d,
+  cores = 4,
+  init_r = 0.01,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list
+)
+write_rds(zinb_gpd_fit, paste0('zinbgpdfit_',
+                          Sys.time() %>% gsub(' ', '_', x = .),
+                          '.rds'))

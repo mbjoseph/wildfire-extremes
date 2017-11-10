@@ -23,10 +23,11 @@ for (i in seq_along(model_fits)) {
   loo_plot_name <- gsub(pattern = 'csv', replacement = 'png', x = loo_table_name)
 
   # save out a plot of each loo object
-  model_type <- case_when(grepl('gfit', model_fits[i]) ~ 'Gamma',
-                          grepl('wfit', model_fits[i]) ~ 'Weibull',
-                          grepl('lnfit', model_fits[i]) ~ 'Log-Normal',
-                          grepl('gpdfit', model_fits[i]) ~ 'Generalized Pareto')
+  model_type <- case_when(grepl('^gfit', model_fits[i]) ~ 'Gamma',
+                          grepl('^wfit', model_fits[i]) ~ 'Weibull',
+                          grepl('^lnfit', model_fits[i]) ~ 'Log-Normal',
+                          grepl('^gpdfit', model_fits[i]) ~ 'Generalized Pareto',
+                          grepl('^zinbgpdfit', model_fits[i]) ~ 'ZINB Generalized Pareto')
   plot_title <- paste('PSIS shape parameters:', model_type, 'model')
   png(filename = loo_plot_name, width = 12, height = 8, units = 'in', res = 300)
   plot(loo_total)
