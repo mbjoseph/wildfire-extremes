@@ -35,7 +35,7 @@ for (i in seq_along(model_fits)) {
   loglik_burn_area <- extract_log_lik(fit_obj, parameter_name = 'loglik_f')
   loglik_counts <- extract_log_lik(fit_obj, parameter_name = 'loglik_c')
   combined_loglik <- cbind(loglik_burn_area, loglik_counts)
-  loo_total <- loo(combined_loglik, cores = 2)
+  loo_total <- loo(combined_loglik, cores = 1)
 
   loo_table_name <- gsub(pattern = 'fit', replacement = 'loo', x = model_fits[i])
   loo_table_name <- gsub(pattern = 'rds', replacement = 'csv', x = loo_table_name)
