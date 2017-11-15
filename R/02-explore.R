@@ -148,8 +148,9 @@ assert_that(identical(nrow(st_covs), N * T))
 
 
 # Create design matrices --------------------------------------------------
-make_X <- function(df) {
-  model.matrix(~ 0 +
+make_X <- function(df, method = 'residuals') {
+  if (method == 'residuals') {
+    X <- model.matrix(~ 0 +
                  ctri +
                  sp_mean_crmin +
                  sp_mean_cpr +
@@ -179,13 +180,40 @@ make_X <- function(df) {
                  mb4 * NA_L2NAME +
                  mb4 * NA_L1NAME,
                data = df)
+  } else if (method == 'interactions') {
+    X <- model.matrix(~ 0 +
+                        ctri +
+                        crmin * chd * NA_L3NAME +
+                        crmin * chd * NA_L2NAME +
+                        crmin * chd * NA_L1NAME +
+                        cvs * chd * NA_L3NAME +
+                        cvs * chd * NA_L2NAME +
+                        cvs * chd * NA_L1NAME +
+                        cpr * chd * NA_L3NAME +
+                        cpr * chd * NA_L2NAME +
+                        cpr * chd * NA_L1NAME +
+                        cpr12 * chd * NA_L3NAME +
+                        cpr12 * chd * NA_L2NAME +
+                        cpr12 * chd * NA_L1NAME +
+                        ctmx * chd * NA_L3NAME +
+                        ctmx * chd * NA_L2NAME +
+                        ctmx * chd * NA_L1NAME,
+                      data = df)
+  }
+  X
 }
 
-# discard all 3-way or higher interactions
-X <- make_X(st_covs)
-num_interacting_variables <- lengths(regmatches(colnames(X),
-                                                gregexpr(":", colnames(X))))
-X <- X[, num_interacting_variables <= 1]
+method <- 'interactions'
+
+if (method == 'residuals') {
+  X <- make_X(st_covs, method = method)
+  num_interacting_variables <- lengths(regmatches(colnames(X),
+                                                  gregexpr(":", colnames(X))))
+  X <- X[, num_interacting_variables <= 1]
+} else if (method == 'interactions') {
+  X <- make_X(st_covs, method = method)
+}
+
 sparse_X <- extract_sparse_parts(X)
 colnamesX <- colnames(X)
 
