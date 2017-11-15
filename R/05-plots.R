@@ -1,7 +1,8 @@
 source('R/02-explore.R')
 library(extraDistr)
+library(ggridges)
 
-fit <- read_rds(path = list.files(pattern = 'gpdfit_.*'))
+fit <- read_rds(path = list.files(pattern = 'zinbgpdfit_.*')[3])
 
 # Evaluate convergence ----------------------------------------------------
 traceplot(fit, inc_warmup = TRUE)
@@ -31,7 +32,7 @@ beta_summary <- beta_df %>%
             p_pos = mean(value > 0)) %>%
   ungroup %>%
   mutate(variable = colnamesX[col],
-         nonzero = p_neg > .95 | p_pos > .95)
+         nonzero = p_neg > .8 | p_pos > .8)
 
 beta_summary %>%
   filter(nonzero) %>%
@@ -45,12 +46,12 @@ beta_summary %>%
 
 wide_beta <- beta_summary %>%
   select(col, dim, median, variable) %>%
-  mutate(median = exp(median)) %>%
   spread(dim, median) %>%
   rename(Lomax_shape = `1`,
          Lomax_scale = `2`,
          NegBinom_precision = `3`,
-         NegBinom_mean = `4`)
+         NegBinom_mean = `4`,
+         logit_p_zero = `5`)
 
 wide_beta %>%
   select(-col, -variable) %>%
@@ -146,6 +147,34 @@ mu_df %>%
   plot_mu_ts +
   ylab('Negative binomial mean')
 
+mu_df %>%
+  filter(response == 5) %>%
+  full_join(st_covs) %>%
+  left_join(dplyr::distinct(tbl_df(ecoregions),
+                            NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
+  ggplot(aes(ym, plogis(median), fill = NA_L1NAME)) +
+  theme_minimal() +
+  geom_ribbon(aes(ymin = plogis(lo), ymax = plogis(hi)),
+              alpha = .3, color = NA) +
+  geom_ribbon(aes(ymin = plogis(q1), ymax = plogis(q9)),
+              alpha = .3, color = NA) +
+  geom_ribbon(aes(ymin = plogis(q2), ymax = plogis(q8)),
+              alpha = .3, color = NA) +
+  geom_ribbon(aes(ymin = plogis(q3), ymax = plogis(q7)),
+              alpha = .3, color = NA) +
+  geom_ribbon(aes(ymin = plogis(q4), ymax = plogis(q6)),
+              alpha = .3, color = NA) +
+  geom_line(size = .1) +
+  facet_wrap(~ facet_factor) +
+  xlab('Date') +
+  geom_vline(xintercept = cutoff_year,
+             linetype = 'dashed', col = 'grey') +
+  scale_color_gdocs() +
+  scale_fill_gdocs() +
+  theme(legend.position = 'none') +
+  ylab('Probability of excess zero')
+ggsave(filename = 'fig/p-excess-zero.pdf', width = 30, height = 10)
 
 # Compare predicted to expected counts for training data
 mu_df %>%
@@ -158,7 +187,7 @@ mu_df %>%
   right_join(count_df) %>%
   full_join(er_df) %>%
   mutate(is_train = year < cutoff_year) %>%
-  filter(!is_train) %>%
+  filter(!is_train, n_fire > 0) %>%
   ggplot(aes(x = n_fire, y = exp(median), color = is_train)) +
   facet_wrap(~ NA_L1NAME) +
   geom_point(alpha = .5) +
@@ -168,82 +197,4 @@ mu_df %>%
   scale_y_log10(limits = c(.001, 1e4))
 
 gc()
-
-## Posterior predictive checks ---------------------------
-
-# set breakpoints for histogram
-max_breaks <- 200
-mtbs_hist <- hist(mtbs$R_ACRES, breaks = max_breaks, right = FALSE)
-write_rds(mtbs_hist, 'mtbs_hist.rds')
-
-n_draw <- dim(post$mu_full)[1]
-n_preds <- dim(post$mu_full)[3]
-hist_counts <- matrix(nrow = n_draw, ncol = max_breaks*1.5)
-hist_mids <- matrix(nrow = n_draw, ncol = max_breaks*1.5)
-block_maxima <- matrix(nrow = n_draw, ncol = n_preds)
-area_sums <- matrix(nrow = n_draw, ncol = n_preds)
-n_events <- rnbinom(n_draw * n_preds,
-                    size = exp(c(post$mu_full[, 3, ])),
-                    mu = exp(c(post$mu_full[, 4, ]))) %>%
-  matrix(nrow = n_draw, ncol = n_preds)
-sum(is.na(n_events))
-gc()
-
-pb <- txtProgressBar(max = n_draw, style = 3)
-for (i in 1:n_draw) {
-  ba_vec <- list() # to hold all fire sizes for iteration i
-  counter <- 1
-  for (j in 1:n_preds) {
-    if (!is.na(n_events[i, j]) & n_events[i, j] > 0) {
-      burn_areas <- 1e3 +
-        weibull_scale_adj * rlomax(n = n_events[i, j],
-                                   lambda = 1 / exp(post$mu_full[i, 1, j]),
-                                   kappa = exp(post$mu_full[i, 2, j]))
-      block_maxima[i, j] <- max(burn_areas)
-      area_sums[i, j] <- sum(burn_areas)
-      ba_vec[[counter]] <- burn_areas
-      counter <- counter + 1
-    }
-  }
-  ba_vec <- unlist(ba_vec)
-  ba_hist <- hist(ba_vec, breaks = max_breaks, plot = FALSE, right = FALSE)
-  nbins <- length(ba_hist$counts)
-  hist_counts[i, 1:nbins] <- ba_hist$counts
-  hist_mids[i, 1:nbins] <- ba_hist$mids
-  setTxtProgressBar(pb, i)
-}
-
-ppred_df <- reshape2::melt(block_maxima,
-                           varnames = c('iter', 'idx'),
-                           value.name = 'max_burn_area') %>%
-  bind_cols(reshape2::melt(area_sums,
-                           varnames = c('iter', 'idx'),
-                           value.name = 'total_burn_area')) %>%
-  bind_cols(reshape2::melt(n_events,
-                           varnames = c('iter', 'idx'),
-                           value.name = 'n_events')) %>%
-  as_tibble %>%
-  dplyr::select(-ends_with('1'), -ends_with('2')) %>%
-  filter(!is.na(n_events))
-
-write_rds(ppred_df, 'ppred_df.rds')
-rm(ppred_df)
-gc()
-
-hist_df <- reshape2::melt(hist_counts,
-                          varnames = c('iter', 'bin'),
-                          value.name = 'count') %>%
-  bind_cols(reshape2::melt(hist_mids,
-                           varnames = c('iter', 'bin'),
-                           value.name = 'midpoint')) %>%
-  as_tibble %>%
-  select(-ends_with('1')) %>%
-  arrange(iter, bin) %>%
-  na.omit %>%
-  mutate(approx_burn_area = count * midpoint) %>%
-  group_by(iter) %>%
-  mutate(cum_burn_area = cumsum(approx_burn_area)) %>%
-  ungroup
-
-write_rds(hist_df, 'ppc_hist.rds')
 

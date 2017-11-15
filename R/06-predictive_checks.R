@@ -10,6 +10,34 @@ library(rstan)
 
 source('R/02-explore.R')
 
+ba_df <- read_rds('ppc_ba.rds') %>%
+  filter(!is.infinite(value)) %>%
+  mutate(iteration = parse_number(iteration))
+
+
+ba_df %>%
+  ggplot(aes(x = log(value - 1e3))) +
+  scale_x_log10(limits = c(2,  20)) +
+  geom_line(aes(group = iteration), alpha = .2, color = alpha(1, .1),
+               stat = 'density') +
+  geom_line(aes(x = log(R_ACRES - 1e3)),
+               data = mtbs, color = 'dodgerblue', size = 2, alpha = .8,
+               stat = 'density') +
+  geom_jitter(aes(x = log(R_ACRES - 1e3), y = -.1), width = 0, height = .1, data = mtbs,
+              color = 'dodgerblue', alpha = .5, shape = 1) +
+  xlab('Logarithm of exceedence') +
+  ylab('Density')
+
+log_maxima <- ba_df %>%
+  group_by(iteration) %>%
+  summarize(max_log_burn_area = max(log(value)))
+
+log_maxima %>%
+  ggplot(aes(max_log_burn_area)) +
+  geom_line(stat = 'density') +
+  scale_x_log10() +
+  geom_vline(xintercept = max(log(mtbs$R_ACRES)), col = 'dodgerblue')
+
 ppred_df <- read_rds('ppred_df.rds') %>%
   mutate(total_burn_area = ifelse(is.na(total_burn_area),
                                   0,
@@ -38,7 +66,9 @@ predicted_totals <- ppred_df %>%
   group_by(idx) %>%
   summarize(pred_total = median(total_burn_area),
             lo = quantile(total_burn_area, .05),
-            hi = quantile(total_burn_area, .95))
+            hi = quantile(total_burn_area, .95),
+            q25 = quantile(total_burn_area, .25),
+            q75 = quantile(total_burn_area, .75))
 
 
 predicted_totals <- predicted_totals %>%
@@ -49,6 +79,7 @@ total_ppred_df <- full_join(empirical_totals, predicted_totals)
 total_ppred_df %>%
   mutate(Data = ifelse(ym < paste('Jan', cutoff_year),
                        'Train', 'Test')) %>%
+  filter(actual_total > 0, pred_total > 0) %>%
   ggplot(aes(actual_total, pred_total, color = Data)) +
   theme_minimal() +
   scale_x_log10() +
@@ -58,14 +89,17 @@ total_ppred_df %>%
   geom_segment(aes(xend = actual_total,
                    y = lo,
                    yend = hi),
-               alpha = .2) +
-  geom_point(shape = 19) +
+               alpha = .1) +
+  geom_segment(aes(xend = actual_total,
+                   y = q25,
+                   yend = q75),
+               alpha = .2, size = 1.1) +
+  geom_point(shape = 19, alpha = .5) +
   scale_color_gdocs() +
-  facet_grid(Data ~ NA_L1NAME) +
+  facet_wrap(~ Data) +
   xlab('Empirical total burn area') +
   ylab('Predicted total burn area') +
-  theme(legend.position = 'none') +
-  coord_equal()
+  theme(legend.position = 'none')
 ggsave(filename = 'fig/ppc-burn-area.pdf', width = 26, height = 10)
 
 # check interval coverage (~ 98% coverage for a 90% interval! :)
@@ -96,7 +130,6 @@ pred_gt %>%
   ylab('Posterior density')
 
 mean(pred_gt$grand_total_pred >= actual_gt)
-# oh farts, we are predicting way more total burn area than what's observed...
 
 gc()
 
@@ -234,13 +267,14 @@ right_join(empirical_pwf, predicted_pwf) %>%
   mutate(is_train = year < cutoff_year) %>%
   filter(!is_train) %>%
   ggplot(aes(year)) +
-  geom_ribbon(aes(ymin = lo, ymax = hi, fill = is_train),
+  geom_ribbon(aes(ymin = lo, ymax = hi),
               alpha = .5) +
   geom_point(aes(y = pwf)) +
   facet_wrap(~NA_L3NAME) +
   scale_fill_gdocs() +
   xlab('Year') +
-  ylab('Proportion of year with fires')
+  ylab('Proportion of year with fires') +
+  ggtitle('Posterior predictive check for the proportion of year with 1 or more fires, test data')
 ggsave(filename = 'fig/ppc-p-year.pdf', width = 20, height = 9)
 
 # Investigate why the model is overpredicting the fraction of year
@@ -257,7 +291,7 @@ predicted_counts %>%
   mutate(is_train = year < cutoff_year) %>%
   filter(!is_train) %>%
   ggplot(aes(ym)) +
-  geom_ribbon(aes(ymin = lo, ymax = hi, fill = is_train),
+  geom_ribbon(aes(ymin = lo, ymax = hi),
               alpha = .5) +
   geom_point(aes(y = n_fire), size = .5) +
   facet_wrap(~NA_L3NAME) +
@@ -265,7 +299,8 @@ predicted_counts %>%
   xlab('Year') +
   ylab('Number of fires') +
   scale_y_log10() +
-  theme_bw()
+  theme_bw() +
+  ggtitle('Posterior predictive check for the number of fires, test data')
 ggsave(filename = 'fig/ppc-n-fire.pdf', width = 20, height = 9)
 
 # proportion of empirical points in prediction interval
