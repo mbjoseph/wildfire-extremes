@@ -12,7 +12,7 @@ data {
   int<lower = 1, upper = N> er_idx_full[N * T];
 
   int n_fire;
-  vector<lower = 0>[n_fire] sizes;
+  vector[n_fire] sizes;
   int<lower = 1, upper = N * T> burn_idx[n_fire];
 
   // full sparse matrix for all ecoregions X timesteps
@@ -35,7 +35,7 @@ data {
   int<lower = 1, upper = N * T + 1> n_u_tb;
   int<lower = 1> u_tb[n_u_tb];
 
-  int<lower = 1, upper = 4> M; // num dimensions
+  int<lower = 5, upper = 5> M; // num dimensions
   real<lower = 0> slab_df;
   real<lower = 0> slab_scale;
 }
@@ -56,7 +56,8 @@ parameters {
 }
 
 transformed parameters {
-  vector[n_count] mu_count[2];
+    vector[n_count] mu_count[2];
+  vector[n_count] logit_p_zero;
   vector[n_burn_mu] mu_burn[2];
   matrix[M, p] beta;
   matrix[M, p] lambda_tilde;
@@ -78,7 +79,7 @@ transformed parameters {
   beta = diag_pre_multiply(tau, L_beta) *  betaR .* lambda_tilde;
 
   for (i in 1:2)
-    mu_burn[i] = alpha[i] +
+    mu_burn[i] = alpha[i]
                + csr_matrix_times_vector(n_burn_mu, p, w_tb, v_tb, u_tb, beta[i, ]');
 
   for (i in 3:4)
@@ -88,6 +89,9 @@ transformed parameters {
 
    // add offset for count expected value
    mu_count[2] = mu_count[2] + log_area_train;
+
+   logit_p_zero = alpha[5]
+                    + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[5, ]');
 }
 
 model {
@@ -100,10 +104,19 @@ model {
   tau ~ normal(0, 1);
 
   // number of fires
-  counts ~ neg_binomial_2_log(mu_count[2], exp(mu_count[1]));
+  for (i in 1:n_count) {
+    if (counts[i] == 0) {
+      target += log_sum_exp(bernoulli_logit_lpmf(1 | logit_p_zero[i]),
+                            bernoulli_logit_lpmf(0 | logit_p_zero[i])
+                          + neg_binomial_2_log_lpmf(counts[i] | mu_count[2][i], exp(mu_count[1][i])));
+    } else {
+      target += bernoulli_logit_lpmf(0 | logit_p_zero[i])
+                + neg_binomial_2_log_lpmf(counts[i] | mu_count[2][i], exp(mu_count[1][i]));
+    }
+  }
 
   // fire sizes
-  sizes ~ lognormal(mu_burn[1][burn_idx], exp(mu_burn[2])[burn_idx]);
+  sizes ~ gamma(exp(mu_burn[1])[burn_idx], exp(mu_burn[2])[burn_idx]);
 }
 
 generated quantities {
@@ -113,11 +126,18 @@ generated quantities {
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
 
   for (i in 1:n_count) {
-    loglik_c[i] = neg_binomial_2_log_lpmf(counts[i] | mu_count[2][i], exp(mu_count[1][i]));
+    if (counts[i] == 0) {
+      loglik_c[i] = log_sum_exp(bernoulli_logit_lpmf(1 | logit_p_zero[i]),
+                            bernoulli_logit_lpmf(0 | logit_p_zero[i])
+                          + neg_binomial_2_log_lpmf(counts[i] | mu_count[2][i], exp(mu_count[1][i])));
+    } else {
+      loglik_c[i] = bernoulli_logit_lpmf(0 | logit_p_zero[i])
+                + neg_binomial_2_log_lpmf(counts[i] | mu_count[2][i], exp(mu_count[1][i]));
+    }
   }
 
   for (i in 1:n_fire) {
-    loglik_f[i] = lognormal_lpdf(sizes[i] | mu_burn[1][burn_idx[i]], exp(mu_burn[2][burn_idx[i]]));
+    loglik_f[i] = gamma_lpdf(sizes[i] | exp(mu_burn[1][burn_idx[i]]), exp(mu_burn[2][burn_idx[i]]));
   }
 
   // expected values
@@ -128,5 +148,5 @@ generated quantities {
   }
 
   // expected log counts need an offset for area
-  mu_full[M] = mu_full[M] + log_area_full;
+  mu_full[4] = mu_full[4] + log_area_full; // this is no longer M because M'th element is pr(0)
 }
