@@ -38,6 +38,16 @@ data {
   int<lower = 5, upper = 5> M; // num dimensions
   real<lower = 0> slab_df;
   real<lower = 0> slab_scale;
+
+  // holdout counts
+  int<lower = 1> n_holdout_c;
+  int<lower = 1, upper = N * T> holdout_c_idx[n_holdout_c];
+  int<lower = 0> holdout_c[n_holdout_c];
+
+  // holdout burn areas
+  int<lower = 1> n_holdout_b;
+  int<lower = 1, upper = N * T> holdout_b_idx[n_holdout_b];
+  vector[n_holdout_b] holdout_b;
 }
 
 transformed data {
@@ -96,12 +106,12 @@ transformed parameters {
 
 model {
   lambda ~ cauchy(0, 1);
-  L_beta ~ lkj_corr_cholesky(2);
+  L_beta ~ lkj_corr_cholesky(5);
   to_vector(betaR) ~ normal(0, 1);
 
   c_aux ~ inv_gamma(0.5 * slab_df, 0.5 * slab_df);
   alpha ~ normal(0, 5);
-  tau ~ normal(0, 1);
+  tau ~ normal(0, 5);
 
   // number of fires
   for (i in 1:n_count) {
@@ -124,6 +134,9 @@ generated quantities {
   vector[n_count] loglik_c;
   vector[n_fire] loglik_f;
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
+  vector[N * T] count_pred;
+  vector[n_holdout_c] holdout_loglik_c;
+  vector[n_holdout_b] holdout_loglik_b;
 
   for (i in 1:n_count) {
     if (counts[i] == 0) {
@@ -149,4 +162,30 @@ generated quantities {
 
   // expected log counts need an offset for area
   mu_full[4] = mu_full[4] + log_area_full; // this is no longer M because M'th element is pr(0)
+
+    // posterior predictions for the number of fires
+  for (i in 1:(N * T)) {
+    count_pred[i] = bernoulli_rng(1 - inv_logit(mu_full[5][i])) *
+                      neg_binomial_2_log_rng(mu_full[4][i], exp(mu_full[3][i]));
+  }
+
+  // holdout log likelihoods
+  for (i in 1:n_holdout_c) {
+    if (holdout_c[i] == 0) {
+      holdout_loglik_c[i] = log_sum_exp(bernoulli_logit_lpmf(1 | mu_full[5][holdout_c_idx[i]]),
+                                        bernoulli_logit_lpmf(0 | mu_full[5][holdout_c_idx[i]])
+                                    + neg_binomial_2_log_lpmf(holdout_c[i] | mu_full[4][holdout_c_idx[i]],
+                                                                       exp(mu_full[3][holdout_c_idx[i]])));
+    } else {
+      holdout_loglik_c[i] = bernoulli_logit_lpmf(0 | mu_full[5][holdout_c_idx[i]])
+                            + neg_binomial_2_log_lpmf(holdout_c[i] | mu_full[4][holdout_c_idx[i]],
+                                                               exp(mu_full[3][holdout_c_idx[i]]));
+    }
+  }
+
+  for (i in 1:n_holdout_b) {
+    holdout_loglik_b[i] = lognormal_lpdf(holdout_b[i] | mu_full[1][holdout_b_idx[i]],
+                                                        exp(mu_full[2][holdout_b_idx[i]]));
+  }
+
 }

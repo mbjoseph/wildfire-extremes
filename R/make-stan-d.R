@@ -5,6 +5,8 @@
 assert_that(identical(levels(area_df$NA_L3NAME),
                       levels(factor(st_covs$NA_L3NAME))))
 
+scale_adj <- 1e4
+
 stan_d <- list(
   N = N,
   T = T,
@@ -19,7 +21,7 @@ stan_d <- list(
   er_idx_full = as.numeric(factor(st_covs$NA_L3NAME)),
 
   n_fire = nrow(train_burns),
-  sizes = (train_burns$R_ACRES - 1e3) / weibull_scale_adj,
+  sizes = (train_burns$R_ACRES - 1e3) / scale_adj,
   burn_idx = burn_idx,
 
   n_w = length(sparse_X$w),
@@ -43,18 +45,19 @@ stan_d <- list(
 
   burn_eps_idx = burn_eps_idx,
 
-  M = 4,
-  slab_df = 5,
+  M = 5,
+  slab_df = 2,
   slab_scale = 1,
 
   eps_idx_train = eps_idx_train,
-  eps_idx_future = eps_idx_future)
+  eps_idx_future = eps_idx_future,
+  size_threshold = 0,
 
+  n_holdout_c = length(holdout_c_idx),
+  holdout_c_idx = holdout_c_idx,
+  holdout_c = holdout_counts$n_fire,
 
-gpd_d <- stan_d
-gpd_d$size_threshold <- 0 # because we have converted to exceedances
-
-
-zinb_gpd_d <- gpd_d
-zinb_gpd_d$M <- 5
-
+  n_holdout_b = length(holdout_b_idx),
+  holdout_b_idx = holdout_b_idx,
+  holdout_b = (holdout_burns$R_ACRES - 1e3) / scale_adj
+  )

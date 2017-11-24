@@ -13,23 +13,6 @@ library(sf)
 library(splines)
 source("R/01-clean_data.R")
 
-
-# Visualize the distribution of number of fires
-count_df %>%
-  ggplot(aes(ym, n_fire)) +
-  geom_line() +
-  facet_wrap(~NA_L3NAME) +
-  scale_y_log10()
-
-# Visualize changes in maxima
-mtbs %>%
-  tbl_df %>%
-  group_by(ym, NA_L3NAME) %>%
-  summarize(max = max(P_ACRES)) %>%
-  ggplot(aes(ym, max)) +
-  geom_point() +
-  facet_wrap(~ NA_L3NAME)
-
 ecoregion_df <- as(ecoregions, "Spatial") %>%
   data.frame
 
@@ -43,25 +26,6 @@ area_df <- ecoregion_df %>%
 count_df <- count_df %>%
   left_join(area_df)
 
-
-# visualize spatiotemporal covariates
-ecoregion_summaries %>%
-  gather(var, val, -NA_L3NAME, -year, -month, -ym) %>%
-  ggplot(aes(ym, val)) +
-  geom_line() +
-  facet_wrap(~ var, scales = "free_y") +
-  scale_y_log10()
-
-ecoregion_summaries %>%
-  ggplot(aes(ym, prev_12mo_precip)) +
-  geom_line() +
-  facet_wrap(~ NA_L3NAME)
-
-ecoregion_summaries %>%
-  ggplot(aes(ym, rmin)) +
-  geom_line() +
-  facet_wrap(~ NA_L3NAME)
-
 er_df <- dplyr::distinct(data.frame(ecoregions),
                        NA_L3NAME, NA_L2NAME, NA_L1NAME,
                        NA_L2CODE, NA_L1CODE) %>%
@@ -70,7 +34,9 @@ er_df <- dplyr::distinct(data.frame(ecoregions),
 
 st_covs <- ecoregion_summaries %>%
   left_join(er_df) %>%
-  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)", year > 1983) %>%
+  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)",
+         year > 1983,
+         ym <= max(mtbs$ym)) %>%
   mutate(crmin = c(scale(rmin)),
          cpr = c(scale(pr)),
          ctmx = c(scale(tmmx)),
@@ -115,15 +81,6 @@ monthly_basis <- bs(st_covs$month, df = 4, intercept = TRUE)
 colnames(monthly_basis) <- paste0('mb', 1:ncol(monthly_basis))
 
 
-basis_df <- monthly_basis %>%
-  as.matrix %>%
-  as_tibble %>%
-  lapply(FUN = c) %>%
-  bind_cols
-
-st_covs <- bind_cols(st_covs, basis_df)
-
-
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
 
@@ -138,81 +95,50 @@ train_burns <- mtbs %>%
   filter(FIRE_YEAR < cutoff_year) %>%
   left_join(st_covs)
 
+holdout_counts <- count_df %>%
+  filter(year >= cutoff_year)
+
+holdout_c_idx <- match(holdout_counts$er_ym, st_covs$er_ym)
+
+holdout_burns <-  mtbs %>%
+  filter(FIRE_YEAR >= cutoff_year) %>%
+  left_join(st_covs)
+
+holdout_b_idx <- match(holdout_burns$er_ym, holdout_counts$er_ym)
+
+
 # this data frame has no duplicate ecoregion X timestep combos
 N <- length(unique(st_covs$NA_L3NAME))
 T <- length(unique(st_covs$ym))
 
 assert_that(identical(nrow(st_covs), N * T))
 
-
-
-
 # Create design matrices --------------------------------------------------
-make_X <- function(df, method = 'residuals') {
-  if (method == 'residuals') {
-    X <- model.matrix(~ 0 +
+make_X <- function(df) {
+  model.matrix(~ 0 +
                  ctri +
-                 sp_mean_crmin +
-                 sp_mean_cpr +
-                 sp_mean_ctmx +
-                 sp_mean_cvs +
-                 sp_mean_cpr12 +
-                 sp_mean_chd +
-                 t_mean_crmin +
-                 t_mean_cpr +
-                 t_mean_ctmx +
-                 t_mean_cvs +
-                 t_mean_cpr12 +
-                 t_mean_chd +
-                 r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L3NAME +
-                 r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L2NAME +
-                 r_chd * r_cpr * r_crmin * r_ctmx * r_cvs * r_cpr12 * NA_L1NAME +
-                 mb1 * NA_L3NAME +
-                 mb1 * NA_L2NAME +
-                 mb1 * NA_L1NAME +
-                 mb2 * NA_L3NAME +
-                 mb2 * NA_L2NAME +
-                 mb2 * NA_L1NAME +
-                 mb3 * NA_L3NAME +
-                 mb3 * NA_L2NAME +
-                 mb3 * NA_L1NAME +
-                 mb4 * NA_L3NAME +
-                 mb4 * NA_L2NAME +
-                 mb4 * NA_L1NAME,
-               data = df)
-  } else if (method == 'interactions') {
-    X <- model.matrix(~ 0 +
-                        ctri +
-                        crmin * chd * NA_L3NAME +
-                        crmin * chd * NA_L2NAME +
-                        crmin * chd * NA_L1NAME +
-                        cvs * chd * NA_L3NAME +
-                        cvs * chd * NA_L2NAME +
-                        cvs * chd * NA_L1NAME +
-                        cpr * chd * NA_L3NAME +
-                        cpr * chd * NA_L2NAME +
-                        cpr * chd * NA_L1NAME +
-                        cpr12 * chd * NA_L3NAME +
-                        cpr12 * chd * NA_L2NAME +
-                        cpr12 * chd * NA_L1NAME +
-                        ctmx * chd * NA_L3NAME +
-                        ctmx * chd * NA_L2NAME +
-                        ctmx * chd * NA_L1NAME,
-                      data = df)
-  }
-  X
+                 chd * NA_L1NAME +
+                 chd * NA_L2NAME +
+                 chd * NA_L3NAME +
+                 crmin * NA_L3NAME +
+                 crmin * NA_L2NAME +
+                 crmin * NA_L1NAME +
+                 cvs * NA_L3NAME +
+                 cvs * NA_L2NAME +
+                 cvs * NA_L1NAME +
+                 cpr * NA_L3NAME +
+                 cpr * NA_L2NAME +
+                 cpr * NA_L1NAME +
+                 cpr12 * NA_L3NAME +
+                 cpr12 * NA_L2NAME +
+                 cpr12 * NA_L1NAME +
+                 ctmx * NA_L3NAME +
+                 ctmx * NA_L2NAME +
+                 ctmx * NA_L1NAME,
+              data = df)
 }
 
-method <- 'interactions'
-
-if (method == 'residuals') {
-  X <- make_X(st_covs, method = method)
-  num_interacting_variables <- lengths(regmatches(colnames(X),
-                                                  gregexpr(":", colnames(X))))
-  X <- X[, num_interacting_variables <= 1]
-} else if (method == 'interactions') {
-  X <- make_X(st_covs, method = method)
-}
+X <- make_X(st_covs)
 
 sparse_X <- extract_sparse_parts(X)
 colnamesX <- colnames(X)
@@ -260,5 +186,3 @@ rm(X)
 rm(X_tc)
 rm(X_tb)
 gc()
-
-weibull_scale_adj <- 1e4

@@ -112,5 +112,6 @@ ecoregion_summaries <- ecoregion_summaries %>%
   filter(year < 2017,
          ym > 'Jan 1984')
 
-count_df <- left_join(count_df, ecoregion_summaries)
+count_df <- left_join(count_df, ecoregion_summaries) %>%
+  mutate(er_ym = paste(NA_L3NAME, ym, sep = "_"))
 

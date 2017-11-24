@@ -19,7 +19,7 @@ holdout_counts <- count_df %>%
   mutate(er_ym = paste(NA_L3NAME, ym, sep = "_")) %>%
   filter(year >= cutoff_year)
 
-count_indices <- match(holdout_counts$er_ym, st_covs$er_ym)
+holdout_indices <- match(holdout_counts$er_ym, st_covs$er_ym)
 
 holdout_burns <-  mtbs %>%
   filter(FIRE_YEAR >= cutoff_year) %>%
@@ -62,7 +62,7 @@ for (i in seq_along(model_fits)) {
 
   # compute out of sample log likelihood -------------------------------------------------
   mu_full <- rstan::extract(fit_obj, pars = 'mu_full')[[1]]
-  mu_holdout <- mu_full[, , count_indices]
+  mu_holdout <- mu_full[, , holdout_indices]
   ll_c <- rep(NA, dim(mu_holdout)[1])
   ll_b <- rep(NA, dim(mu_holdout)[1])
 

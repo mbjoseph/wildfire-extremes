@@ -2,18 +2,37 @@ source('R/02-explore.R')
 source('R/make-stan-d.R')
 
 pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
-          'loglik_c', 'loglik_f')
+          'loglik_c', 'loglik_f', 'count_pred',
+          'lambda_tilde',
+          'holdout_loglik_c',  'holdout_loglik_b')
 
 control_list <- list(
-  adapt_delta = 0.8,
-  max_treedepth = 10
+  adapt_delta = 0.9,
+  max_treedepth = 11
 )
 
 n_iter <- 1000
 
 # Fancy models --------------------------------------------------------
+zinb_lomax_init <- stan_model('stan/zinb-lomax.stan')
 
-w_init <- stan_model('stan/st-basis-nb-weibull.stan')
+zinb_lomax_fit <- sampling(
+  zinb_lomax_init,
+  data = stan_d,
+  cores = 4,
+  init_r = 0.01,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list,
+  pars = pars
+)
+write_rds(zinb_lomax_fit, paste0('zinblomaxfit_',
+                               Sys.time() %>% gsub(' ', '_', x = .),
+                               '.rds'))
+
+
+
+w_init <- stan_model('stan/zinb-weibull.stan')
 w_fit <- sampling(w_init,
                   data = stan_d,
                   pars = pars,
@@ -29,7 +48,7 @@ rm(w_fit)
 gc()
 
 
-g_init <- stan_model('stan/st-basis-nb-gamma.stan')
+g_init <- stan_model('stan/zinb-gamma.stan')
 g_fit <- sampling(g_init,
                   data = stan_d,
                   pars = pars,
@@ -45,7 +64,7 @@ rm(g_fit)
 gc()
 
 
-ln_init <- stan_model('stan/st-basis-nb-lognorm.stan')
+ln_init <- stan_model('stan/zinb-lognorm.stan')
 ln_fit <- sampling(ln_init,
                    data = stan_d,
                    pars = pars,
@@ -60,33 +79,3 @@ write_rds(ln_fit, paste0('lnfit_',
 rm(ln_fit)
 gc()
 
-gpd_init <- stan_model('stan/st-basis-nb-gpd.stan')
-gpd_fit <- sampling(
-  gpd_init,
-  data = gpd_d,
-  cores = 4,
-  init_r = 0.01,
-  iter = n_iter,
-  refresh = 1,
-  control = control_list
-)
-write_rds(gpd_fit, paste0('gpdfit_',
-                         Sys.time() %>% gsub(' ', '_', x = .),
-                         '.rds'))
-rm(gpd_fit)
-gc()
-
-
-zinb_gpd_init <- stan_model('stan/st-basis-zinb-gpd.stan')
-zinb_gpd_fit <- sampling(
-  zinb_gpd_init,
-  data = zinb_gpd_d,
-  cores = 4,
-  init_r = 0.01,
-  iter = n_iter,
-  refresh = 1,
-  control = control_list
-)
-write_rds(zinb_gpd_fit, paste0('zinbgpdfit_',
-                          Sys.time() %>% gsub(' ', '_', x = .),
-                          '.rds'))
