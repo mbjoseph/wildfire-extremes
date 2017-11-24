@@ -7,11 +7,11 @@ pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
           'holdout_loglik_c',  'holdout_loglik_b')
 
 control_list <- list(
-  adapt_delta = 0.9,
-  max_treedepth = 11
+  adapt_delta = 0.8,
+  max_treedepth = 10
 )
 
-n_iter <- 1000
+n_iter <- 800
 
 # Fancy models --------------------------------------------------------
 zinb_lomax_init <- stan_model('stan/zinb-lomax.stan')
@@ -20,7 +20,6 @@ zinb_lomax_fit <- sampling(
   zinb_lomax_init,
   data = stan_d,
   cores = 4,
-  init_r = 0.01,
   iter = n_iter,
   refresh = 1,
   control = control_list,
