@@ -7,19 +7,45 @@ pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
           'holdout_loglik_c',  'holdout_loglik_b')
 
 control_list <- list(
-  adapt_delta = 0.8,
+  adapt_delta = 0.9,
   max_treedepth = 10
 )
 
 n_iter <- 800
 
 # Fancy models --------------------------------------------------------
+
+
+# how about just a model for counts
+count_d <- stan_d
+count_d$M <- 3
+
+zinb_init <- stan_model('stan/counts-zinb.stan')
+zinb_fit <- sampling(
+  zinb_init,
+  data = count_d,
+  cores = 4,
+  init_r = 0.01,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list,
+  pars = c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
+           'loglik_c', 'count_pred',
+           'lambda_tilde',
+           'holdout_loglik_c')
+)
+
+
+
+
+
 zinb_lomax_init <- stan_model('stan/zinb-lomax.stan')
 
 zinb_lomax_fit <- sampling(
   zinb_lomax_init,
   data = stan_d,
   cores = 4,
+  init_r = 0.01,
   iter = n_iter,
   refresh = 1,
   control = control_list,
