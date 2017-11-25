@@ -7,11 +7,11 @@ pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
           'holdout_loglik_c',  'holdout_loglik_b')
 
 control_list <- list(
-  adapt_delta = 0.9,
-  max_treedepth = 10
+  adapt_delta = 0.99,
+  max_treedepth = 11
 )
 
-n_iter <- 800
+n_iter <- 600
 
 # Fancy models --------------------------------------------------------
 
@@ -35,6 +35,26 @@ zinb_fit <- sampling(
            'holdout_loglik_c')
 )
 
+
+zip_d <- stan_d
+zip_d$M <- 2
+
+zip_init <- stan_model('stan/counts-zip.stan')
+zip_fit <- sampling(
+  zip_init,
+  data = zip_d,
+  cores = 4,
+  init_r = 0.01,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list,
+  pars = c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
+           'count_pred',
+           'lambda_tilde',
+           'holdout_loglik_c')
+)
+
+traceplot(zip_fit)
 
 
 
