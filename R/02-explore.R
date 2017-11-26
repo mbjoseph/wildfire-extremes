@@ -122,7 +122,19 @@ make_X <- function(df) {
                  cvs * NA_L3NAME +
                  cpr * NA_L3NAME +
                  cpr12 * NA_L3NAME +
-                 ctmx * NA_L3NAME,
+                 ctmx * NA_L3NAME +
+                 chd * NA_L2NAME +
+                 crmin * NA_L2NAME +
+                 cvs * NA_L2NAME +
+                 cpr * NA_L2NAME +
+                 cpr12 * NA_L2NAME +
+                 ctmx * NA_L2NAME +
+                 chd * NA_L1NAME +
+                 crmin * NA_L1NAME +
+                 cvs * NA_L1NAME +
+                 cpr * NA_L1NAME +
+                 cpr12 * NA_L1NAME +
+                 ctmx * NA_L1NAME,
               data = df)
 }
 

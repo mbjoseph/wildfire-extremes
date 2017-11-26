@@ -24,7 +24,7 @@ data {
   int<lower = 1, upper = N * T + 1> n_u_tc;
   int<lower = 1> u_tc[n_u_tc];
 
-  int<lower = 2, upper = 2> M; // num dimensions
+  int<lower = 1, upper = 1> M; // num dimensions
   real<lower = 0> slab_df;
   real<lower = 0> slab_scale;
 
@@ -50,7 +50,6 @@ parameters {
 
 transformed parameters {
   vector[n_count] mu_count;
-  vector[n_count] logit_p_zero;
   matrix[M, p] beta;
   matrix[M, p] lambda_tilde;
   vector[p] lambda_sq;
@@ -73,8 +72,6 @@ transformed parameters {
   mu_count = alpha[1]
              + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[1, ]')
              + log_area_train;
-
- logit_p_zero = alpha[2] + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[2, ]');
 }
 
 model {
@@ -87,15 +84,7 @@ model {
   tau ~ normal(0, 1);
 
   // number of fires
-  for (i in 1:n_count) {
-    if (counts[i] == 0) {
-      target += log_sum_exp(bernoulli_logit_lpmf(1 | logit_p_zero[i]),
-                            bernoulli_logit_lpmf(0 | logit_p_zero[i])
-                          + poisson_log_lpmf(counts[i] | mu_count[i]));
-    } else {
-      target += bernoulli_logit_lpmf(0 | logit_p_zero[i]) + poisson_log_lpmf(counts[i] | mu_count[i]);
-    }
-  }
+  counts ~ poisson_log(mu_count);
 }
 
 generated quantities {
@@ -115,19 +104,11 @@ generated quantities {
 
   // posterior predictions for the number of fires
   for (i in 1:(N * T)) {
-    count_pred[i] = bernoulli_rng(1 - inv_logit(mu_full[2][i])) *
-                      poisson_log_rng(mu_full[1][i]);
+    count_pred[i] = poisson_log_rng(mu_full[1][i]);
   }
 
   // holdout log likelihoods
   for (i in 1:n_holdout_c) {
-    if (holdout_c[i] == 0) {
-      holdout_loglik_c[i] = log_sum_exp(bernoulli_logit_lpmf(1 | mu_full[2][holdout_c_idx[i]]),
-                                        bernoulli_logit_lpmf(0 | mu_full[2][holdout_c_idx[i]])
-                                    + poisson_log_lpmf(holdout_c[i] | mu_full[1][holdout_c_idx[i]]));
-    } else {
-      holdout_loglik_c[i] = bernoulli_logit_lpmf(0 | mu_full[2][holdout_c_idx[i]])
-                            + poisson_log_lpmf(holdout_c[i] | mu_full[1][holdout_c_idx[i]]);
-    }
+      holdout_loglik_c[i] = poisson_log_lpmf(holdout_c[i] | mu_full[1][holdout_c_idx[i]]);
   }
 }

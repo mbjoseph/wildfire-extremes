@@ -6,58 +6,53 @@ pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
           'lambda_tilde',
           'holdout_loglik_c',  'holdout_loglik_b')
 
+count_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
+                'count_pred',
+                'lambda_tilde',
+                'holdout_loglik_c')
+
+
 control_list <- list(
-  adapt_delta = 0.99,
-  max_treedepth = 11
+  adapt_delta = 0.8,
+  max_treedepth = 10
 )
 
-n_iter <- 600
+n_iter <- 1000
 
-# Fancy models --------------------------------------------------------
+# Count models --------------------------------------------------------
 
+pois_d <- stan_d
+pois_d$M <- 1
 
-# how about just a model for counts
-count_d <- stan_d
-count_d$M <- 3
-
-zinb_init <- stan_model('stan/counts-zinb.stan')
-zinb_fit <- sampling(
-  zinb_init,
-  data = count_d,
+pois_init <- stan_model('stan/counts-pois.stan')
+pois_fit <- sampling(
+  pois_init,
+  data = pois_d,
   cores = 4,
-  init_r = 0.01,
+  init_r = .01,
   iter = n_iter,
   refresh = 1,
   control = control_list,
-  pars = c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
-           'loglik_c', 'count_pred',
-           'lambda_tilde',
-           'holdout_loglik_c')
+  pars = count_pars
 )
+write_rds(pois_fit, path = 'pois_fit.rds')
 
-
-zip_d <- stan_d
-zip_d$M <- 2
-
-zip_init <- stan_model('stan/counts-zip.stan')
-zip_fit <- sampling(
-  zip_init,
-  data = zip_d,
+nb_init <- stan_model('stan/counts-nb.stan')
+nb_fit <- sampling(
+  nb_init,
+  data = pois_d,
   cores = 4,
-  init_r = 0.01,
+  init_r = .01,
   iter = n_iter,
   refresh = 1,
   control = control_list,
-  pars = c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
-           'count_pred',
-           'lambda_tilde',
-           'holdout_loglik_c')
+  pars = count_pars
 )
-
-traceplot(zip_fit)
-
+write_rds(nb_fit, path = 'nb_fit.rds')
 
 
+
+# Burn area models --------------------------------------------------------
 
 zinb_lomax_init <- stan_model('stan/zinb-lomax.stan')
 
