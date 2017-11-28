@@ -47,7 +47,7 @@ stan_d <- list(
 
   M = 5,
   slab_df = 5,
-  slab_scale = 2,
+  slab_scale = 1,
 
   eps_idx_train = eps_idx_train,
   eps_idx_future = eps_idx_future,
