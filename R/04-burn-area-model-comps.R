@@ -57,10 +57,10 @@ ba_ll_df %>%
            grepl('weibull', .$model) ~ 'Weibull'
          )) %>%
   spread(train, mean_nll) %>%
-  ggplot(aes(x = train, y = test, color = Distribution)) +
+  ggplot(aes(x = -train, y = -test, color = Distribution)) +
   geom_point(alpha = .05) +
-  xlab('Negative log likelihood: training set') +
-  ylab('Negative log likelihood: test set') +
-  scale_color_gdocs('Distribution for burn area') +
+  xlab('Log likelihood: training set') +
+  ylab('Log likelihood: test set') +
+  scale_color_gdocs('Burn area distribution') +
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
-  theme(legend.justification = c(0, 1), legend.position = c(0, 1))
+  theme(legend.justification = c(1, 0), legend.position = c(1, 0))
