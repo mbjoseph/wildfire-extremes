@@ -93,6 +93,7 @@ generated quantities {
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
   vector[N * T] count_pred;
   vector[n_holdout_c] holdout_loglik_c;
+  vector[n_count] train_loglik_c;
 
   // expected values
   for (i in 1:M){
@@ -106,6 +107,11 @@ generated quantities {
   // posterior predictions for the number of fires
   for (i in 1:(N * T)) {
     count_pred[i] = neg_binomial_2_log_rng(mu_full[1][i], nb_prec);
+  }
+
+  // training log likelihoods
+  for (i in 1:n_count) {
+    train_loglik_c[i] = poisson_log_lpmf(counts[i] | mu_count[i]);
   }
 
   // holdout log likelihoods
