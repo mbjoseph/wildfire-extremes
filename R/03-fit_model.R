@@ -111,16 +111,15 @@ ba_weibull_fit <- sampling(
 write_rds(ba_weibull_fit, 'ba_weibull_fit.rds')
 
 
-ba_frechet_init <- stan_model('stan/area-frechet.stan')
-ba_frechet_fit <- sampling(
-  ba_frechet_init,
+ba_logskewnormal_init <- stan_model('stan/area-logskewnormal.stan')
+ba_logskewnormal_fit <- sampling(
+  ba_logskewnormal_init,
   data = ba_d,
   cores = 4,
   iter = n_iter,
   refresh = 1,
   control = control_list,
-  pars = c('shape', burn_area_pars)
+  pars = c('shape', 'scale', burn_area_pars)
 )
-write_rds(ba_frechet_fit, 'ba_frechet_fit.rds')
-
+write_rds(ba_logskewnormal_fit, 'ba_logskewnormal_fit.rds')
 
