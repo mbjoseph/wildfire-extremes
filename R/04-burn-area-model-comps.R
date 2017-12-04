@@ -148,7 +148,7 @@ tail_plot <- train_ba_rep %>%
   ggplot(aes(med, ccdf, color = Distribution)) +
   theme_minimal() +
   scale_color_manual('Burn area distribution', values = cols) +
-  geom_point() +
+  geom_point(shape = 1) +
   geom_errorbarh(aes(xmin = lo, xmax = hi)) +
   geom_errorbarh(aes(xmin = q25, xmax = q75), size = 1.25) +
   scale_x_log10() +
@@ -165,5 +165,89 @@ tail_plot <- train_ba_rep %>%
     strip.text.x = element_blank()
   )
 
-plot_grid(den_plot, tail_plot, nrow = 2)
-ggsave(filename = 'fig/ppc-density-funs.png', width = 12, height = 5)
+
+# Maxima and cumulative burn area -----------------------------------------
+train_max <- train_ba_rep %>%
+  group_by(iter, model) %>%
+  summarize(max_pred = max(value),
+            cum_pred = sum(value)) %>%
+  mutate(train = TRUE)
+
+holdout_max <- holdout_ba_rep %>%
+  bind_rows  %>%
+  group_by(iter, model) %>%
+  summarize(max_pred = max(value),
+            cum_pred = sum(value)) %>%
+  mutate(train = FALSE)
+
+gc()
+
+actual_maxima <- tibble(train = max(stan_d$sizes),
+                        test = max(stan_d$holdout_b))
+
+actual_sums <- tibble(train = sum(stan_d$sizes),
+                      test = sum(stan_d$holdout_b))
+
+max_plot <- train_max %>%
+  full_join(holdout_max) %>%
+  dplyr::select(-cum_pred) %>%
+  mutate(train = ifelse(train, 'train', 'test')) %>%
+  spread(train, max_pred) %>%
+  ungroup() %>%
+  mutate(Distribution = case_when(
+    grepl('gamma', .$model) ~ 'Gamma',
+    grepl('lognormal', .$model) ~ 'Lognormal',
+    grepl('_pareto', .$model) ~ 'Generalized Pareto',
+    grepl('_tpareto', .$model) ~ 'Tapered Pareto',
+    grepl('weibull', .$model) ~ 'Weibull'
+  )) %>%
+  ggplot(aes(train, test, color = Distribution)) +
+  theme_minimal() +
+  scale_color_manual('Burn area distribution', values = cols) +
+  geom_point(alpha = .2, shape = 1) +
+  xlab('max(acres): training data') +
+  ylab('max(acres): test data') +
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(~ Distribution, nrow = 1) +
+  theme(legend.position = 'none') +
+  geom_point(data = actual_maxima, color = 'black') +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
+
+sum_plot <- train_max %>%
+  full_join(holdout_max) %>%
+  dplyr::select(-max_pred) %>%
+  mutate(train = ifelse(train, 'train', 'test')) %>%
+  spread(train, cum_pred) %>%
+  ungroup() %>%
+  mutate(Distribution = case_when(
+    grepl('gamma', .$model) ~ 'Gamma',
+    grepl('lognormal', .$model) ~ 'Lognormal',
+    grepl('_pareto', .$model) ~ 'Generalized Pareto',
+    grepl('_tpareto', .$model) ~ 'Tapered Pareto',
+    grepl('weibull', .$model) ~ 'Weibull'
+  )) %>%
+  ggplot(aes(train, test, color = Distribution)) +
+  theme_minimal() +
+  scale_color_manual('Burn area distribution', values = cols) +
+  geom_point(alpha = .2, shape = 1) +
+  xlab('sum(acres): training data') +
+  ylab('sum(acres): test data') +
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(~ Distribution, nrow = 1) +
+  theme(legend.position = 'none') +
+  geom_point(data = actual_sums, color = 'black') +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  ) +
+  # add dashed lines to indicate area of contiguous U.S.
+  geom_vline(xintercept = 1996726201.6, linetype = 'dotted') +
+  geom_hline(yintercept = 1996726201.6, linetype = 'dotted')
+
+plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4, labels = 'auto')
+ggsave(filename = 'fig/ppc-density-funs.png', width = 12, height = 10)
