@@ -74,7 +74,7 @@ model {
 
   c_aux ~ inv_gamma(0.5 * slab_df, 0.5 * slab_df);
   alpha ~ normal(0, 5);
-  tau ~ normal(0, 1);
+  tau ~ normal(0, 5);
   shape ~ normal(0, 5);
 
   // fire sizes
