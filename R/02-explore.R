@@ -66,11 +66,6 @@ st_covs <- st_covs %>%
          r_cpr12 = cpr12 - t_mean_cpr12 - sp_mean_cpr12,
          r_chd = chd - t_mean_chd - sp_mean_chd)
 
-# monthly basis functions
-monthly_basis <- bs(st_covs$month, df = 4, intercept = TRUE)
-colnames(monthly_basis) <- paste0('mb', 1:ncol(monthly_basis))
-
-
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
 
