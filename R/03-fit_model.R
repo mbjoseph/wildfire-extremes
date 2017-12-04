@@ -1,106 +1,125 @@
 source('R/02-explore.R')
 source('R/make-stan-d.R')
+library(bayesplot)
 
 pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
           'loglik_c', 'loglik_f', 'count_pred',
           'lambda_tilde',
           'holdout_loglik_c',  'holdout_loglik_b')
 
+count_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
+                'count_pred',
+                'lambda_tilde',
+                'holdout_loglik_c')
+
+burn_area_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
+                    'loglik_f',
+                    'lambda_tilde',
+                    'holdout_loglik_b')
+
 control_list <- list(
-  adapt_delta = 0.9,
-  max_treedepth = 10
+  adapt_delta = 0.99,
+  max_treedepth = 11
 )
 
-n_iter <- 800
+n_iter <- 2000
 
-# Fancy models --------------------------------------------------------
+# Count models --------------------------------------------------------
+pois_d <- stan_d
+pois_d$M <- 1
 
-
-# how about just a model for counts
-count_d <- stan_d
-count_d$M <- 3
-
-zinb_init <- stan_model('stan/counts-zinb.stan')
-zinb_fit <- sampling(
-  zinb_init,
-  data = count_d,
+pois_init <- stan_model('stan/counts-pois.stan')
+pois_fit <- sampling(
+  pois_init,
+  data = pois_d,
   cores = 4,
-  init_r = 0.01,
+  init_r = .01,
   iter = n_iter,
   refresh = 1,
   control = control_list,
-  pars = c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
-           'loglik_c', 'count_pred',
-           'lambda_tilde',
-           'holdout_loglik_c')
+  pars = count_pars
 )
+write_rds(pois_fit, path = 'pois_fit.rds')
 
-
-
-
-
-zinb_lomax_init <- stan_model('stan/zinb-lomax.stan')
-
-zinb_lomax_fit <- sampling(
-  zinb_lomax_init,
-  data = stan_d,
+nb_init <- stan_model('stan/counts-nb.stan')
+nb_fit <- sampling(
+  nb_init,
+  data = pois_d,
   cores = 4,
-  init_r = 0.01,
+  init_r = .01,
   iter = n_iter,
   refresh = 1,
   control = control_list,
-  pars = pars
+  pars = count_pars
 )
-write_rds(zinb_lomax_fit, paste0('zinblomaxfit_',
-                               Sys.time() %>% gsub(' ', '_', x = .),
-                               '.rds'))
+write_rds(nb_fit, path = 'nb_fit.rds')
 
 
 
-w_init <- stan_model('stan/zinb-weibull.stan')
-w_fit <- sampling(w_init,
-                  data = stan_d,
-                  pars = pars,
-                  cores = 4,
-                  init_r = 0.01,
-                  iter = n_iter,
-                  refresh = 1,
-                  control = control_list)
-write_rds(w_fit, paste0('wfit_',
-                        Sys.time() %>% gsub(' ', '_', x = .),
-                        '.rds'))
-rm(w_fit)
-gc()
+# Burn area models --------------------------------------------------------
+ba_d <- stan_d
+ba_d$M <- 1
+
+ba_gamma_init <- stan_model('stan/area-gamma.stan')
+ba_gamma_fit <- sampling(
+  ba_gamma_init,
+  data = ba_d,
+  cores = 4,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list,
+  pars = c('shape', burn_area_pars)
+)
+write_rds(ba_gamma_fit, 'ba_gamma_fit.rds')
+
+ba_pareto_init <- stan_model('stan/area-pareto.stan')
+ba_pareto_fit <- sampling(
+  ba_pareto_init,
+  data = ba_d,
+  cores = 4,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list,
+  pars = c('shape', burn_area_pars)
+)
+write_rds(ba_pareto_fit, 'ba_pareto_fit.rds')
 
 
-g_init <- stan_model('stan/zinb-gamma.stan')
-g_fit <- sampling(g_init,
-                  data = stan_d,
-                  pars = pars,
-                  cores = 4,
-                  init_r = 0.01,
-                  iter = n_iter,
-                  refresh = 1,
-                  control = control_list)
-write_rds(g_fit, paste0('gfit_',
-                        Sys.time() %>% gsub(' ', '_', x = .),
-                        '.rds'))
-rm(g_fit)
-gc()
+ba_lognormal_init <- stan_model('stan/area-lognormal.stan')
+ba_lognormal_fit <- sampling(
+  ba_lognormal_init,
+  data = ba_d,
+  cores = 4,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list,
+  pars = c('scale', burn_area_pars)
+)
+write_rds(ba_lognormal_fit, 'ba_lognormal_fit.rds')
 
 
-ln_init <- stan_model('stan/zinb-lognorm.stan')
-ln_fit <- sampling(ln_init,
-                   data = stan_d,
-                   pars = pars,
-                   cores = 4,
-                   init_r = 0.01,
-                   iter = n_iter,
-                   refresh = 1,
-                   control = control_list)
-write_rds(ln_fit, paste0('lnfit_',
-                         Sys.time() %>% gsub(' ', '_', x = .),
-                         '.rds'))
-rm(ln_fit)
-gc()
+ba_weibull_init <- stan_model('stan/area-weibull.stan')
+ba_weibull_fit <- sampling(
+  ba_weibull_init,
+  data = ba_d,
+  cores = 4,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list,
+  pars = c('shape', burn_area_pars)
+)
+write_rds(ba_weibull_fit, 'ba_weibull_fit.rds')
+
+
+ba_logskewnormal_init <- stan_model('stan/area-logskewnormal.stan')
+ba_logskewnormal_fit <- sampling(
+  ba_logskewnormal_init,
+  data = ba_d,
+  cores = 4,
+  iter = n_iter,
+  refresh = 1,
+  control = control_list,
+  pars = c('shape', 'scale', burn_area_pars)
+)
+write_rds(ba_logskewnormal_fit, 'ba_logskewnormal_fit.rds')
 

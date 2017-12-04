@@ -116,24 +116,24 @@ assert_that(identical(nrow(st_covs), N * T))
 # Create design matrices --------------------------------------------------
 make_X <- function(df) {
   model.matrix(~ 0 +
-                 ctri +
-                 chd * NA_L1NAME +
-                 chd * NA_L2NAME +
+                 ctri+
                  chd * NA_L3NAME +
                  crmin * NA_L3NAME +
-                 crmin * NA_L2NAME +
-                 crmin * NA_L1NAME +
                  cvs * NA_L3NAME +
-                 cvs * NA_L2NAME +
-                 cvs * NA_L1NAME +
                  cpr * NA_L3NAME +
-                 cpr * NA_L2NAME +
-                 cpr * NA_L1NAME +
                  cpr12 * NA_L3NAME +
-                 cpr12 * NA_L2NAME +
-                 cpr12 * NA_L1NAME +
                  ctmx * NA_L3NAME +
+                 chd * NA_L2NAME +
+                 crmin * NA_L2NAME +
+                 cvs * NA_L2NAME +
+                 cpr * NA_L2NAME +
+                 cpr12 * NA_L2NAME +
                  ctmx * NA_L2NAME +
+                 chd * NA_L1NAME +
+                 crmin * NA_L1NAME +
+                 cvs * NA_L1NAME +
+                 cpr * NA_L1NAME +
+                 cpr12 * NA_L1NAME +
                  ctmx * NA_L1NAME,
               data = df)
 }
