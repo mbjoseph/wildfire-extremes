@@ -50,7 +50,7 @@ data {
   int<lower = 1, upper = N * T> holdout_b_idx[n_holdout_b];
   vector[n_holdout_b] holdout_b;
 
-  real<lower = 0> offset;
+  real<lower = 0> min_size;
 }
 
 transformed data {
@@ -58,8 +58,8 @@ transformed data {
   vector[n_fire] raw_sizes;
   vector[n_holdout_b] raw_holdout_b;
 
-  raw_sizes = sizes + offset;
-  raw_holdout_b = holdout_b + offset;
+  raw_sizes = sizes + min_size;
+  raw_holdout_b = holdout_b + min_size;
 }
 
 parameters {
@@ -110,7 +110,7 @@ model {
 
   // fire sizes
   for (i in 1:n_fire)
-    raw_sizes[i] ~ tpareto(offset, mu_burn[1][burn_idx[i]], theta);
+    raw_sizes[i] ~ tpareto(min_size, mu_burn[1][burn_idx[i]], theta);
 }
 
 generated quantities {
@@ -122,10 +122,10 @@ generated quantities {
   vector[n_holdout_b] holdout_rep;
 
   for (i in 1:n_fire) {
-    loglik_f[i] = tpareto_lpdf(raw_sizes[i] | offset,
+    loglik_f[i] = tpareto_lpdf(raw_sizes[i] | min_size,
                                                 mu_burn[1][burn_idx[i]],
                                                 theta);
-    size_rep[i] = tpareto_rng(offset, mu_burn[1][burn_idx[i]], theta) - offset;
+    size_rep[i] = tpareto_rng(min_size, mu_burn[1][burn_idx[i]], theta) - min_size;
   }
 
   // expected values
@@ -134,9 +134,9 @@ generated quantities {
   }
 
   for (i in 1:n_holdout_b) {
-    holdout_loglik_b[i] = tpareto_lpdf(raw_holdout_b[i] | offset,
+    holdout_loglik_b[i] = tpareto_lpdf(raw_holdout_b[i] | min_size,
                                                             mu_full[1][holdout_b_idx[i]],
                                                             theta);
-    holdout_rep[i] = tpareto_rng(offset, mu_full[1][holdout_b_idx[i]], theta) - offset;
+    holdout_rep[i] = tpareto_rng(min_size, mu_full[1][holdout_b_idx[i]], theta) - min_size;
   }
 }

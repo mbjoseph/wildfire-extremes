@@ -1,16 +1,6 @@
-library(scales)
-library(raster)
-library(gridExtra)
-library(spdep)
-library(viridis)
-library(rmapshaper)
 library(tidyverse)
 library(lubridate)
 library(rstan)
-library(cowplot)
-library(ggthemes)
-library(sf)
-library(splines)
 source("R/01-clean_data.R")
 
 ecoregion_df <- as(ecoregions, "Spatial") %>%

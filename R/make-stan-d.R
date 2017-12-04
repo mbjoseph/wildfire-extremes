@@ -5,7 +5,7 @@
 assert_that(identical(levels(area_df$NA_L3NAME),
                       levels(factor(st_covs$NA_L3NAME))))
 
-scale_adj <- 1e4
+min_size <- 1e3
 
 stan_d <- list(
   N = N,
@@ -21,7 +21,7 @@ stan_d <- list(
   er_idx_full = as.numeric(factor(st_covs$NA_L3NAME)),
 
   n_fire = nrow(train_burns),
-  sizes = (train_burns$R_ACRES - 1e3) / scale_adj,
+  sizes = train_burns$R_ACRES - min_size,
   burn_idx = burn_idx,
 
   n_w = length(sparse_X$w),
@@ -47,7 +47,7 @@ stan_d <- list(
 
   M = 5,
   slab_df = 5,
-  slab_scale = 1,
+  slab_scale = 2,
 
   eps_idx_train = eps_idx_train,
   eps_idx_future = eps_idx_future,
@@ -59,5 +59,7 @@ stan_d <- list(
 
   n_holdout_b = length(holdout_b_idx),
   holdout_b_idx = holdout_b_idx,
-  holdout_b = (holdout_burns$R_ACRES - 1e3) / scale_adj
+  holdout_b = holdout_burns$R_ACRES - min_size,
+
+  min_size = min_size
   )
