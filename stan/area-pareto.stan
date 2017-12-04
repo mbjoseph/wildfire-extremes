@@ -88,11 +88,16 @@ model {
 generated quantities {
   vector<lower = 0>[N * T] mu_full[M];
   vector[n_fire] loglik_f;
+  vector[n_fire] size_rep;
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
   vector[n_holdout_b] holdout_loglik_b;
+  vector[n_holdout_b] holdout_rep;
 
   for (i in 1:n_fire) {
     loglik_f[i] = pareto_type_2_lpdf(sizes[i] | size_threshold,
+                                                mu_burn[1][burn_idx[i]],
+                                                shape);
+    size_rep[i] = pareto_type_2_rng(size_threshold,
                                                 mu_burn[1][burn_idx[i]],
                                                 shape);
   }
@@ -106,5 +111,6 @@ generated quantities {
     holdout_loglik_b[i] = pareto_type_2_lpdf(holdout_b[i] | size_threshold,
                                                             mu_full[1][holdout_b_idx[i]],
                                                             shape);
+    holdout_rep[i] = pareto_type_2_rng(size_threshold, mu_full[1][holdout_b_idx[i]], shape);
   }
 }
