@@ -84,11 +84,14 @@ model {
 generated quantities {
   vector[N * T] mu_full;
   vector[n_fire] loglik_f;
+  vector[n_fire] size_rep;
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
   vector[n_holdout_b] holdout_loglik_b;
+  vector[n_holdout_b] holdout_rep;
 
   for (i in 1:n_fire) {
     loglik_f[i] = lognormal_lpdf(sizes[i] | mu_burn[burn_idx[i]], scale);
+    size_rep[i] = lognormal_rng(mu_burn[burn_idx[i]], scale);
   }
 
   // expected values
@@ -96,6 +99,6 @@ generated quantities {
 
   for (i in 1:n_holdout_b) {
     holdout_loglik_b[i] = lognormal_lpdf(holdout_b[i] | mu_full[holdout_b_idx[i]], scale);
+    holdout_rep[i] = lognormal_rng(mu_full[holdout_b_idx[i]], scale);
   }
-
 }

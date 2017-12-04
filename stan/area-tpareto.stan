@@ -1,3 +1,23 @@
+functions {
+  real tpareto_lpdf(real y, real a, real lambda, real theta) {
+    // tapered Pareto log pdf
+      return log(lambda / y + 1 / theta) + lambda * (log(a) - log(y)) + (a - y) / theta;
+  }
+  real tpareto_rng(real a, real lambda, real theta) {
+    {
+      real x;
+      real w;
+      // tapered Pareto rng
+      x = pareto_rng(a, lambda);
+      w = exponential_rng(1 / theta) + a;
+      if (x < w) {
+        return x;
+      } else {
+        return w;
+      }
+    }
+  }
+}
 data {
   int<lower = 1> N; // # spatial units
   int<lower = 1> T; // # timesteps
@@ -23,14 +43,23 @@ data {
   real<lower = 0> slab_df;
   real<lower = 0> slab_scale;
 
+  real<lower = 0> size_threshold;
+
   // holdout burn areas
   int<lower = 1> n_holdout_b;
   int<lower = 1, upper = N * T> holdout_b_idx[n_holdout_b];
   vector[n_holdout_b] holdout_b;
+
+  real<lower = 0> offset;
 }
 
 transformed data {
   int n_burn_mu = n_u_tb - 1;
+  vector[n_fire] raw_sizes;
+  vector[n_holdout_b] raw_holdout_b;
+
+  raw_sizes = sizes + offset;
+  raw_holdout_b = holdout_b + offset;
 }
 
 parameters {
@@ -40,11 +69,11 @@ parameters {
   vector[M] alpha; // intercept
   vector<lower = 0>[M] c_aux;
   cholesky_factor_corr[M] L_beta;
-  real<lower = 0> shape;
+  real<lower = 0> theta;
 }
 
 transformed parameters {
-  vector<lower = 0>[n_burn_mu] mu_burn;
+  vector<lower = 0>[n_burn_mu] mu_burn[M];
   matrix[M, p] beta;
   matrix[M, p] lambda_tilde;
   vector[p] lambda_sq;
@@ -64,7 +93,9 @@ transformed parameters {
   // multivariate horseshoe
   beta = diag_pre_multiply(tau, L_beta) *  betaR .* lambda_tilde;
 
-  mu_burn = exp(alpha[1] + csr_matrix_times_vector(n_burn_mu, p, w_tb, v_tb, u_tb, beta[1,]'));
+  for (i in 1:M)
+    mu_burn[i] = exp(alpha[i]
+               + csr_matrix_times_vector(n_burn_mu, p, w_tb, v_tb, u_tb, beta[i, ]'));
 }
 
 model {
@@ -74,15 +105,16 @@ model {
 
   c_aux ~ inv_gamma(0.5 * slab_df, 0.5 * slab_df);
   alpha ~ normal(0, 5);
-  tau ~ normal(0, 1);
-  shape ~ normal(0, 5);
+  tau ~ normal(0, 5);
+  theta ~ cauchy(0, 1);
 
   // fire sizes
-  sizes ~ weibull(shape, mu_burn[burn_idx]);
+  for (i in 1:n_fire)
+    raw_sizes[i] ~ tpareto(offset, mu_burn[1][burn_idx[i]], theta);
 }
 
 generated quantities {
-  vector[N * T] mu_full;
+  vector<lower = 0>[N * T] mu_full[M];
   vector[n_fire] loglik_f;
   vector[n_fire] size_rep;
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
@@ -90,13 +122,21 @@ generated quantities {
   vector[n_holdout_b] holdout_rep;
 
   for (i in 1:n_fire) {
-    loglik_f[i] = weibull_lpdf(sizes[i] | shape, mu_burn[burn_idx[i]]);
-    size_rep[i] = weibull_rng(shape, mu_burn[burn_idx[i]]);
+    loglik_f[i] = tpareto_lpdf(raw_sizes[i] | offset,
+                                                mu_burn[1][burn_idx[i]],
+                                                theta);
+    size_rep[i] = tpareto_rng(offset, mu_burn[1][burn_idx[i]], theta) - offset;
   }
 
-  mu_full = exp(alpha[1] + csr_matrix_times_vector(N * T, p, w, v, u, beta[1, ]'));
+  // expected values
+  for (i in 1:M) {
+      mu_full[i] = exp(alpha[i] + csr_matrix_times_vector(N * T, p, w, v, u, beta[i, ]'));
+  }
+
   for (i in 1:n_holdout_b) {
-    holdout_loglik_b[i] = weibull_lpdf(holdout_b[i] | shape, mu_full[holdout_b_idx[i]]);
-    holdout_rep[i] = weibull_rng(shape, mu_full[holdout_b_idx[i]]);
+    holdout_loglik_b[i] = tpareto_lpdf(raw_holdout_b[i] | offset,
+                                                            mu_full[1][holdout_b_idx[i]],
+                                                            theta);
+    holdout_rep[i] = tpareto_rng(offset, mu_full[1][holdout_b_idx[i]], theta) - offset;
   }
 }
