@@ -11,3 +11,10 @@ for (i in seq_along(model_fits)) {
 }
 
 system('aws s3 cp fig s3://earthlab-mjoseph/demo_evt/fig --recursive')
+
+# pull fits down
+# system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_gamma_fit.rds . ')
+# system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_lognormal_fit.rds . ')
+# system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_pareto_fit.rds . ')
+# system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_tpareto_fit.rds . ')
+# system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_weibull_fit.rds . ')
