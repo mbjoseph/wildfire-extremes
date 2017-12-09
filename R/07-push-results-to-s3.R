@@ -18,3 +18,7 @@ system('aws s3 cp fig s3://earthlab-mjoseph/demo_evt/fig --recursive')
 # system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_pareto_fit.rds . ')
 # system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_tpareto_fit.rds . ')
 # system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_weibull_fit.rds . ')
+
+# system('aws s3 cp s3://earthlab-mjoseph/demo_evt/pois_fit.rds . ')
+# system('aws s3 cp s3://earthlab-mjoseph/demo_evt/nb_fit.rds . ')
+
