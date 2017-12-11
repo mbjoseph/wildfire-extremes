@@ -82,7 +82,7 @@ holdout_ba_loglik %>%
   theme(legend.justification = c(1, 0), legend.position = c(1, 0)) +
   ylim(c(-26000, -22200)) +
   theme_minimal()
-ggsave(filename = 'fig/loglik.png', width = 6, height = 4)
+ggsave(filename = 'fig/loglik-burns.png', width = 6, height = 4)
 
 ## Generate plots to evaluate distributional assumptions
 train_ba_rep <- train_ba_rep %>%
@@ -211,7 +211,10 @@ max_plot <- train_max %>%
   scale_y_log10() +
   facet_wrap(~ Distribution, nrow = 1) +
   theme(legend.position = 'none') +
-  geom_point(data = actual_maxima, color = 'black') +
+  geom_vline(aes(xintercept = train),
+             data = actual_maxima, color = 'black', linetype = 'dashed') +
+  geom_hline(aes(yintercept = test),
+             data = actual_maxima, color = 'black', linetype = 'dashed') +
   theme(
     strip.background = element_blank(),
     strip.text.x = element_blank()
@@ -240,14 +243,17 @@ sum_plot <- train_max %>%
   scale_y_log10() +
   facet_wrap(~ Distribution, nrow = 1) +
   theme(legend.position = 'none') +
-  geom_point(data = actual_sums, color = 'black') +
+  geom_vline(aes(xintercept = train),
+             data = actual_sums, color = 'black', linetype = 'dashed') +
+  geom_hline(aes(yintercept = test),
+             data = actual_sums, color = 'black', linetype = 'dashed') +
   theme(
     strip.background = element_blank(),
     strip.text.x = element_blank()
   ) +
   # add dashed lines to indicate area of contiguous U.S.
-  geom_vline(xintercept = 1996726201.6, linetype = 'dotted') +
-  geom_hline(yintercept = 1996726201.6, linetype = 'dotted')
+  geom_vline(xintercept = 1996726201.6, linetype = 'dotted', alpha = .5) +
+  geom_hline(yintercept = 1996726201.6, linetype = 'dotted', alpha = .5)
 
-plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4, labels = 'auto')
+plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4)
 ggsave(filename = 'fig/ppc-density-funs.png', width = 12, height = 10)
