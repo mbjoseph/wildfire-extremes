@@ -18,44 +18,190 @@ count_fits <- grep(model_fits, pattern = 'ba_', value = TRUE, invert = TRUE)
 
 # for each model fit, produce a vector of the holdout log likelihoods
 holdout_c_loglik <- list()
-#train_c_loglik <- list()
+train_c_loglik <- list()
+train_c_rep <- list()
+holdout_c_rep <- list()
+
 for (i in seq_along(count_fits)) {
   post <- rstan::extract(read_rds(count_fits[i]))
   holdout_c_loglik[[i]] <- post$holdout_loglik_c %>%
     reshape2::melt(varnames = c('iter', 'idx')) %>%
     as_tibble %>%
+    group_by(iter) %>%
+    summarize(value = sum(value)) %>%
     mutate(model = count_fits[i])
-  # train_c_loglik[[i]] <- post$train_loglik_c %>%
-  #   reshape2::melt(varnames = c('iter', 'idx')) %>%
-  #   as_tibble %>%
-  #   mutate(model = burn_area_fits[i])
+  train_c_loglik[[i]] <- post$train_loglik_c %>%
+    reshape2::melt(varnames = c('iter', 'idx')) %>%
+    as_tibble %>%
+    group_by(iter) %>%
+    summarize(value = sum(value)) %>%
+    mutate(model = count_fits[i])
+  pred_counts <- post$count_pred %>%
+    reshape2::melt(varnames = c('iter', 'id')) %>%
+    as_tibble %>%
+    mutate(model = count_fits[i]) %>%
+    full_join(dplyr::select(st_covs, id, NA_L3NAME, year, ym))
+  train_c_rep[[i]] <- pred_counts %>%
+    filter(year < cutoff_year)
+  holdout_c_rep[[i]] <- pred_counts %>%
+    filter(year >= cutoff_year)
+  rm(pred_counts)
+  rm(post)
+  gc()
 }
 
 holdout_c_loglik <- bind_rows(holdout_c_loglik) %>%
   mutate(train = FALSE)
 
-# train_c_loglik <- bind_rows(train_c_loglik) %>%
-#   mutate(train = TRUE)
+train_c_loglik <- bind_rows(train_c_loglik) %>%
+  mutate(train = TRUE)
 
-c_ll_df <- holdout_c_loglik %>%
-  group_by(iter, model, train) %>%
-  summarize(mean_nll = mean(-value))
+# data frame for plotting colors
+cols <- c('Poisson' = 'green3',
+          'Negative binomial' = 'skyblue')
 
-# train_c_ll_df <- train_c_loglik %>%
-#   group_by(iter, model, train) %>%
-#   summarize(mean_nll = mean(-value))
+holdout_c_loglik %>%
+  full_join(train_c_loglik) %>%
+  mutate(train = ifelse(train == TRUE, 'train', 'test'),
+         Distribution = case_when(
+           grepl('nb', .$model) ~ 'Negative binomial',
+           grepl('pois', .$model) ~ 'Poisson')) %>%
+  spread(train, value) %>%
+  ggplot(aes(x = train, y = test, color = Distribution)) +
+  geom_point(alpha = .05) +
+  xlab('Log likelihood: training set') +
+  ylab('Log likelihood: test set') +
+  scale_color_manual('Count distribution', values = cols) +
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  theme(legend.justification = c(1, 0), legend.position = c(1, 0)) +
+  ylim(c(-7000, -2500))
+ggsave(filename = 'fig/loglik-counts.png', width = 6, height = 4)
 
-c_ll_df %>%
+
+
+## Generate plots to evaluate distributional assumptions
+train_c_rep <- train_c_rep %>%
+  bind_rows
+
+pr_df <- train_c_rep %>%
+  group_by(iter, value, model) %>%
+  summarize(n_value = n()) %>%
   ungroup %>%
-  mutate(Distribution = case_when(
-    grepl('nb', .$model) ~ 'Negative binomial',
-    grepl('pois', .$model) ~ 'Poisson'
-  )) %>%
-  ggplot(aes(x = -mean_nll, fill = Distribution)) +
-  geom_density(alpha = .5) +
-  scale_fill_gdocs('Distribution for counts') +
-  xlab('Log likelihood: test set') +
-  ylab('Posterior density') +
-  xlim(-.9, -.44) +
-  theme(legend.justification = c(0, 1), legend.position = c(0, 1))
-# TODO: re-run models with training loglik calculations and make scatterplot
+  group_by(iter, model) %>%
+  mutate(total_vals = sum(n_value)) %>%
+  ungroup %>%
+  group_by(iter, value, model) %>%
+  summarize(pr_value = n_value / total_vals)
+
+emp_pr <- train_counts %>%
+  mutate(total_vals = n()) %>%
+  group_by(n_fire) %>%
+  summarize(n_value = n()) %>%
+  ungroup %>%
+  mutate(pr_value= n_value / sum(n_value))
+
+den_plot <- pr_df %>%
+  ungroup %>%
+  mutate(Distribution = case_when(grepl('nb', .$model) ~ 'Negative binomial',
+                                  grepl('pois', .$model) ~ 'Poisson')) %>%
+  ggplot(aes(value, pr_value, group = iter,
+             color = Distribution)) +
+  geom_line(alpha = .1) +
+  facet_wrap(~model) +
+  scale_x_log10() +
+  scale_y_log10(breaks = 10^(c(-5:1))) +
+  theme_minimal() +
+  scale_color_manual('Count distribution', values = cols) +
+  facet_wrap(~Distribution, nrow = 1) +
+  geom_point(data = emp_pr,
+            aes(x = n_fire, y = pr_value),
+            inherit.aes = FALSE) +
+  theme(legend.position = 'none') +
+  xlab('Number of fires > 1000 acres') +
+  ylab('Pr(number fires > 1000 acres)')
+
+# proportion of zero observations
+ppc_counts <- train_c_rep %>%
+  group_by(iter, model) %>%
+  summarize(p_zero = mean(value == 0),
+            max_count = max(value),
+            sum_count = sum(value))
+
+test_ppc <- holdout_c_rep %>%
+  bind_rows %>%
+  group_by(iter, model) %>%
+  summarize(p_zero = mean(value == 0),
+            max_count = max(value),
+            sum_count = sum(value))
+
+zero_plot <- ppc_counts %>%
+  mutate(train = 'train') %>%
+  ungroup %>%
+  full_join(test_ppc %>% mutate(train = 'test')) %>%
+  mutate(Distribution = case_when(grepl('nb', .$model) ~ 'Negative binomial',
+                                  grepl('pois', .$model) ~ 'Poisson')) %>%
+  dplyr::select(-max_count, -sum_count, -model) %>%
+  spread(train, p_zero) %>%
+  ggplot(aes(x = train, y = test, color = Distribution)) +
+  theme_minimal() +
+  geom_point(alpha = .4) +
+  scale_fill_manual('Count distribution', values = cols) +
+  geom_point(x = mean(stan_d$counts == 0),
+             y = mean(stan_d$holdout_c == 0),
+             color = 'black') +
+  xlab('Proportion of zeros: training data') +
+  ylab('Proportion of zeros: test data') +
+  scale_color_manual('Count distribution', values = cols) +
+  ylim(.775, .9) +
+  theme(legend.position = 'none')
+
+max_plot <- ppc_counts %>%
+  mutate(train = 'train') %>%
+  ungroup %>%
+  full_join(test_ppc %>% mutate(train = 'test')) %>%
+  mutate(Distribution = case_when(grepl('nb', .$model) ~ 'Negative binomial',
+                                  grepl('pois', .$model) ~ 'Poisson')) %>%
+  dplyr::select(-p_zero, -sum_count, -model) %>%
+  spread(train, max_count) %>%
+  ggplot(aes(x = train, y = test, color = Distribution)) +
+  theme_minimal() +
+  geom_point(alpha = .4) +
+  scale_fill_manual('Count distribution', values = cols) +
+  xlab('Maximum count: training data') +
+  ylab('Maximum count: test data') +
+  scale_color_manual('Count distribution', values = cols) +
+  scale_x_log10(breaks = c(50, 100, 500, 1000)) +
+  scale_y_log10(breaks = c(50, 100, 500, 1000, 5000, 10000)) +
+  geom_point(aes(x = train, y = test),
+             data = tibble(train = max(stan_d$counts),
+                           test = max(stan_d$holdout_c)),
+             color = 'black',
+             inherit.aes = FALSE) +
+  annotation_logticks(alpha = .4) +
+  theme(legend.position = 'none')
+
+sum_plot <- ppc_counts %>%
+  mutate(train = 'train') %>%
+  ungroup %>%
+  full_join(test_ppc %>% mutate(train = 'test')) %>%
+  mutate(Distribution = case_when(grepl('nb', .$model) ~ 'Negative binomial',
+                                  grepl('pois', .$model) ~ 'Poisson')) %>%
+  dplyr::select(-max_count, -p_zero, -model) %>%
+  spread(train, sum_count) %>%
+  ggplot(aes(x = train, y = test, color = Distribution)) +
+  theme_minimal() +
+  geom_point(alpha = .4) +
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  scale_fill_manual('Count distribution', values = cols) +
+  xlab('Total count: training data') +
+  ylab('Total count: test data') +
+  scale_color_manual('Count distribution', values = cols) +
+  scale_y_continuous(breaks = seq(0, 30000, by = 2000)) +
+  geom_point(aes(x = train, y = test),
+             data = tibble(train = sum(stan_d$counts),
+                           test = sum(stan_d$holdout_c)),
+             color = 'black',
+             inherit.aes = FALSE) +
+  theme(legend.position = 'none')
+
+plot_grid(den_plot, zero_plot, max_plot, sum_plot)
