@@ -83,6 +83,11 @@ ggsave(filename = 'fig/loglik-counts.png', width = 6, height = 4)
 ## Generate plots to evaluate distributional assumptions
 train_c_rep <- train_c_rep %>%
   bind_rows
+write_rds(train_c_rep, 'train_c_rep.rds')
+
+holdout_c_rep <- holdout_c_rep %>%
+  bind_rows
+write_rds(holdout_c_rep, 'holdout_c_rep.rds')
 
 pr_df <- train_c_rep %>%
   group_by(iter, value, model) %>%
@@ -129,7 +134,6 @@ ppc_counts <- train_c_rep %>%
             sum_count = sum(value))
 
 test_ppc <- holdout_c_rep %>%
-  bind_rows %>%
   group_by(iter, model) %>%
   summarize(p_zero = mean(value == 0),
             max_count = max(value),
