@@ -5,6 +5,7 @@ library(cowplot)
 library(extraDistr)
 library(ggridges)
 library(ggExtra)
+library(patchwork)
 
 source('R/02-explore.R')
 source('R/make-stan-d.R')
@@ -146,9 +147,10 @@ zero_plot <- ppc_counts %>%
   theme_minimal() +
   geom_point(alpha = .4) +
   scale_fill_manual('Count distribution', values = cols) +
-  geom_point(x = mean(stan_d$counts == 0),
-             y = mean(stan_d$holdout_c == 0),
-             color = 'black') +
+  geom_vline(xintercept = mean(stan_d$counts == 0),
+             linetype = 'dashed', color = 'black') +
+  geom_hline(yintercept = mean(stan_d$holdout_c == 0),
+             linetype = 'dashed', color = 'black') +
   xlab('Proportion of zeros: training data') +
   ylab('Proportion of zeros: test data') +
   scale_color_manual('Count distribution', values = cols) +
@@ -172,11 +174,10 @@ max_plot <- ppc_counts %>%
   scale_color_manual('Count distribution', values = cols) +
   scale_x_log10(breaks = c(50, 100, 500, 1000)) +
   scale_y_log10(breaks = c(50, 100, 500, 1000, 5000, 10000)) +
-  geom_point(aes(x = train, y = test),
-             data = tibble(train = max(stan_d$counts),
-                           test = max(stan_d$holdout_c)),
-             color = 'black',
-             inherit.aes = FALSE) +
+  geom_vline(xintercept = max(stan_d$counts),
+             linetype = 'dashed', color = 'black') +
+  geom_hline(yintercept = max(stan_d$holdout_c),
+             linetype = 'dashed', color = 'black') +
   annotation_logticks(alpha = .4) +
   theme(legend.position = 'none')
 
@@ -197,11 +198,11 @@ sum_plot <- ppc_counts %>%
   ylab('Total count: test data') +
   scale_color_manual('Count distribution', values = cols) +
   scale_y_continuous(breaks = seq(0, 30000, by = 2000)) +
-  geom_point(aes(x = train, y = test),
-             data = tibble(train = sum(stan_d$counts),
-                           test = sum(stan_d$holdout_c)),
-             color = 'black',
-             inherit.aes = FALSE) +
+  geom_vline(xintercept = sum(stan_d$counts),
+             linetype = 'dashed', color = 'black') +
+  geom_hline(yintercept = sum(stan_d$holdout_c),
+             linetype = 'dashed', color = 'black') +
   theme(legend.position = 'none')
 
-plot_grid(den_plot, zero_plot, max_plot, sum_plot)
+den_plot + (zero_plot + max_plot + sum_plot) + plot_layout(nrow = 2)
+ggsave('fig/ppc-counts.png', width = 8, height = 6)
