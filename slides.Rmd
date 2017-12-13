@@ -1,6 +1,6 @@
 ---
 title: "Spatiotemporal modeling of wildfire extremes"
-author: "Max Joseph, Matthew Rossi, Megan Cattau, Adam Mahood, Nathan Mietkiewicz, Chelsea Nagy, Lise St. Denis, Jennifer Balch"
+author: "Max Joseph, Matthew Rossi, Megan Cattau, Adam Mahood, Nathan Mietkiewicz, Chelsea Nagy, Lise St. Denis, Virginia Iglesias, Jennifer Balch"
 date: "June 20, 2017"
 output: 
   beamer_presentation:
@@ -17,139 +17,269 @@ library(tidyverse)
 library(rgdal)
 library(kableExtra)
 library(knitr)
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(viridis)
+library(ggridges)
+library(rmapshaper)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
+                      fig.width = 6, fig.height = 4)
 ```
 
-# Traditional extreme value theory
+# Wildfires are burning more land
 
-- **Block maxima**
-
-- **Peaks over threshold**
-
-# Traditional extreme value theory
-
-- **Block maxima**
-
-- **Peaks over threshold**
-
-## Both require large $n$
-
-```{r, results = "hide"}
-source("R/00-fetch-data.R")
-
-# Read fire data ----------------------
-mtbs <- readOGR(mtbs_prefix, 'mtbs_fod_pts_20170501') %>%
-  subset(!(STATE %in% c("Alaska", "Hawaii", "Puero Rico"))) %>%
-  as.data.frame %>%
-  filter(R_ACRES > 1000) %>%
-  tbl_df
+```{r, results = 'hide'}
+source("R/01-clean_data.R")
+theme_set(theme_minimal())
 ```
-
-# Sample sizes for wildfires
-
-Monitoring Trends in Burn Severity (MTBS) record: 
-
-1984-2015 `r nrow(mtbs)` records
-
-# Sample sizes for wildfires by year
 
 ```{r}
 mtbs %>%
+  select(-geometry) %>%
+  as_tibble %>%
   group_by(FIRE_YEAR) %>%
-  summarize(n = n()) %>%
-  kable(format = "latex")
+  summarize(tot_area = sum(R_ACRES)) %>%
+  ggplot(aes(FIRE_YEAR, tot_area)) + 
+  geom_line() + 
+  xlab('Year') + 
+  ylab('Total wildfire burn area (acres)')
 ```
-# Sample sizes for wildfires by year X HUC4 drainage
 
-```{r, fig.width = 5, fig.height = 4}
+# The largest fires are getting larger
+
+```{r}
 mtbs %>%
-  group_by(FIRE_YEAR, HUC4_NAME) %>%
-  summarize(n = n()) %>%
-  ggplot(aes(n)) + 
-  geom_histogram() + 
-  xlab("Number of fires") + 
-  ylab("Frequency")
+  select(-geometry) %>%
+  as_tibble %>%
+  group_by(FIRE_YEAR) %>%
+  summarize(tot_area = max(R_ACRES)) %>%
+  ggplot(aes(FIRE_YEAR, tot_area)) + 
+  geom_line() + 
+  xlab('Year') + 
+  ylab('Maximum wildfire burn area (acres)')
 ```
 
-# How to study extremes with small $n$?
+# Explaining increased wildfire burn areas
 
-**"Metastastical extreme value theory (MEV)" (Marani & Ignaccolo 2015)**
+## 1. Are fires on average getting larger?
 
-- Number of events $n$ is *random*
-- Parameters that determine the distribution of event size are *random*
+```{r}
+mtbs %>%
+  select(-geometry) %>%
+  as_tibble %>%
+  ggplot(aes(x = R_ACRES - 1e3, y = FIRE_YEAR, fill = as.factor(FIRE_YEAR))) + 
+  geom_density_ridges() + 
+  scale_fill_viridis(discrete = TRUE, 'Year') + 
+  scale_x_log10() + 
+  xlab('Burn area exceedance (acres over 1000)') +
+  ylab('Year') + 
+  theme(legend.position = 'none')
+```
 
-**Sidenote:** MEV is a rediscovery of the Bayesian posterior predictive distribution
+
+# Explaining increased wildfire burn areas
+
+## 2. Is the number of fires changing over time?
+
+```{r}
+count_df %>%
+  group_by(FIRE_YEAR) %>%
+  summarize(n_fire = sum(n_fire)) %>%
+  ggplot(aes(x = FIRE_YEAR, y = n_fire)) + 
+  geom_point() + 
+  ylab('Number of wildfires over 1000') +
+  xlab('Year')
+```
+
+# Sample size affects sums and extremes
+
+## e.g., for a lognormal distribution
+
+$$y_i \sim \text{Lognormal}(0, 1)$$ 
+$$ i  = 1, ..., n$$
+
+# Effect of $n$ on sums and maxima
+
+```{r}
+y <- seq(-4, 3, .1)
+plot(exp(y), dnorm(y), 
+     type = 'l', 
+     xlab = 'y', ylab = 'Probability density')
+```
+
+# $n = 5$
+
+```{r}
+y <- seq(-4, 3, .1)
+set.seed(1234)
+ysamp <- exp(rnorm(5))
+plot(exp(y), dnorm(y), 
+     type = 'l', 
+     xlab = 'y', ylab = 'Probability density')
+points(x = ysamp, y = rep(0, length(ysamp)))
+abline(v = max(ysamp), lty = 2, col = 2)
+```
+
+# $n = 20$
+
+```{r}
+y <- seq(-4, 3, .1)
+set.seed(1234)
+ysamp <- exp(rnorm(20))
+plot(exp(y), dnorm(y), 
+     type = 'l', 
+     xlab = 'y', ylab = 'Probability density')
+points(x = ysamp, y = rep(0, length(ysamp)))
+abline(v = max(ysamp), lty = 2, col = 2)
+```
 
 
-# Why is the MEV approach useful?
+
+# In Big Book of Quotes terms...
+
+    Given enough ordinary events 
+    from a long tailed distribution, 
+    some will be extraordinary. 
+
+```{r}
+y <- seq(-4, 3, .1)
+plot(exp(y), dnorm(y), 
+     type = 'l', 
+     xlab = 'y', ylab = 'Probability density')
+```
+
+
+# Modeling point of interest
+
+$n$ and $y$ are random $\rightarrow$ **"Metastastical extreme value theory"** (Marani & Ignaccolo 2015)
+
+Restatement of the posterior predictive distribution $[\tilde{y} \mid y] = \int_\theta [\tilde{y}, \theta \mid y] d \theta$
+
+![](https://upload.wikimedia.org/wikipedia/commons/d/d4/Thomas_Bayes.gif)
+
+
+# Why is this approach useful?
 
 **Traditional extreme value theory**
 
-- Assume large sample size
+- Requires a threshold for "extremes"
+- Sensitive to misspecification
 
 **Metastatistical extreme value theory**
 
-- Allow inference even when $n$ is small
-
-$\rightarrow$ inference at spatiotemporal scales relevant to decision-making
+- Extremes arise from **ordinary events**
 
 
 # Our extension of MEV
 
-Move from the **temporal** (Marani & Ignaccolo 2015) to the **spatiotemporal** domain in the context of **wildfire extremes**
+- fully Bayesian
+- from **temporal** to **spatiotemporal**
+- non-stationary
 
+![](http://cdn.cnn.com/cnnnext/dam/assets/171206113457-28-california-fire-1205-super-169.jpg)
 
-# Types of extremes to consider
+# What we care about
 
 - sizes of single fires
 - number of fires
 - total burn area in a region/state/country
 - rates of change among years/across space
 
-**Overall goal**: predict future changes in these quantities at a sufficiently fine spatiotemporal scale
+**Overall goal**: explain changes in these things
 
 
-# Model summary
+# Spatiotemporal segmentation
 
-Bayesian multivariate spatiotemporal mixed effects model
+- EPA level 3 ecoregions
+- monthly timesteps: Jan 1984, ..., Dec 2015
 
-**Multivariate response**
+```{r}
+simple_ecoregions <- rmapshaper::ms_simplify(input = as(ecoregions, 'Spatial'), 
+                                             keep = .01) %>%
+  st_as_sf()
 
-1. Number of fires (Poisson)
-2. Size of each fire (log-Normal)
-
-**Explanatory variables**
-
-- VPD, PDSI, precip, max temp., PET
-
-**Spatiotemporal random effects**
-
-- Orthogonal spatiotemporal basis functions (Bradley, Holan, & Wikle 2015)
-- Avoids confounding with covariates
-
-
-# 
-
-![](fig/st-basis.pdf)
-
+plot(simple_ecoregions[, 'NA_L3CODE'])
+```
 
 # Spatiotemporal drivers
 
-Multivariate Adaptive Constructed Analogs (MACA) (Abatzoglou, Brown, 2011) 
+**MACA climate data** (Abatzoglou, Brown, 2011) 
 
-Currently using MACAv2-METDATA, monthly timestep
+1. Specific humidity
+2. Wind speed
+3. Precipitation
+4. 12 month precip. 
+5. Max. air temperature
 
-1. VPD (?)
-2. PDSI (?)
-3. Total precip: 1 yr + 1 mo. sliding window ($\checkmark$) 
-4. Mean daily maximum temp. ($\checkmark$) 
-5. Potential evapotranspiration ($\checkmark$) 
+**Other stuff**
+
+6. Terrain ruggedness (NASA SRTM)
+7. Housing density (Hammer et al. 2008)
+
+# Accounting for non-sationarity
+
+## A bad way
+
+**Assume each ecoregion has it's own response**
+
+$$\mu_{it} = \beta_i x_{it}$$
+
+$\mu_{it}$: an expected value in ecoregion $i$, time $t$
+
+$\beta_i$: the response of ecoregion $i$ to $x$
+
+$x_{it}$: the value of explanatory variable in ecoregion $i$, time $t$
 
 
-# Other questions about MACA data
+# A good way
 
-Any particular CMIP5 model(s) to use or avoid?
+Borrow information from adjacent/similar regions
 
-Are ensemble average values available?
+```{r}
+plot(simple_ecoregions[, c('NA_L3CODE', 'NA_L2CODE', 'NA_L1CODE')])
+```
 
-# Thanks!
+
+# Decomposing ecoregion-level responses
+
+$$\mu_{it} = \big(\beta + \beta_i^{(L1)} + \beta_i^{(L2)} + \beta_i^{(L3)}\big) x_{it}$$
+
+$\beta$: nationwide effect of $x$
+
+$\beta_i^{(L1)}$: adjustment for level 1 ecoregion
+
+$\beta_i^{(L2)}$: adjustment for level 2 ecoregion
+
+$\beta_i^{(L3)}$: adjustment for level 3 ecoregion
+
+
+# Dimensionality challenges
+
+85 L3 ecoregions $\times$ 6 vars + 
+
+20 L2 ecoregions $\times$ 6 vars + 
+
+10 L1 ecoregions $\times$ 6 vars 
+
+$\rightarrow$ 690 coefficients
+
+For counts AND for burn areas
+
+$\rightarrow$ 690 $\times$ 2 = 1380 coefficients
+
+
+# Avoiding overfitting
+
+## Bad idea: model selection
+
+Choose among models that include all possible subsets of coefficients
+
+$$\sum_{r = 0}^{1380} \dfrac{1380!}{r!(1380 - r)!} = \text{a lot}$$
+
+# Continuous model expansion
+
+Fit **one** model, but shrink parameters toward 0
+
+- the finnish horseshoe prior (Piironen and Vehtari 2017)
+- similar to L2 regularization
+
+![](http://www.scandinaviandesigns.net/files/horse-shaped-chair1.jpg)
+
