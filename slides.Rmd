@@ -1,27 +1,41 @@
 ---
-title: "Spatiotemporal modeling of wildfire extremes"
+title: "Spatiotemporal wildfire extremes"
+subtitle: "understanding drivers of ignition and spread"
 author: "Max Joseph, Matthew Rossi, Megan Cattau, Adam Mahood, Nathan Mietkiewicz, Chelsea Nagy, Lise St. Denis, Virginia Iglesias, Jennifer Balch"
-date: "June 20, 2017"
-output: 
+date: "December 13, 2017"
+output:
   beamer_presentation:
-    colortheme: spruce
-    fonttheme: structurebold
+    fonttheme: "structurebold"
     fig_caption: false
-in_header:
-- \usepackage{xcolor}
-- \usepackage{amssymb}
+    fig_crop: true
+header-includes: 
+- \beamertemplatenavigationsymbolsempty
+- \definecolor{foreground}{RGB}{0,0,0}
+- \definecolor{background}{RGB}{255,255,255}
+- \definecolor{title}{RGB}{0,120,255}
+- \definecolor{gray}{RGB}{155,155,155}
+- \definecolor{subtitle}{RGB}{204,0,0}
+- \definecolor{hilight}{RGB}{102,255,204}
+- \definecolor{vhilight}{RGB}{255,111,207}
+- \setbeamercolor{titlelike}{fg=title}
+- \setbeamercolor{subtitle}{fg=subtitle}
+- \setbeamercolor{institute}{fg=gray}
+- \setbeamercolor{normal text}{fg=foreground,bg=background}
+- \setbeamercolor{local structure}{fg=title}
+- \setbeamertemplate{frametitle}{\begin{centering} \insertframetitle \par \end{centering}}
 ---
 
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(rgdal)
-library(kableExtra)
 library(knitr)
 library(viridis)
 library(ggridges)
 library(rmapshaper)
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
-                      fig.width = 6, fig.height = 4)
+library(LaplacesDemon)
+knitr::opts_chunk$set(fig.width=3.5, fig.height=2.8,
+                      fig.align='center', echo = FALSE,
+                      warning=FALSE, message=FALSE)
 ```
 
 # Wildfires are burning more land
@@ -133,7 +147,7 @@ abline(v = max(ysamp), lty = 2, col = 2)
 
 
 
-# In Big Book of Quotes terms...
+# 
 
     Given enough ordinary events 
     from a long tailed distribution, 
@@ -188,15 +202,20 @@ Restatement of the posterior predictive distribution $[\tilde{y} \mid y] = \int_
 
 # Spatiotemporal segmentation
 
-- EPA level 3 ecoregions
-- monthly timesteps: Jan 1984, ..., Dec 2015
+- 85 EPA level 3 ecoregions
+- 383 monthly timesteps: Feb 1984, ..., Dec 2015
+- $85 \times 383 = 32555$ spatiotemporal units
 
 ```{r}
-simple_ecoregions <- rmapshaper::ms_simplify(input = as(ecoregions, 'Spatial'), 
+if (!file.exists('simple_er.rds')) {
+  simple_ecoregions <- rmapshaper::ms_simplify(input = as(ecoregions, 'Spatial'), 
                                              keep = .01) %>%
-  st_as_sf()
+  st_as_sf() 
+  write_rds(simple_ecoregions, 'simple_er.rds')
+}
+simple_ecoregions <- read_rds('simple_er.rds')
 
-plot(simple_ecoregions[, 'NA_L3CODE'])
+plot(simple_ecoregions[, 'NA_L3CODE'], key.pos = NULL, main = NULL)
 ```
 
 # Spatiotemporal drivers
@@ -214,11 +233,81 @@ plot(simple_ecoregions[, 'NA_L3CODE'])
 6. Terrain ruggedness (NASA SRTM)
 7. Housing density (Hammer et al. 2008)
 
+# Spatiotemporal inputs (Middle Rockies)
+
+```{r}
+ecoregion_df <- as(ecoregions, "Spatial") %>%
+  data.frame
+
+# get areas for each L3 ecoregion
+area_df <- ecoregion_df %>%
+  as.data.frame %>%
+  tbl_df %>%
+  group_by(NA_L3NAME) %>%
+  summarize(area = sum(Shape_Area))
+
+count_df <- count_df %>%
+  left_join(area_df)
+
+er_df <- dplyr::distinct(data.frame(ecoregions),
+                       NA_L3NAME, NA_L2NAME, NA_L1NAME,
+                       NA_L2CODE, NA_L1CODE) %>%
+  as_tibble %>%
+  filter(NA_L2NAME != 'UPPER GILA MOUNTAINS (?)')
+
+st_covs <- ecoregion_summaries %>%
+  left_join(er_df) %>%
+  filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)",
+         year > 1983,
+         ym <= max(mtbs$ym)) %>%
+  mutate(crmin = c(scale(rmin)),
+         cpr = c(scale(pr)),
+         ctmx = c(scale(tmmx)),
+         cvs = c(scale(vs)),
+         cpr12 = c(scale(prev_12mo_precip)),
+         ctri = c(scale(log(tri))),
+         chd = c(scale(log(housing_density)))) %>%
+  left_join(area_df) %>%
+  droplevels %>%
+  mutate(er_ym = paste(NA_L3NAME, ym, sep = "_")) %>%
+  arrange(ym, NA_L3NAME) %>%
+  mutate(train = ifelse(year < 2010, 'train', 'test'))
+```
+
+```{r, fig.width = 8, fig.height = 5}
+plot_er_covs <- function(er) {
+  st_covs %>%
+    filter(NA_L3NAME == er) %>%
+    select(NA_L3NAME, ym, pr, rmin, tmmx, vs, prev_12mo_precip, housing_density) %>%
+    rename(Precipitation = pr, 
+           `Min. humidity` = rmin, 
+           `Max. air temp.` = tmmx, 
+           `Wind speed` = vs, 
+           `Precipitation (12 mo)` = prev_12mo_precip, 
+           `Housing density` = housing_density) %>%
+    gather(variable, value, -NA_L3NAME, -ym) %>%
+    ggplot(aes(ym, value)) + 
+    geom_line() + 
+    facet_wrap(~variable, scales = 'free_y', nrow = 6) + 
+    xlab('Time') + 
+    ylab('Value')
+}
+
+plot_er_covs('Middle Rockies')
+```
+
+# Spatiotemporal inputs (Coast Range)
+
+```{r, fig.width = 8, fig.height = 5}
+plot_er_covs('Coast Range')
+```
+
+
 # Accounting for non-sationarity
 
 ## A bad way
 
-**Assume each ecoregion has it's own response**
+**Model a different response for each ecoregion**
 
 $$\mu_{it} = \beta_i x_{it}$$
 
@@ -229,7 +318,7 @@ $\beta_i$: the response of ecoregion $i$ to $x$
 $x_{it}$: the value of explanatory variable in ecoregion $i$, time $t$
 
 
-# A good way
+# A better way
 
 Borrow information from adjacent/similar regions
 
@@ -272,14 +361,162 @@ $\rightarrow$ 690 $\times$ 2 = 1380 coefficients
 
 Choose among models that include all possible subsets of coefficients
 
-$$\sum_{r = 0}^{1380} \dfrac{1380!}{r!(1380 - r)!} = \text{a lot}$$
+$2^{1380}$ models $\rightarrow \infty$
+
 
 # Continuous model expansion
 
-Fit **one** model, but shrink parameters toward 0
+**One** model, but shrink parameters toward 0
 
 - the finnish horseshoe prior (Piironen and Vehtari 2017)
-- similar to L2 regularization
 
-![](http://www.scandinaviandesigns.net/files/horse-shaped-chair1.jpg)
+```{r, fig.width = 6, fig.height=3.5}
+x <- seq(-4, 4, by = .001)
+lambda_seq <- seq(.05, 1, length.out = 100)
+colors <- viridis(length(lambda_seq))
+plot(x, dhs(x, lambda = .05, tau = 1), type = 'l', 
+     xlab = expression(beta), ylab = expression(p(beta)), 
+     col = alpha(colors[1], .4))
+for (i in 2:length(lambda_seq)) lines(x, dhs(x, lambda_seq[i], tau = 1), col = alpha(colors[i], .4))
+leg_idx <- seq(1, length(lambda_seq), length.out = 3)
+legend('topright', col = colors[leg_idx], lty = 1, 
+       legend = paste('lambda =', round(lambda_seq[leg_idx], 2)), 
+       bty = 'n')
+```
+
+
+# Implementation details
+
+- Docker (`earthlab/mstm-aws`)
+- AWS EC2
+- Scripted data acquisition & processing
+- Bash, R, and Stan
+
+
+## Training/test split
+
+1984 - 2009: training data
+
+2010 - 2015: holdout data
+
+# Choosing among distributions
+
+## Fire size
+
+## Number of fires
+
+
+# Current challenge: why do we overpredict counts in the test data?
+
+- Only happens for a subset of ecoregions
+
+- Mostly great plains, eastern temperate forests...
+
+## Model-based attribution (`R/interaction-plots.R`)
+
+
+# Other challenges: climate change
+
+## Holdout data have new climate conditions $\rightarrow$ covariate shift
+
+```{r}
+source('R/inhull.R')
+
+check_hull <- function(df) {
+  df <- ungroup(df)
+  # check to see whether climate conditions in test data are outside the 
+  # convex hull of climate data in the training data
+  testpts <- subset(df, train == 'test') %>%
+    select(cpr, crmin, ctmx, cvs, cpr12) %>%
+    as.matrix
+  calpts <- subset(df, train == 'train') %>%
+    select(cpr, crmin, ctmx, cvs, cpr12) %>%
+    as.matrix
+  pts_in_hull <- inhull(testpts, calpts)
+  return(df %>% 
+           filter(train == 'test') %>% 
+           mutate(pts_in_hull = ifelse(pts_in_hull == 1, 1, 0)))
+}
+
+
+hull_d <- st_covs %>% 
+  split(.$NA_L3NAME) %>%
+  map(~ check_hull(.)) %>%
+  bind_rows
+```
+
+![](https://www.haskell.org/communities/05-2009/html/Figure.jpg)
+
+...but in 5D climate space
+
+# 
+
+```{r, fig.width = 7, fig.height  = 5}
+hull_summ <- hull_d %>%
+  group_by(NA_L3NAME) %>%
+  summarize(mean_in_hull = mean(pts_in_hull)) %>%
+  arrange(mean_in_hull)
+
+hull_summ %>%
+  ggplot(aes(mean_in_hull, reorder(NA_L3NAME, mean_in_hull))) + 
+  geom_point() + 
+  xlab('Proportion of holdout time steps\nin training climate convex hull') + 
+  ylab('') +
+  theme(axis.text.y = element_text(size = 5))
+```
+
+# High Plains
+
+```{r, fig.width = 8, fig.height = 5}
+long_hull <- hull_d %>%
+  right_join(st_covs) %>%
+  filter(NA_L3NAME == 'High Plains') %>%
+  select(NA_L3NAME, ym, pr, rmin, tmmx, vs, prev_12mo_precip, pts_in_hull) %>%
+  rename(Precipitation = pr, 
+         `Min. humidity` = rmin, 
+         `Max. air temp.` = tmmx, 
+         `Wind speed` = vs, 
+         `Precipitation (12 mo)` = prev_12mo_precip) %>%
+    gather(variable, value, -NA_L3NAME, -ym, -pts_in_hull)
+
+long_hull %>%
+  ggplot(aes(ym, value)) + 
+  geom_line() + 
+  facet_wrap(~variable, scales = 'free_y', nrow = 5) + 
+  xlab('Time') + 
+  ylab('Value') + 
+  geom_point(aes(color = factor(pts_in_hull)), 
+             data = filter(long_hull, pts_in_hull == 0), 
+             size = .5) + 
+  scale_color_manual(values = c('red'), '') +
+  theme(legend.position = 'none')
+```
+
+
+# Ouachita Mountains
+
+```{r, fig.width = 8, fig.height = 5}
+long_hull <- hull_d %>%
+  right_join(st_covs) %>%
+  filter(NA_L3NAME == 'Ouachita Mountains') %>%
+  select(NA_L3NAME, ym, pr, rmin, tmmx, vs, prev_12mo_precip, pts_in_hull) %>%
+  rename(Precipitation = pr, 
+         `Min. humidity` = rmin, 
+         `Max. air temp.` = tmmx, 
+         `Wind speed` = vs, 
+         `Precipitation (12 mo)` = prev_12mo_precip) %>%
+    gather(variable, value, -NA_L3NAME, -ym, -pts_in_hull)
+
+long_hull %>%
+  ggplot(aes(ym, value)) + 
+  geom_line() + 
+  facet_wrap(~variable, scales = 'free_y', nrow = 5) + 
+  xlab('Time') + 
+  ylab('Value') + 
+  geom_point(aes(color = factor(pts_in_hull)), 
+             data = filter(long_hull, pts_in_hull == 0), 
+             size = .5) + 
+  scale_color_manual(values = c('red'), '') +
+  theme(legend.position = 'none')
+```
 
