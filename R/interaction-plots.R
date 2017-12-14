@@ -95,7 +95,7 @@ write_attribution_plot <- function(which_ecoregion) {
   plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
                                 '.png'))
-  ggsave(filename = plot_name, plot = p, width = 14, height = 8)
+  ggsave(filename = plot_name, plot = p, width = 10, height = 10)
 }
 
 dir.create(file.path('fig', 'effs'))

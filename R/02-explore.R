@@ -40,32 +40,6 @@ st_covs <- ecoregion_summaries %>%
   arrange(ym, NA_L3NAME)
 
 
-
-# Compute spatial means, temporal means, and residuals
-st_covs <- st_covs %>%
-  group_by(NA_L3NAME) %>%
-  mutate(sp_mean_crmin = mean(crmin),
-         sp_mean_cpr = mean(cpr),
-         sp_mean_ctmx = mean(ctmx),
-         sp_mean_cvs = mean(cvs),
-         sp_mean_cpr12 = mean(cpr12),
-         sp_mean_chd = mean(chd)) %>%
-  ungroup() %>%
-  group_by(ym) %>%
-  mutate(t_mean_crmin = mean(crmin),
-         t_mean_cpr = mean(cpr),
-         t_mean_ctmx = mean(ctmx),
-         t_mean_cvs = mean(cvs),
-         t_mean_cpr12 = mean(cpr12),
-         t_mean_chd = mean(chd)) %>%
-  ungroup() %>%
-  mutate(r_crmin = crmin - t_mean_crmin - sp_mean_crmin,
-         r_cpr = cpr - t_mean_cpr - sp_mean_cpr,
-         r_ctmx = ctmx - t_mean_ctmx - sp_mean_ctmx,
-         r_cvs = cvs - t_mean_cvs - sp_mean_cvs,
-         r_cpr12 = cpr12 - t_mean_cpr12 - sp_mean_cpr12,
-         r_chd = chd - t_mean_chd - sp_mean_chd)
-
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
 
