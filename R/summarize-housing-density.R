@@ -101,3 +101,5 @@ extraction_df %>%
 
 res %>%
   write_csv('data/processed/housing_density.csv')
+
+# system('aws s3 cp data/processed/housing_density.csv s3://earthlab-mjoseph/demo_evt/housing_density.csv')
