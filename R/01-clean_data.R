@@ -96,12 +96,13 @@ if (!file.exists('lagged_precip.rds')) {
     write_rds('lagged_precip.rds')
 }
 
-if (!file.exists('data/processed/housing_density.csv')) {
+# the following lines process the files
+if (!RCurl::url.exists('https://s3-us-west-2.amazonaws.com/earthlab-mjoseph/demo_evt/housing_density.csv')) {
   system('bash bash/fetch-density.sh')
   source('R/summarize-housing-density.R')
 }
 
-housing_df <- read_csv('data/processed/housing_density.csv') %>%
+housing_df <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-mjoseph/demo_evt/housing_density.csv') %>%
   mutate(ym = as.yearmon(paste(year, sprintf("%02d", month), sep = "-"))) %>%
   arrange(NA_L3NAME, year, month)
 
