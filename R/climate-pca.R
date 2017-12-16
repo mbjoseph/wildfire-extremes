@@ -7,41 +7,33 @@ source('R/02-explore.R')
 
 climate_d <- st_covs %>%
   select(NA_L3NAME, year, ym, cpr, crmin, ctmx, cvs, cpr12) %>%
-  gather(variable, value, -NA_L3NAME, -year, -ym) %>%
-  mutate(month = substr(ym, 1, 3)) %>%
-  unite(variable, variable, month) %>%
-  select(-ym) %>%
-  spread(variable, value) %>%
   na.omit
 
 pc <- climate_d %>%
-  select(-NA_L3NAME, -year) %>%
+  select(-NA_L3NAME, -year, -ym) %>%
   prcomp(scale = TRUE)
 
 pc_d <- climate_d %>%
   bind_cols(as_tibble(pc$x)) %>%
-  arrange(NA_L3NAME, year) %>%
+  arrange(NA_L3NAME, ym) %>%
   left_join(er_df)
 
 p <- pc_d %>%
   ggplot(aes(PC1, PC2, color = NA_L3NAME, group = NA_L3NAME)) +
   geom_path(alpha = .8) +
-  geom_point(aes(group = year), alpha = .5, size = .1) +
+  geom_point(aes(group = ym), alpha = .5, size = .1) +
   theme_minimal() +
   theme(legend.position = 'none')
 
 ggplotly(p)
 
 
-p <- plot_ly(pc_d, x = ~PC1, y = ~PC2, z = ~PC3, color = ~NA_L3NAME,
+p <- pc_d %>%
+#  filter(NA_L3NAME %in% c('Ouachita Mountains', 'Boston Mountains')) %>%
+  plot_ly(x = ~PC1, y = ~PC2, z = ~PC3, color = ~NA_L3NAME, text=~factor(ym),
              type = 'scatter3d', mode = 'lines',
              opacity = 1,
              line = list(width = 3, colorscale = 'Viridis')) %>%
   layout(showlegend = FALSE)
 p
 
-
-p <- plot_ly(pc_d, x = ~PC1, y = ~PC2, z = ~PC3, color = ~NA_L3NAME,
-             sizes = 2) %>%
-  add_lines()
-p
