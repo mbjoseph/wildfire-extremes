@@ -44,6 +44,7 @@ mu_df <- post$mu_full %>%
 
 
 write_attribution_plot <- function(which_ecoregion) {
+  which_dim = 1
   subd <- mu_df %>%
     left_join(distinct(st_covs, NA_L3NAME, ym, row, year)) %>%
     filter(NA_L3NAME == which_ecoregion, response == which_dim)
@@ -57,7 +58,7 @@ write_attribution_plot <- function(which_ecoregion) {
     scale_y_log10() +
     ggtitle(which_ecoregion)
 
-  X_sub <- make_X(st_covs)[subd$row, ]
+  X_sub <- X[subd$row, ]
 
   # for each variable and each ym, compute the product of the covariate and the coefficient
   n_iter <- length(post$lp__)

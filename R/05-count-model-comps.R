@@ -17,6 +17,12 @@ model_fits <- list.files(pattern = '*.fit.*\\.rds')
 
 count_fits <- grep(model_fits, pattern = 'ba_', value = TRUE, invert = TRUE)
 
+# data frame for plotting colors
+cols <- c('Poisson' = 'green3',
+          'Negative binomial' = 'skyblue',
+          'Zero-inflated Poisson' = 'orange',
+          'Zero-inflated negative binomial' = 'purple')
+
 # for each model fit, produce a vector of the holdout log likelihoods
 holdout_c_loglik <- list()
 train_c_loglik <- list()
@@ -57,25 +63,23 @@ holdout_c_loglik <- bind_rows(holdout_c_loglik) %>%
 train_c_loglik <- bind_rows(train_c_loglik) %>%
   mutate(train = TRUE)
 
-# data frame for plotting colors
-cols <- c('Poisson' = 'green3',
-          'Negative binomial' = 'skyblue')
 
 holdout_c_loglik %>%
   full_join(train_c_loglik) %>%
   mutate(train = ifelse(train == TRUE, 'train', 'test'),
          Distribution = case_when(
-           grepl('nb', .$model) ~ 'Negative binomial',
-           grepl('pois', .$model) ~ 'Poisson')) %>%
+           grepl('^nb', .$model) ~ 'Negative binomial',
+           grepl('pois', .$model) ~ 'Poisson',
+           grepl('zip', .$model) ~ 'Zero-inflated Poisson',
+           grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
   spread(train, value) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
-  geom_point(alpha = .05) +
+  geom_point(alpha = .5) +
   xlab('Log likelihood: training set') +
   ylab('Log likelihood: test set') +
   scale_color_manual('Count distribution', values = cols) +
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
-  theme(legend.justification = c(1, 0), legend.position = c(1, 0)) +
-  ylim(c(-7000, -2500))
+  theme(legend.justification = c(0, 0), legend.position = c(0, 0))
 ggsave(filename = 'fig/loglik-counts.png', width = 6, height = 4)
 
 
@@ -108,8 +112,11 @@ emp_pr <- train_counts %>%
 
 den_plot <- pr_df %>%
   ungroup %>%
-  mutate(Distribution = case_when(grepl('nb', .$model) ~ 'Negative binomial',
-                                  grepl('pois', .$model) ~ 'Poisson')) %>%
+  mutate(Distribution = case_when(
+    grepl('^nb', .$model) ~ 'Negative binomial',
+    grepl('pois', .$model) ~ 'Poisson',
+    grepl('zip', .$model) ~ 'Zero-inflated Poisson',
+    grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
   ggplot(aes(value, pr_value, group = iter,
              color = Distribution)) +
   geom_line(alpha = .1) +
@@ -143,8 +150,11 @@ zero_plot <- ppc_counts %>%
   mutate(train = 'train') %>%
   ungroup %>%
   full_join(test_ppc %>% mutate(train = 'test')) %>%
-  mutate(Distribution = case_when(grepl('nb', .$model) ~ 'Negative binomial',
-                                  grepl('pois', .$model) ~ 'Poisson')) %>%
+  mutate(Distribution = case_when(
+    grepl('^nb', .$model) ~ 'Negative binomial',
+    grepl('pois', .$model) ~ 'Poisson',
+    grepl('zip', .$model) ~ 'Zero-inflated Poisson',
+    grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
   dplyr::select(-max_count, -sum_count, -model) %>%
   spread(train, p_zero) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
@@ -158,15 +168,17 @@ zero_plot <- ppc_counts %>%
   xlab('Proportion of zeros: training data') +
   ylab('Proportion of zeros: test data') +
   scale_color_manual('Count distribution', values = cols) +
-  ylim(.775, .9) +
   theme(legend.position = 'none')
 
 max_plot <- ppc_counts %>%
   mutate(train = 'train') %>%
   ungroup %>%
   full_join(test_ppc %>% mutate(train = 'test')) %>%
-  mutate(Distribution = case_when(grepl('nb', .$model) ~ 'Negative binomial',
-                                  grepl('pois', .$model) ~ 'Poisson')) %>%
+  mutate(Distribution = case_when(
+    grepl('^nb', .$model) ~ 'Negative binomial',
+    grepl('pois', .$model) ~ 'Poisson',
+    grepl('zip', .$model) ~ 'Zero-inflated Poisson',
+    grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
   dplyr::select(-p_zero, -sum_count, -model) %>%
   spread(train, max_count) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
@@ -189,8 +201,11 @@ sum_plot <- ppc_counts %>%
   mutate(train = 'train') %>%
   ungroup %>%
   full_join(test_ppc %>% mutate(train = 'test')) %>%
-  mutate(Distribution = case_when(grepl('nb', .$model) ~ 'Negative binomial',
-                                  grepl('pois', .$model) ~ 'Poisson')) %>%
+  mutate(Distribution = case_when(
+    grepl('^nb', .$model) ~ 'Negative binomial',
+    grepl('pois', .$model) ~ 'Poisson',
+    grepl('zip', .$model) ~ 'Zero-inflated Poisson',
+    grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
   dplyr::select(-max_count, -p_zero, -model) %>%
   spread(train, sum_count) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +

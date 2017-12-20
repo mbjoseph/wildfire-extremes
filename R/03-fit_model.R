@@ -16,38 +16,48 @@ control_list <- list(
   max_treedepth = 11
 )
 
-n_iter <- 2000
+n_iter <- 1000
 
 # Count models --------------------------------------------------------
 pois_d <- stan_d
 pois_d$M <- 1
 
+zi_d <- pois_d
+zi_d$M <- 2
+
 pois_init <- stan_model('stan/counts-pois.stan')
-pois_fit <- sampling(
-  pois_init,
-  data = pois_d,
-  cores = 4,
-  init_r = .01,
-  iter = n_iter,
-  refresh = 1,
-  control = control_list,
-  pars = count_pars
-)
+pois_fit <- vb(pois_init,
+               data = pois_d,
+               eta = .1,
+               init = 0,
+               adapt_engaged = FALSE)
 write_rds(pois_fit, path = 'pois_fit.rds')
 
+
+zip_init <- stan_model('stan/counts-zip.stan')
+zip_fit <- vb(zip_init,
+              data = zi_d,
+              eta = .1,
+              init = 0,
+              adapt_engaged = FALSE)
+write_rds(zip_fit, path = 'zip_fit.rds')
+
 nb_init <- stan_model('stan/counts-nb.stan')
-nb_fit <- sampling(
+nb_fit <- vb(
   nb_init,
   data = pois_d,
-  cores = 4,
-  init_r = .01,
-  iter = n_iter,
-  refresh = 1,
-  control = control_list,
-  pars = count_pars
-)
+  eta = .1,
+  init = 0,
+  adapt_engaged = FALSE)
 write_rds(nb_fit, path = 'nb_fit.rds')
 
+zinb_init <- stan_model('stan/counts-zinb.stan')
+zinb_fit <- vb(zinb_init,
+              data = zi_d,
+              eta = .1,
+              init = 0,
+              adapt_engaged = FALSE)
+write_rds(zinb_fit, path = 'zinb_fit.rds')
 
 
 # Burn area models --------------------------------------------------------

@@ -24,7 +24,7 @@ data {
   int<lower = 1, upper = N * T + 1> n_u_tc;
   int<lower = 1> u_tc[n_u_tc];
 
-  int<lower = 1, upper = 1> M; // num dimensions
+  int<lower = 2, upper = 2> M; // num dimensions
   real<lower = 0> slab_df;
   real<lower = 0> slab_scale;
 
@@ -46,11 +46,11 @@ parameters {
   vector[M] alpha; // intercept
   vector<lower = 0>[M] c_aux;
   cholesky_factor_corr[M] L_beta;
-  real<lower = 0> nb_prec;
 }
 
 transformed parameters {
   vector[n_count] mu_count;
+  vector[n_count] logit_p;
   matrix[M, p] beta;
   matrix[M, p] lambda_tilde;
   vector[p] lambda_sq;
@@ -73,6 +73,8 @@ transformed parameters {
   mu_count = alpha[1]
              + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[1, ]')
              + log_area_train;
+  logit_p = alpha[2]
+                  + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[2, ]');
 }
 
 model {
@@ -83,10 +85,18 @@ model {
   c_aux ~ inv_gamma(0.5 * slab_df, 0.5 * slab_df);
   alpha ~ normal(0, 5);
   tau ~ normal(0, 5);
-  nb_prec ~ normal(0, 5);
 
   // number of fires
-  counts ~ neg_binomial_2_log(mu_count, nb_prec);
+  for (i in 1:n_count) {
+    if (counts[i] == 0) {
+      target += log_sum_exp(bernoulli_logit_lpmf(0 | logit_p[i]),
+                            bernoulli_logit_lpmf(1 | logit_p[i])
+                            + poisson_log_lpmf(counts[i] | mu_count[i]));
+    } else {
+      target += bernoulli_logit_lpmf(1 | logit_p[i])
+                + poisson_log_lpmf(counts[i] | mu_count[i]);
+    }
+  }
 }
 
 generated quantities {
@@ -107,17 +117,30 @@ generated quantities {
 
   // posterior predictions for the number of fires
   for (i in 1:(N * T)) {
-    count_pred[i] = neg_binomial_2_log_rng(mu_full[1][i], nb_prec);
+    count_pred[i] = bernoulli_logit_rng(mu_full[2][i]) * poisson_log_rng(mu_full[1][i]);
   }
 
   // training log likelihoods
   for (i in 1:n_count) {
-    train_loglik_c[i] = poisson_log_lpmf(counts[i] | mu_count[i]);
+    if (counts[i] == 0) {
+      train_loglik_c[i] = log_sum_exp(bernoulli_logit_lpmf(0 | logit_p[i]),
+                            bernoulli_logit_lpmf(1 | logit_p[i])
+                            + poisson_log_lpmf(counts[i] | mu_count[i]));
+    } else {
+      train_loglik_c[i] = bernoulli_logit_lpmf(1 | logit_p[i])
+                + poisson_log_lpmf(counts[i] | mu_count[i]);
+    }
   }
 
   // holdout log likelihoods
   for (i in 1:n_holdout_c) {
-      holdout_loglik_c[i] = neg_binomial_2_log_lpmf(holdout_c[i] | mu_full[1][holdout_c_idx[i]],
-                                                                    nb_prec);
+    if (holdout_c[i] == 0) {
+      holdout_loglik_c[i] = log_sum_exp(bernoulli_logit_lpmf(0 | mu_full[2][holdout_c_idx[i]]),
+                            bernoulli_logit_lpmf(1 | mu_full[2][holdout_c_idx[i]])
+                            + poisson_log_lpmf(counts[i] | mu_full[1][holdout_c_idx[i]]));
+    } else {
+      holdout_loglik_c[i] = bernoulli_logit_lpmf(1 | mu_full[2][holdout_c_idx[i]])
+                + poisson_log_lpmf(counts[i] | mu_full[1][holdout_c_idx[i]]);
+    }
   }
 }

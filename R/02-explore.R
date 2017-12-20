@@ -1,6 +1,7 @@
 library(tidyverse)
 library(lubridate)
 library(rstan)
+library(splines)
 source("R/01-clean_data.R")
 
 ecoregion_df <- as(ecoregions, "Spatial") %>%
@@ -40,6 +41,7 @@ st_covs <- ecoregion_summaries %>%
   arrange(ym, NA_L3NAME)
 
 
+
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
 
@@ -72,32 +74,39 @@ T <- length(unique(st_covs$ym))
 
 assert_that(identical(nrow(st_covs), N * T))
 
-# Create design matrices --------------------------------------------------
-make_X <- function(df) {
-  model.matrix(~ 0 +
-                 ctri+
-                 chd * NA_L3NAME +
-                 crmin * NA_L3NAME +
-                 cvs * NA_L3NAME +
-                 cpr * NA_L3NAME +
-                 cpr12 * NA_L3NAME +
-                 ctmx * NA_L3NAME +
-                 chd * NA_L2NAME +
-                 crmin * NA_L2NAME +
-                 cvs * NA_L2NAME +
-                 cpr * NA_L2NAME +
-                 cpr12 * NA_L2NAME +
-                 ctmx * NA_L2NAME +
-                 chd * NA_L1NAME +
-                 crmin * NA_L1NAME +
-                 cvs * NA_L1NAME +
-                 cpr * NA_L1NAME +
-                 cpr12 * NA_L1NAME +
-                 ctmx * NA_L1NAME,
-              data = df)
-}
+# Create b-splines for climate vars
+vars <- c('chd', 'cvs', 'cpr', 'cpr12', 'ctmx', 'crmin')
 
-X <- make_X(st_covs)
+df_each <- 4
+X_bs <- list()
+for (i in seq_along(vars)) {
+  X_bs[[i]] <- bs(st_covs[[vars[i]]], df = df_each, intercept = TRUE) %>%
+    as_tibble
+  names(X_bs[[i]]) <- paste('bs', vars[[i]], 1:df_each, sep = '_')
+}
+X_bs <- bind_cols(X_bs)
+
+# Create design matrices --------------------------------------------------
+hd_terms <- grep('chd', names(X_bs), value = TRUE)
+
+model_terms <- expand.grid(hd_term = hd_terms,
+            other_terms = grep('chd', names(X_bs), value = TRUE, invert = TRUE)) %>%
+  as.matrix %>%
+  apply(1, paste, collapse = ' * ')
+
+l3_terms <- paste0('NA_L3NAME * ', model_terms) %>%
+  paste(collapse = ' + ')
+l2_terms <- paste0('NA_L2NAME * ', names(X_bs)) %>%
+  paste(collapse = ' + ')
+l1_terms <- paste0('NA_L1NAME * ', names(X_bs)) %>%
+  paste(collapse = ' + ')
+
+st_covs <- st_covs %>%
+  bind_cols(lapply(X_bs, c)) %>%
+  as_tibble
+
+X <- model.matrix(as.formula(paste('~ 0 + ctri + ', l1_terms, l2_terms, l3_terms, sep = ' + ')),
+      data = st_covs)
 
 sparse_X <- extract_sparse_parts(X)
 colnamesX <- colnames(X)
@@ -141,7 +150,7 @@ assert_that(max(burn_idx) <= nrow(st_covs))
 assert_that(all(train_burn_covs$NA_L3NAME[burn_idx] == train_burns$NA_L3NAME))
 assert_that(all(train_burn_covs$ym[burn_idx] == train_burns$ym))
 
-rm(X)
+#rm(X)
 rm(X_tc)
 rm(X_tb)
 gc()
