@@ -8,7 +8,7 @@ library(snowfall)
 library(loo)
 
 source('R/02-explore.R')
-m_fit <- read_rds('nb_fit.rds')
+m_fit <- read_rds('zinb_fit.rds')
 post <- rstan::extract(m_fit)
 rm(m_fit)
 gc()
@@ -24,7 +24,7 @@ beta_df <- post$beta %>%
             p_pos = mean(value > 0)) %>%
   ungroup %>%
   mutate(variable = colnamesX[col],
-         nonzero = p_neg > .9 | p_pos > .9)
+         nonzero = p_neg > .95 | p_pos > .95)
 
 nz_beta <- beta_df %>%
   filter(nonzero)
@@ -43,20 +43,10 @@ mu_df <- post$mu_full %>%
   ungroup
 
 
-write_attribution_plot <- function(which_ecoregion) {
-  which_dim = 1
+write_attribution_plot <- function(which_ecoregion, which_dim = 1) {
   subd <- mu_df %>%
     left_join(distinct(st_covs, NA_L3NAME, ym, row, year)) %>%
     filter(NA_L3NAME == which_ecoregion, response == which_dim)
-
-  subd %>%
-    ggplot(aes(ym, y = exp(median))) +
-    geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)), alpha = .2) +
-    geom_line() +
-    xlab('Time') +
-    ylab('Expected number of fires > 1000 acres') +
-    scale_y_log10() +
-    ggtitle(which_ecoregion)
 
   X_sub <- X[subd$row, ]
 
@@ -95,13 +85,14 @@ write_attribution_plot <- function(which_ecoregion) {
     ggtitle(paste('Esitmated effects for ', which_ecoregion))
   plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
+                                '-', which_dim,
                                 '.png'))
-  ggsave(filename = plot_name, plot = p, width = 10, height = 10)
+  ggsave(filename = plot_name, plot = p, width = 10, height = 20)
 }
 
 dir.create(file.path('fig', 'effs'))
 
 unique_ecoregions <- unique(st_covs$NA_L3NAME)
 for (i in seq_along(unique_ecoregions)) {
-  write_attribution_plot(unique_ecoregions[i])
+  write_attribution_plot(unique_ecoregions[i], which_dim = 1)
 }

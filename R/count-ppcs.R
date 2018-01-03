@@ -45,7 +45,7 @@ actual_vals <- count_df %>%
 
 train_y_rep %>%
   full_join(holdout_y_rep) %>%
-  filter(model == 'nb_fit.rds') %>%
+  filter(model == 'zinb_fit.rds') %>%
   gather(target, value, -year, -iter, -train, -model) %>%
   ggplot(aes(x = year, y = value, color = train)) +
   geom_jitter(alpha = .1, width = .4) +
@@ -72,6 +72,7 @@ holdout_full_rep <- holdout_c_rep %>%
   ungroup
 
 holdout_full_rep %>%
+  filter(model == 'zinb_fit.rds') %>%
   ggplot(aes(ym, med)) +
   geom_line() +
   facet_wrap(~NA_L3NAME) +
@@ -83,16 +84,17 @@ ggsave('fig/count-preds.png', width = 18, height = 10)
 
 # zoom in on problematic ecoregions
 train_full_rep %>%
+  filter(model == 'zinb_fit.rds') %>%
   mutate(train = 'train') %>%
   full_join(holdout_full_rep %>% mutate(train = 'test')) %>%
   full_join(er_df) %>%
   ggplot(aes(ym, med)) +
-  geom_line() +
   facet_wrap(~NA_L3NAME) +
-  geom_ribbon(aes(ymin = lo, ymax = hi, fill = train), alpha = .8) +
-  scale_fill_manual(values = c('black', 'darkblue')) +
+  geom_ribbon(aes(ymin = lo, ymax = hi, fill = train), alpha = .4) +
+  scale_fill_manual(values = c('red', 'dodgerblue')) +
   scale_y_log10(breaks = c(0, 1, 10, 100, 1000, 10000)) +
   theme_minimal() +
-  geom_point(data = count_df, aes(y = n_fire), col = 'red', size = .5)
-ggsave('fig/count-preds-full.png', width = 30, height = 10)
+  geom_line(data = count_df, aes(y = n_fire),
+            col = 'black', size = .2)
+ggsave('fig/count-preds-full.png', width = 80, height = 10, limitsize = FALSE)
 

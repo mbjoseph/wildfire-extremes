@@ -7,12 +7,12 @@ library(ggridges)
 library(viridis)
 library(ggthemes)
 
-fit <- read_rds(path = list.files(pattern = 'nb_fit.*'))
+fit <- read_rds(path = list.files(pattern = 'zinb_fit.*'))
 
 # Evaluate convergence ----------------------------------------------------
 traceplot(fit, inc_warmup = TRUE)
 
-traceplot(fit, pars = c('tau', 'c', 'alpha'))
+traceplot(fit, pars = c('tau', 'c', 'alpha', 'Rho_beta'))
 
 # Extract posterior draws and visualize results ---------------------------
 post <- rstan::extract(fit)
@@ -54,8 +54,9 @@ beta_summary %>%
   filter(nonzero) %>%
   ggplot(aes(x = median, y = reorder(variable, median))) +
   geom_point() +
+  facet_wrap(~dim, scales = 'free') +
   geom_errorbarh(aes(xmin = lo, xmax = hi)) +
-  theme(axis.text.y = element_text(size = 5))
+  theme(axis.text.y = element_text(size = 8))
 ggsave('fig/count-effs.png', width = 6, height = 12)
 
 rm(beta_df)
@@ -64,54 +65,68 @@ gc()
 mu_df <- post$mu_full %>%
   reshape2::melt(varnames = c('iter', 'dim', 'id')) %>%
   as_tibble() %>%
-  group_by(id) %>%
-  summarize(med = median(value),
-            lo = quantile(value, .05),
-            hi = quantile(value, .95))
+  group_by(id, dim) %>%
+  summarize(med = median(value)) %>%
+  spread(dim, med) %>%
+  mutate(expected_val = plogis(`2`) * exp(`1`))
 
 st_covs <- st_covs %>%
   group_by(NA_L3NAME) %>%
   mutate(mean_hd = mean(housing_density))
 
-
 st_covs %>%
   full_join(mu_df) %>%
-  ggplot(aes(x = rmin, y = exp(med), color = housing_density)) +
+  ggplot(aes(x = rmin, y = expected_val, color = housing_density)) +
   geom_point(size = .5, alpha = .5) +
   theme_minimal() +
   facet_wrap(~ reorder(NA_L3NAME, mean_hd)) +
   scale_color_viridis(trans = 'log') +
-  scale_y_log10()
+  scale_y_log10() +
+  xlab('Minimum humidity') +
+  ylab('Expected number of fires')
 
 st_covs %>%
   full_join(mu_df) %>%
-  ggplot(aes(x = vs, y = med, color = housing_density)) +
-  geom_point(size = .5, alpha = .5) +
-  theme_minimal() +
-  facet_wrap(~ reorder(NA_L3NAME, mean_hd)) +
-  scale_color_viridis(trans = 'log')
-
-st_covs %>%
-  full_join(mu_df) %>%
-  ggplot(aes(x = prev_12mo_precip, y = med, color = housing_density)) +
-  geom_point(size = .5, alpha = .5) +
-  theme_minimal() +
-  facet_wrap(~ reorder(NA_L3NAME, mean_hd)) +
-  scale_color_viridis(trans = 'log')
-
-st_covs %>%
-  full_join(mu_df) %>%
-  ggplot(aes(x = pr, y = med, color = housing_density)) +
-  geom_point(size = .5, alpha = .5) +
-  theme_minimal() +
-  facet_wrap(~ reorder(NA_L3NAME, mean_hd)) +
-  scale_color_viridis(trans = 'log')
-
-st_covs %>%
-  full_join(mu_df) %>%
-  ggplot(aes(x = tmmx, y = exp(med), color = housing_density)) +
+  ggplot(aes(x = vs, y = expected_val, color = housing_density)) +
   geom_point(size = .5, alpha = .5) +
   theme_minimal() +
   facet_wrap(~ reorder(NA_L3NAME, mean_hd)) +
   scale_color_viridis(trans = 'log') +
+  xlab('Wind speed') +
+  ylab('Expected number of fires') +
   scale_y_log10()
+
+st_covs %>%
+  full_join(mu_df) %>%
+  ggplot(aes(x = prev_12mo_precip, y = expected_val, color = housing_density)) +
+  geom_point(size = .5, alpha = .5) +
+  theme_minimal() +
+  facet_wrap(~ reorder(NA_L3NAME, mean_hd)) +
+  scale_color_viridis(trans = 'log') +
+  xlab('Previous 12 month precipitation') +
+  ylab('Expected number of fires') +
+  scale_x_log10() +
+  scale_y_log10()
+
+st_covs %>%
+  full_join(mu_df) %>%
+  ggplot(aes(x = pr, y = expected_val, color = housing_density)) +
+  geom_point(size = .5, alpha = .5) +
+  theme_minimal() +
+  facet_wrap(~ reorder(NA_L3NAME, mean_hd)) +
+  scale_color_viridis(trans = 'log') +
+  xlab('Same month precipitation') +
+  ylab('Expected number of fires') +
+  scale_y_log10()
+
+st_covs %>%
+  full_join(mu_df) %>%
+  ggplot(aes(x = tmmx, y = expected_val, color = housing_density)) +
+  geom_point(size = .5, alpha = .5) +
+  theme_minimal() +
+  facet_wrap(~ reorder(NA_L3NAME, mean_hd)) +
+  scale_color_viridis(trans = 'log') +
+  xlab('Air temperature') +
+  ylab('Expected number of fires') +
+  scale_y_log10()
+
