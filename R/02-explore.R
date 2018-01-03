@@ -77,7 +77,7 @@ assert_that(identical(nrow(st_covs), N * T))
 # Create b-splines for climate vars
 vars <- c('chd', 'cvs', 'cpr', 'cpr12', 'ctmx', 'crmin')
 
-df_each <- 4
+df_each <- 5
 X_bs <- list()
 for (i in seq_along(vars)) {
   X_bs[[i]] <- bs(st_covs[[vars[i]]], df = df_each, intercept = TRUE) %>%
