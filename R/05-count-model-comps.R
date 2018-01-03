@@ -74,6 +74,7 @@ holdout_c_loglik %>%
            grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
   spread(train, value) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
+  theme_minimal() +
   geom_point(alpha = .5) +
   xlab('Log likelihood: training set') +
   ylab('Log likelihood: test set') +
