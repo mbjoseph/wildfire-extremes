@@ -46,6 +46,9 @@ for (i in seq_along(burn_area_fits)) {
     reshape2::melt(varnames = c('iter', 'idx')) %>%
     as_tibble %>%
     mutate(model = burn_area_fits[i])
+
+  rm(post)
+  gc()
 }
 
 holdout_ba_loglik <- bind_rows(holdout_ba_loglik) %>%
@@ -80,9 +83,14 @@ holdout_ba_loglik %>%
   scale_color_manual('Burn area distribution', values = cols) +
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
   theme(legend.justification = c(1, 0), legend.position = c(1, 0)) +
-  ylim(c(-26000, -22200)) +
-  theme_minimal()
+  theme_minimal() +
+  ylim(-27000, -22000) +
+  xlim(-76400, -75500)
 ggsave(filename = 'fig/loglik-burns.png', width = 6, height = 4)
+
+rm(holdout_ba_loglik)
+rm(train_ba_loglik)
+gc()
 
 ## Generate plots to evaluate distributional assumptions
 train_ba_rep <- train_ba_rep %>%
