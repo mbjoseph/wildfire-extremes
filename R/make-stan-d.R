@@ -15,7 +15,7 @@ stan_d <- list(
   n_count = nrow(train_counts),
   counts = train_counts$n_fire,
 
-  log_area = log(area_df$area * 1e-11),
+  log_area = log(area_df$area * 1e-11) / 2,
   er_idx_train = as.numeric(factor(train_counts$NA_L3NAME,
                                    levels = levels(area_df$NA_L3NAME))),
   er_idx_full = as.numeric(factor(st_covs$NA_L3NAME)),
@@ -45,7 +45,7 @@ stan_d <- list(
 
   burn_eps_idx = burn_eps_idx,
 
-  M = 5,
+  M = 1,
   slab_df = 5,
   slab_scale = 2,
 
