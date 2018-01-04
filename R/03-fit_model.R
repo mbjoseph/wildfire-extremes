@@ -17,6 +17,7 @@ control_list <- list(
 )
 
 n_iter <- 1000
+ref_rate <- 10
 
 # Count models --------------------------------------------------------
 zi_d <- stan_d
@@ -66,37 +67,47 @@ ba_gamma_init <- stan_model('stan/area-gamma.stan')
 ba_gamma_fit <- sampling(
   ba_gamma_init,
   data = stan_d,
+  pars = burn_area_pars,
   cores = 4,
-  refresh = 1,
-  init_r = .01)
+  refresh = ref_rate,
+  init_r = .01,
+  control = control_list)
 write_rds(ba_gamma_fit, 'ba_gamma_fit.rds')
+rm(ba_gamma_fit)
+gc()
 
 ba_pareto_init <- stan_model('stan/area-pareto.stan')
 ba_pareto_fit <- sampling(
   ba_pareto_init,
+  pars = burn_area_pars,
   data = stan_d,
   cores = 4,
-  refresh = 1,
-  init_r = .01)
+  refresh = ref_rate,
+  init_r = .01,
+  control = control_list)
 write_rds(ba_pareto_fit, 'ba_pareto_fit.rds')
 
 ba_tpareto_init <- stan_model('stan/area-tpareto.stan')
 ba_tpareto_fit <- sampling(
   ba_tpareto_init,
+  pars = burn_area_pars,
   data = stan_d,
   cores = 4,
-  refresh = 1,
-  init_r = .01)
+  refresh = ref_rate,
+  init_r = .01,
+  control = control_list)
 write_rds(ba_tpareto_fit, 'ba_tpareto_fit.rds')
 
 
 ba_lognormal_init <- stan_model('stan/area-lognormal.stan')
 ba_lognormal_fit <- sampling(
   ba_lognormal_init,
+  pars = burn_area_pars,
   data = stan_d,
   cores = 4,
-  refresh = 1,
-  init_r = .01)
+  refresh = ref_rate,
+  init_r = .01,
+  control = control_list)
 write_rds(ba_lognormal_fit, 'ba_lognormal_fit.rds')
 
 
@@ -104,8 +115,10 @@ ba_weibull_init <- stan_model('stan/area-weibull.stan')
 ba_weibull_fit <- sampling(
   ba_weibull_init,
   data = stan_d,
+  pars = burn_area_pars,
   cores = 4,
-  refresh = 1,
-  init_r = .01)
+  refresh = ref_rate,
+  init_r = .01,
+  control = control_list)
 write_rds(ba_weibull_fit, 'ba_weibull_fit.rds')
 
