@@ -9,8 +9,8 @@ load_ecoregions <- function() {
           exdir = "data/raw/us_eco_l3/")
   }
 
-  ecoregion_shp <- readOGR(dsn = "data/raw/us_eco_l3/",
-                           layer = "us_eco_l3")
+  ecoregion_shp <- rgdal::readOGR(dsn = "data/raw/us_eco_l3/",
+                                   layer = "us_eco_l3")
 
   ecoregion_shp
 }

@@ -13,6 +13,13 @@ aea_proj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_
 # Read ecoregion data
 ecoregions <- st_read('data/raw/us_eco_l3/us_eco_l3.shp')
 
+# fix names for chihuahuan desert
+ecoregions <- ecoregions %>%
+  mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+                            'Chihuahuan Deserts',
+                            NA_L3NAME))
+
+
 # Read fire data ----------------------
 mtbs <- st_read('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_20170501.shp') %>%
   filter(!(STATE %in% c("Alaska", "Hawaii", "Puerto Rico")),

@@ -58,6 +58,9 @@ ecoregion_summaries <- extraction_df %>%
            sep = "_") %>%
   separate(timestep, into = c("year", "month"), sep = "\\.") %>%
   select(-interval) %>%
+  mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+                            'Chihuahuan Deserts',
+                            NA_L3NAME))
   group_by(NA_L3NAME, variable, year, month) %>%
   summarize(wmean = weighted.mean(value, Shape_Area)) %>%
   ungroup %>%
