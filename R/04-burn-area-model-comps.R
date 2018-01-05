@@ -212,7 +212,7 @@ max_plot <- train_max %>%
   ggplot(aes(train, test, color = Distribution)) +
   theme_minimal() +
   scale_color_manual('Burn area distribution', values = cols) +
-  geom_point(alpha = .2, shape = 1) +
+  geom_point(alpha = .4, shape = 1) +
   xlab('max(acres): training data') +
   ylab('max(acres): test data') +
   scale_x_log10() +
@@ -244,7 +244,7 @@ sum_plot <- train_max %>%
   ggplot(aes(train, test, color = Distribution)) +
   theme_minimal() +
   scale_color_manual('Burn area distribution', values = cols) +
-  geom_point(alpha = .2, shape = 1) +
+  geom_point(alpha = .4, shape = 1) +
   xlab('sum(acres): training data') +
   ylab('sum(acres): test data') +
   scale_x_log10() +

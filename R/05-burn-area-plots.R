@@ -1,4 +1,5 @@
 source('R/02-explore.R')
+soucr('R/make-stan-d.R')
 library(extraDistr)
 library(ggridges)
 library(ggthemes)
@@ -45,7 +46,6 @@ beta_summary %>%
   facet_wrap(~ dim, scales = 'free') +
   theme(axis.text.y = element_text(size = 7))
 
-rm(beta_df)
 gc()
 
 # Visualize some predictions ----------------------------------------------
@@ -56,8 +56,8 @@ mu_df <- post$mu_full %>%
   tbl_df %>%
   group_by(row) %>%
   summarize(median = median(value),
-            lo = quantile(value, 0.025),
-            hi = quantile(value, 0.975),
+            lo = quantile(value, 0.05),
+            hi = quantile(value, 0.95),
             q1 = quantile(value, .1),
             q2 = quantile(value, .2),
             q3 = quantile(value, .3),
@@ -71,22 +71,21 @@ mu_df <- post$mu_full %>%
 ## Visualize parameter time series
 plot_mu_ts <- function(df) {
   df %>%
-    ggplot(aes(ym, exp(median), fill = NA_L1NAME)) +
+    ggplot(aes(ym, median, fill = NA_L1NAME)) +
     theme_minimal() +
-    geom_ribbon(aes(ymin = exp(lo), ymax = exp(hi)),
+    geom_ribbon(aes(ymin = lo, ymax = hi),
                 alpha = .3, color = NA) +
-    geom_ribbon(aes(ymin = exp(q1), ymax = exp(q9)),
+    geom_ribbon(aes(ymin = q1, ymax = q9),
                 alpha = .3, color = NA) +
-    geom_ribbon(aes(ymin = exp(q2), ymax = exp(q8)),
+    geom_ribbon(aes(ymin = q2, ymax = q8),
                 alpha = .3, color = NA) +
-    geom_ribbon(aes(ymin = exp(q3), ymax = exp(q7)),
+    geom_ribbon(aes(ymin = q3, ymax = q7),
                 alpha = .3, color = NA) +
-    geom_ribbon(aes(ymin = exp(q4), ymax = exp(q6)),
+    geom_ribbon(aes(ymin = q4, ymax = q6),
                 alpha = .3, color = NA) +
     geom_line(size = .1) +
     facet_wrap(~ facet_factor) +
     xlab('Date') +
-    scale_y_log10() +
     geom_vline(xintercept = cutoff_year,
                linetype = 'dashed', col = 'grey') +
     scale_color_gdocs() +
@@ -103,4 +102,20 @@ mu_df %>%
   plot_mu_ts +
   ylab('Lognormal mean')
 
-
+# plotting expected values vs. covariates
+mu_df %>%
+  full_join(st_covs) %>%
+  left_join(dplyr::distinct(tbl_df(ecoregions),
+                            NA_L3NAME, NA_L1CODE)) %>%
+  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
+  ggplot(aes(rmin, exp(median) + min_size, color = vs)) +
+  geom_linerange(aes(ymin = exp(lo) + min_size,
+                     ymax = exp(hi) + min_size),
+                 alpha = .2) +
+  geom_point(size = .5) +
+  theme_minimal() +
+  scale_color_viridis_c('Mean daily\nwind speed') +
+  facet_wrap(~facet_factor) +
+  scale_y_log10() +
+  xlab('Mean minimum daily relative humidity') +
+  ylab('Expected burn area')
