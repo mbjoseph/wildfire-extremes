@@ -37,9 +37,13 @@ sfStop()
 # ensure that they all have the same length
 stopifnot(all(lapply(extractions, nrow) == nrow(ecoregion_shp)))
 
-# convert to a data frame
 library(tidyverse)
 
+# push to S3
+write_rds(extractions, 'extractions.rds')
+system('aws s3 cp extractions.rds s3://earthlab-mjoseph/demo_evt/extractions.rds')
+
+# convert to a data frame
 extraction_df <- extractions %>%
   bind_cols %>%
   as_tibble %>%
@@ -50,7 +54,10 @@ extraction_df <- extractions %>%
          Shape_Area = data.frame(ecoregion_shp)$Shape_Area) %>%
   dplyr::select(-starts_with('X')) %>%
   gather(variable, value, -NA_L3NAME, -Shape_Area, -ID) %>%
-  filter(!is.na(value))
+  filter(!is.na(value)) %>%
+  mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+                            'Chihuahuan Deserts',
+                            NA_L3NAME))
 
 ecoregion_summaries <- extraction_df %>%
   separate(variable,
@@ -60,7 +67,7 @@ ecoregion_summaries <- extraction_df %>%
   select(-interval) %>%
   mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
                             'Chihuahuan Deserts',
-                            NA_L3NAME))
+                            NA_L3NAME)) %>%
   group_by(NA_L3NAME, variable, year, month) %>%
   summarize(wmean = weighted.mean(value, Shape_Area)) %>%
   ungroup %>%

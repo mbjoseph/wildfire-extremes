@@ -8,7 +8,7 @@ ecoregions <- st_read('data/raw/us_eco_l3/us_eco_l3.shp') %>%
   as('Spatial') %>%
   spTransform(CRS('+init=epsg:4326'))
 
-elevation <- get_elev_raster(ecoregions, z = 6, src = 'aws')
+elevation <- get_elev_raster(ecoregions, z = 8, src = 'aws')
 
 plot(elevation)
 plot(ecoregions, add = TRUE)
@@ -22,6 +22,9 @@ ecoregion_tri <- raster::extract(tri, ecoregions, fun = mean, sp = TRUE)
 tri_df <- ecoregion_tri %>%
   as.data.frame %>%
   tbl_df %>%
+  mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+                            'Chihuahuan Deserts',
+                            NA_L3NAME)) %>%
   group_by(NA_L3NAME) %>%
   summarize(tri = weighted.mean(tri, Shape_Area)) %>%
   arrange(-tri)
@@ -30,3 +33,5 @@ tri_df <- ecoregion_tri %>%
 # with aws s3 cp from command line
 tri_df %>%
   write_csv('ecoregion_tri.csv')
+
+system('aws s3 cp ecoregion_tri.csv s3://earthlab-gridmet/ecoregion_tri.csv --acl public-read')
