@@ -58,7 +58,11 @@ extraction_df <- extractions %>%
     .$variable == 'den30' ~ 2030,
     .$variable == 'den80' ~ 1980,
     .$variable == 'den90' ~ 1990
-  )) %>%
+  ),
+  NA_L3NAME = as.character(NA_L3NAME),
+  NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+                     'Chihuahuan Deserts',
+                     NA_L3NAME)) %>%
   group_by(NA_L3NAME, year) %>%
   summarize(wmean = weighted.mean(value, Shape_Area)) %>%
   ungroup
@@ -102,4 +106,4 @@ extraction_df %>%
 res %>%
   write_csv('data/processed/housing_density.csv')
 
-# system('aws s3 cp data/processed/housing_density.csv s3://earthlab-mjoseph/demo_evt/housing_density.csv')
+# system('aws s3 cp data/processed/housing_density.csv s3://earthlab-mjoseph/demo_evt/housing_density.csv --acl public-read')

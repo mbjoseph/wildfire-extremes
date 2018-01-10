@@ -55,7 +55,8 @@ extraction_df <- extractions %>%
   dplyr::select(-starts_with('X')) %>%
   gather(variable, value, -NA_L3NAME, -Shape_Area, -ID) %>%
   filter(!is.na(value)) %>%
-  mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+  mutate(NA_L3NAME = as.character(NA_L3NAME),
+         NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
                             'Chihuahuan Deserts',
                             NA_L3NAME))
 
@@ -65,7 +66,8 @@ ecoregion_summaries <- extraction_df %>%
            sep = "_") %>%
   separate(timestep, into = c("year", "month"), sep = "\\.") %>%
   select(-interval) %>%
-  mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+  mutate(NA_L3NAME = as.character(NA_L3NAME),
+         NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
                             'Chihuahuan Deserts',
                             NA_L3NAME)) %>%
   group_by(NA_L3NAME, variable, year, month) %>%

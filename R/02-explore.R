@@ -15,7 +15,8 @@ area_df <- ecoregion_df %>%
   summarize(area = sum(Shape_Area))
 
 count_df <- count_df %>%
-  left_join(area_df)
+  left_join(area_df) %>%
+  arrange(ym, NA_L3NAME)
 
 er_df <- dplyr::distinct(data.frame(ecoregions),
                        NA_L3NAME, NA_L2NAME, NA_L1NAME,
@@ -41,7 +42,7 @@ st_covs <- ecoregion_summaries %>%
   arrange(ym, NA_L3NAME)
 
 
-
+assert_that(length(setdiff(st_covs$NA_L3NAME, count_df$NA_L3NAME)) == 0)
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
 
@@ -85,6 +86,7 @@ for (i in seq_along(vars)) {
   names(X_bs[[i]]) <- paste('bs', vars[[i]], 1:df_each, sep = '_')
 }
 X_bs <- bind_cols(X_bs)
+assert_that(!any(is.na(X_bs)))
 
 # Create design matrices --------------------------------------------------
 hd_terms <- grep('chd', names(X_bs), value = TRUE)
@@ -125,6 +127,10 @@ plot(eps_idx_train,
      ylim = c(0, nrow(st_covs)),
      type = 'l')
 lines(eps_idx_future, eps_idx_future, col = 2)
+
+assert_that(all(diff(eps_idx_train) == 1))
+assert_that(all(diff(eps_idx_future) == 1))
+assert_that(eps_idx_train[length(eps_idx_train)] + 1 == eps_idx_future[1])
 
 # design matrix for training burn areas
 # is a subset of X, based on which unique rows are in train_burns

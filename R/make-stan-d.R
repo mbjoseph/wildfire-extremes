@@ -2,8 +2,10 @@
 # Bundle up the data for Stan models --------------------------------------
 
 
-assert_that(identical(levels(area_df$NA_L3NAME),
-                      levels(factor(st_covs$NA_L3NAME))))
+assert_that(identical(unique(area_df$NA_L3NAME),
+                      unique(st_covs$NA_L3NAME)))
+assert_that(identical(levels(factor(area_df$NA_L3NAME)),
+                       levels(factor(st_covs$NA_L3NAME))))
 
 min_size <- 1e3
 
@@ -17,7 +19,7 @@ stan_d <- list(
 
   log_area = log(area_df$area * 1e-11) / 2,
   er_idx_train = as.numeric(factor(train_counts$NA_L3NAME,
-                                   levels = levels(area_df$NA_L3NAME))),
+                                   levels = levels(factor(area_df$NA_L3NAME)))),
   er_idx_full = as.numeric(factor(st_covs$NA_L3NAME)),
 
   n_fire = nrow(train_burns),
@@ -63,3 +65,6 @@ stan_d <- list(
 
   min_size = min_size
   )
+
+# assert that there are no missing values in stan_d
+assert_that(!any(lapply(stan_d, function(x) any(is.na(x))) %>% unlist))

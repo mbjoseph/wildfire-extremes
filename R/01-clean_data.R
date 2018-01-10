@@ -15,7 +15,8 @@ ecoregions <- st_read('data/raw/us_eco_l3/us_eco_l3.shp')
 
 # fix names for chihuahuan desert
 ecoregions <- ecoregions %>%
-  mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+  mutate(NA_L3NAME = as.character(NA_L3NAME),
+    NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
                             'Chihuahuan Deserts',
                             NA_L3NAME))
 
@@ -43,9 +44,15 @@ if (!file.exists("ov.rds")) {
 ov <- read_rds("ov.rds")
 
 mtbs <- mtbs %>%
-  mutate(NA_L3NAME = ecoregions$NA_L3NAME[ov],
-         NA_L3NAME = factor(NA_L3NAME, levels = levels(ecoregions$NA_L3NAME))) %>%
+  mutate(NA_L3NAME = ecoregions$NA_L3NAME[ov]) %>%
   filter(!is.na(NA_L3NAME))
+
+unique_er_yms <- expand.grid(
+  NA_L3NAME = unique(ecoregions$NA_L3NAME),
+  FIRE_YEAR = unique(mtbs$FIRE_YEAR),
+  FIRE_MON = unique(mtbs$FIRE_MON)
+) %>%
+  as_tibble
 
 # count the number of fires in each ecoregion in each month
 count_df <- mtbs %>%
@@ -54,14 +61,15 @@ count_df <- mtbs %>%
   group_by(NA_L3NAME, FIRE_YEAR, FIRE_MON) %>%
   summarize(n_fire = n()) %>%
   ungroup %>%
-  complete(FIRE_YEAR, FIRE_MON, NA_L3NAME, fill = list(n_fire = 0)) %>%
-  mutate(ym = as.yearmon(paste(FIRE_YEAR, sprintf("%02d", FIRE_MON),
-                               sep = "-"))) %>%
+  full_join(unique_er_yms) %>%
+  mutate(n_fire = ifelse(is.na(n_fire), 0, n_fire),
+         ym = as.yearmon(paste(FIRE_YEAR, sprintf("%02d", FIRE_MON), sep = "-"))) %>%
   arrange(ym) %>%
   filter(ym > 'Jan 1984') # first record is feb 1984 in mtbs data
 
-stopifnot(0 == sum(is.na(count_df$NA_L3NAME)))
-stopifnot(sum(count_df$n_fire) == nrow(mtbs))
+assert_that(0 == sum(is.na(count_df$NA_L3NAME)))
+assert_that(sum(count_df$n_fire) == nrow(mtbs))
+assert_that(all(ecoregions$NA_L3NAME %in% count_df$NA_L3NAME))
 
 # load covariate data and link to count data frame
 ecoregion_summaries <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gridmet/ecoregion_summaries.csv',

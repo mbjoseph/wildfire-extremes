@@ -22,7 +22,8 @@ ecoregion_tri <- raster::extract(tri, ecoregions, fun = mean, sp = TRUE)
 tri_df <- ecoregion_tri %>%
   as.data.frame %>%
   tbl_df %>%
-  mutate(NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
+  mutate(NA_L3NAME = as.character(NA_L3NAME),
+         NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
                             'Chihuahuan Deserts',
                             NA_L3NAME)) %>%
   group_by(NA_L3NAME) %>%
