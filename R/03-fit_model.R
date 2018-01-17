@@ -28,6 +28,7 @@ pois_fit <- vb(pois_init,
                data = stan_d,
                eta = .1,
                init = 0,
+               pars = count_pars,
                tol_rel_obj = 0.008,
                adapt_engaged = FALSE)
 write_rds(pois_fit, path = 'pois_fit.rds')
@@ -37,6 +38,7 @@ zip_init <- stan_model('stan/counts-zip.stan')
 zip_fit <- vb(zip_init,
               data = zi_d,
               eta = .1,
+              pars = count_pars,
               tol_rel_obj = 0.008,
               init = 0,
               adapt_engaged = FALSE)
@@ -46,7 +48,8 @@ nb_init <- stan_model('stan/counts-nb.stan')
 nb_fit <- vb(
   nb_init,
   data = stan_d,
-  eta = .1,
+  eta = .05,
+  pars = count_pars,
   tol_rel_obj = 0.008,
   init = 0,
   adapt_engaged = FALSE)
@@ -55,7 +58,8 @@ write_rds(nb_fit, path = 'nb_fit.rds')
 zinb_init <- stan_model('stan/counts-zinb.stan')
 zinb_fit <- vb(zinb_init,
               data = zi_d,
-              eta = .1,
+              eta = .05,
+              pars = count_pars,
               tol_rel_obj = 0.008,
               init = 0,
               adapt_engaged = FALSE)
