@@ -84,8 +84,8 @@ holdout_ba_loglik %>%
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
   theme(legend.justification = c(1, 0), legend.position = c(1, 0)) +
   theme_minimal() +
-  ylim(-27000, -22000) +
-  xlim(-76400, -75500)
+  ylim(-26000, -22000) +
+  xlim(-76400, -75545)
 ggsave(filename = 'fig/loglik-burns.png', width = 6, height = 4)
 
 rm(holdout_ba_loglik)
@@ -257,11 +257,11 @@ sum_plot <- train_max %>%
              data = actual_sums, color = 'black', linetype = 'dashed') +
   theme(
     strip.background = element_blank(),
-    strip.text.x = element_blank()
+    strip.text.x = element_blank(),
   ) +
   # add dashed lines to indicate area of contiguous U.S.
   geom_vline(xintercept = 1996726201.6, linetype = 'dotted', alpha = .5) +
   geom_hline(yintercept = 1996726201.6, linetype = 'dotted', alpha = .5)
 
 plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4)
-ggsave(filename = 'fig/ppc-density-funs.png', width = 12, height = 10)
+ggsave(filename = 'fig/ppc-density-funs.png', width = 9, height = 7)
