@@ -20,8 +20,8 @@ count_fits <- grep(model_fits, pattern = 'ba_', value = TRUE, invert = TRUE)
 # data frame for plotting colors
 cols <- c('Poisson' = 'green3',
           'Negative binomial' = 'skyblue',
-          'Zero-inflated Poisson' = 'orange',
-          'Zero-inflated negative binomial' = 'purple')
+          'ZI Poisson' = 'orange',
+          'ZI Negative binomial' = 'purple')
 
 # for each model fit, produce a vector of the holdout log likelihoods
 holdout_c_loglik <- list()
@@ -70,8 +70,8 @@ holdout_c_loglik %>%
          Distribution = case_when(
            grepl('^nb', .$model) ~ 'Negative binomial',
            grepl('pois', .$model) ~ 'Poisson',
-           grepl('zip', .$model) ~ 'Zero-inflated Poisson',
-           grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
+           grepl('zip', .$model) ~ 'ZI Poisson',
+           grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
   spread(train, value) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
   theme_minimal() +
@@ -80,7 +80,8 @@ holdout_c_loglik %>%
   ylab('Log likelihood: test set') +
   scale_color_manual('Count distribution', values = cols) +
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
-  theme(legend.justification = c(0, 0), legend.position = c(0, 0))
+  xlim(-40000, -10517) +
+  ylim(-5000, -1720)
 ggsave(filename = 'fig/loglik-counts.png', width = 6, height = 4)
 
 
@@ -116,8 +117,8 @@ den_plot <- pr_df %>%
   mutate(Distribution = case_when(
     grepl('^nb', .$model) ~ 'Negative binomial',
     grepl('pois', .$model) ~ 'Poisson',
-    grepl('zip', .$model) ~ 'Zero-inflated Poisson',
-    grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
+    grepl('zip', .$model) ~ 'ZI Poisson',
+    grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
   ggplot(aes(value, pr_value, group = iter,
              color = Distribution)) +
   geom_line(alpha = .1) +
@@ -131,8 +132,8 @@ den_plot <- pr_df %>%
             aes(x = n_fire, y = pr_value),
             inherit.aes = FALSE) +
   theme(legend.position = 'none') +
-  xlab('Number of fires > 1000 acres') +
-  ylab('Pr(number fires > 1000 acres)')
+  xlab('Counts > 1000 acres') +
+  ylab('Pr(counts > 1000 acres)')
 
 # proportion of zero observations
 ppc_counts <- train_c_rep %>%
@@ -154,11 +155,12 @@ zero_plot <- ppc_counts %>%
   mutate(Distribution = case_when(
     grepl('^nb', .$model) ~ 'Negative binomial',
     grepl('pois', .$model) ~ 'Poisson',
-    grepl('zip', .$model) ~ 'Zero-inflated Poisson',
-    grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
+    grepl('zip', .$model) ~ 'ZI Poisson',
+    grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
   dplyr::select(-max_count, -sum_count, -model) %>%
   spread(train, p_zero) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
+  facet_wrap(~ Distribution, nrow = 1) +
   theme_minimal() +
   geom_point(alpha = .4) +
   scale_fill_manual('Count distribution', values = cols) +
@@ -166,10 +168,14 @@ zero_plot <- ppc_counts %>%
              linetype = 'dashed', color = 'black') +
   geom_hline(yintercept = mean(stan_d$holdout_c == 0),
              linetype = 'dashed', color = 'black') +
-  xlab('Proportion of zeros: training data') +
-  ylab('Proportion of zeros: test data') +
+  xlab('Pr(0): training data') +
+  ylab('Pr(0): test data') +
   scale_color_manual('Count distribution', values = cols) +
-  theme(legend.position = 'none')
+  theme(legend.position = 'none') +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
 
 max_plot <- ppc_counts %>%
   mutate(train = 'train') %>%
@@ -178,25 +184,29 @@ max_plot <- ppc_counts %>%
   mutate(Distribution = case_when(
     grepl('^nb', .$model) ~ 'Negative binomial',
     grepl('pois', .$model) ~ 'Poisson',
-    grepl('zip', .$model) ~ 'Zero-inflated Poisson',
-    grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
+    grepl('zip', .$model) ~ 'ZI Poisson',
+    grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
   dplyr::select(-p_zero, -sum_count, -model) %>%
   spread(train, max_count) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
   theme_minimal() +
   geom_point(alpha = .4) +
+  facet_wrap(~ Distribution, nrow = 1) +
   scale_fill_manual('Count distribution', values = cols) +
-  xlab('Maximum count: training data') +
-  ylab('Maximum count: test data') +
+  xlab('max(count): training data') +
+  ylab('max(count): test data') +
   scale_color_manual('Count distribution', values = cols) +
-  scale_x_log10(breaks = c(50, 100, 500, 1000)) +
-  scale_y_log10(breaks = c(50, 100, 500, 1000, 5000, 10000)) +
+  scale_x_log10() +
+  scale_y_log10() +
   geom_vline(xintercept = max(stan_d$counts),
              linetype = 'dashed', color = 'black') +
   geom_hline(yintercept = max(stan_d$holdout_c),
              linetype = 'dashed', color = 'black') +
-  annotation_logticks(alpha = .4) +
-  theme(legend.position = 'none')
+  theme(legend.position = 'none') +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
 
 sum_plot <- ppc_counts %>%
   mutate(train = 'train') %>%
@@ -205,24 +215,31 @@ sum_plot <- ppc_counts %>%
   mutate(Distribution = case_when(
     grepl('^nb', .$model) ~ 'Negative binomial',
     grepl('pois', .$model) ~ 'Poisson',
-    grepl('zip', .$model) ~ 'Zero-inflated Poisson',
-    grepl('zinb', .$model) ~ 'Zero-inflated negative binomial')) %>%
+    grepl('zip', .$model) ~ 'ZI Poisson',
+    grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
   dplyr::select(-max_count, -p_zero, -model) %>%
   spread(train, sum_count) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
   theme_minimal() +
+  facet_wrap(~ Distribution, nrow = 1) +
   geom_point(alpha = .4) +
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
   scale_fill_manual('Count distribution', values = cols) +
-  xlab('Total count: training data') +
-  ylab('Total count: test data') +
+  xlab('sum(count): training data') +
+  ylab('sum(count): test data') +
   scale_color_manual('Count distribution', values = cols) +
-  scale_y_continuous(breaks = seq(0, 30000, by = 2000)) +
   geom_vline(xintercept = sum(stan_d$counts),
              linetype = 'dashed', color = 'black') +
   geom_hline(yintercept = sum(stan_d$holdout_c),
              linetype = 'dashed', color = 'black') +
-  theme(legend.position = 'none')
+  theme(legend.position = 'none') +
+  scale_x_log10() +
+  scale_y_log10() +
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
 
-den_plot + (zero_plot + max_plot + sum_plot) + plot_layout(nrow = 2)
-ggsave('fig/ppc-counts.png', width = 8, height = 6)
+plot_grid(den_plot, zero_plot, max_plot, sum_plot, ncol = 1)
+ggsave('fig/ppc-counts.png', width = 9, height = 7)
+
