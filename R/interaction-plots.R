@@ -6,6 +6,7 @@ library(tidyverse)
 library(magick)
 library(snowfall)
 library(loo)
+library(ggExtra)
 
 source('R/02-explore.R')
 m_fit <- read_rds('zinb_fit.rds')
@@ -28,6 +29,28 @@ beta_df <- post$beta %>%
 
 nz_beta <- beta_df %>%
   filter(nonzero)
+
+med_df <- beta_df %>%
+  select(dim, median, variable) %>%
+  spread(dim, median) %>%
+  rename(nb_eff = `1`,
+         p_eff = `2`)
+
+med_df %>%
+  ggplot(aes(nb_eff, p_eff)) +
+  geom_hline(yintercept = 0, alpha = .2) +
+  geom_vline(xintercept = 0, alpha = .2) +
+  geom_point() +
+  geom_bin2d(binwidth = c(.004, .004), color = NA) +
+  theme_minimal() +
+  scale_fill_viridis_c(trans = 'log', option = 'B',
+                       breaks = c(1, 10, 100, 1000), 'Count') +
+  xlab('Coefficient: negative binomial component') +
+  ylab('Coefficient: zero-inflation component')
+ggsave('fig/bivariate-horseshoe.png', width = 6, height = 4)
+
+beta_df %>%
+  filter(median > .5)
 
 
 # plot the contribution of each explanatory variable on a response
