@@ -80,34 +80,42 @@ vars <- c('chd', 'cvs', 'cpr', 'cpr12', 'ctmx', 'crmin')
 
 df_each <- 5
 X_bs <- list()
+X_bs_df <- list()
 for (i in seq_along(vars)) {
-  X_bs[[i]] <- bs(st_covs[[vars[i]]], df = df_each, intercept = TRUE) %>%
+  X_bs[[i]] <- bs(st_covs[[vars[i]]], df = df_each, intercept = TRUE)
+
+  X_bs_df[[i]] <- X_bs[[i]] %>%
     as_tibble
-  names(X_bs[[i]]) <- paste('bs', vars[[i]], 1:df_each, sep = '_')
+  names(X_bs_df[[i]]) <- paste('bs', vars[[i]], 1:df_each, sep = '_')
 }
-X_bs <- bind_cols(X_bs)
-assert_that(!any(is.na(X_bs)))
+X_bs_df <- bind_cols(X_bs_df)
+assert_that(!any(is.na(X_bs_df)))
 
 # Create design matrices --------------------------------------------------
-hd_terms <- grep('chd', names(X_bs), value = TRUE)
+hd_terms <- grep('chd', names(X_bs_df), value = TRUE)
 
 model_terms <- expand.grid(hd_term = hd_terms,
-            other_terms = grep('chd', names(X_bs), value = TRUE, invert = TRUE)) %>%
+            other_terms = grep('chd', names(X_bs_df), value = TRUE, invert = TRUE)) %>%
   as.matrix %>%
   apply(1, paste, collapse = ' * ')
 
-l3_terms <- paste0('NA_L3NAME * ', model_terms) %>%
+l3_terms <- paste0('NA_L3NAME * ', names(X_bs_df)) %>%
   paste(collapse = ' + ')
-l2_terms <- paste0('NA_L2NAME * ', names(X_bs)) %>%
+l2_terms <- paste0('NA_L2NAME * ', names(X_bs_df)) %>%
   paste(collapse = ' + ')
-l1_terms <- paste0('NA_L1NAME * ', names(X_bs)) %>%
+l1_terms <- paste0('NA_L1NAME * ', names(X_bs_df)) %>%
   paste(collapse = ' + ')
 
 st_covs <- st_covs %>%
-  bind_cols(lapply(X_bs, c)) %>%
+  bind_cols(lapply(X_bs_df, c)) %>%
   as_tibble
 
-X <- model.matrix(as.formula(paste('~ 0 + ctri + ', l1_terms, l2_terms, l3_terms, sep = ' + ')),
+X <- model.matrix(as.formula(paste('~ 0 + ctri + ',
+                                   model_terms,
+                                   l1_terms,
+                                   l2_terms,
+                                   l3_terms,
+                                   sep = ' + ')),
       data = st_covs)
 
 sparse_X <- extract_sparse_parts(X)
