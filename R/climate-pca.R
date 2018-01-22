@@ -19,17 +19,6 @@ pc_d <- climate_d %>%
   left_join(er_df)
 
 p <- pc_d %>%
-  ggplot(aes(PC1, PC2, color = NA_L3NAME, group = NA_L3NAME)) +
-  geom_path(alpha = .8) +
-  geom_point(aes(group = ym), alpha = .5, size = .1) +
-  theme_minimal() +
-  theme(legend.position = 'none')
-
-ggplotly(p)
-
-
-p <- pc_d %>%
-#  filter(NA_L3NAME %in% c('Ouachita Mountains', 'Boston Mountains')) %>%
   plot_ly(x = ~PC1, y = ~PC2, z = ~PC3, color = ~NA_L3NAME, text=~factor(ym),
              type = 'scatter3d', mode = 'lines',
              opacity = 1,
