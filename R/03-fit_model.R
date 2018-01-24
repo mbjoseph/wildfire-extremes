@@ -75,7 +75,8 @@ ba_gamma_fit <- sampling(
   cores = 4,
   refresh = ref_rate,
   init_r = .01,
-  control = control_list)
+  control = control_list,
+  iter = n_iter)
 write_rds(ba_gamma_fit, 'ba_gamma_fit.rds')
 rm(ba_gamma_fit)
 gc()
@@ -88,7 +89,8 @@ ba_pareto_fit <- sampling(
   cores = 4,
   refresh = ref_rate,
   init_r = .01,
-  control = control_list)
+  control = control_list,
+  iter = n_iter)
 write_rds(ba_pareto_fit, 'ba_pareto_fit.rds')
 
 ba_tpareto_init <- stan_model('stan/area-tpareto.stan')
@@ -99,7 +101,8 @@ ba_tpareto_fit <- sampling(
   cores = 4,
   refresh = ref_rate,
   init_r = .01,
-  control = control_list)
+  control = control_list,
+  iter = n_iter)
 write_rds(ba_tpareto_fit, 'ba_tpareto_fit.rds')
 
 
@@ -111,7 +114,8 @@ ba_lognormal_fit <- sampling(
   cores = 4,
   refresh = ref_rate,
   init_r = .01,
-  control = control_list)
+  control = control_list,
+  iter = n_iter)
 write_rds(ba_lognormal_fit, 'ba_lognormal_fit.rds')
 
 
@@ -123,6 +127,7 @@ ba_weibull_fit <- sampling(
   cores = 4,
   refresh = ref_rate,
   init_r = .01,
-  control = control_list)
+  control = control_list,
+  iter = n_iter)
 write_rds(ba_weibull_fit, 'ba_weibull_fit.rds')
 
