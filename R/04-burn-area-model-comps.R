@@ -4,6 +4,7 @@ library(loo)
 library(tidyverse)
 library(cowplot)
 library(ggthemes)
+library(ggrepel)
 
 source('R/02-explore.R')
 source('R/make-stan-d.R')
@@ -58,14 +59,13 @@ train_ba_loglik <- bind_rows(train_ba_loglik) %>%
   mutate(train = TRUE)
 
 # data frame for plotting colors
-cols <- c('Gamma' = 'purple',
-          'Weibull' = 'orange',
-          'Generalized Pareto' = 'red',
-          'Tapered Pareto' = 'limegreen',
-          'Lognormal' = 'dodgerblue')
+cols <- c('Gamma' = '#66c2a5',
+          'Weibull' = '#fc8d62',
+          'Generalized Pareto' = '#8da0cb',
+          'Tapered Pareto' = '#a6d854',
+          'Lognormal' = '#e78ac3')
 
-
-holdout_ba_loglik %>%
+loglik_d <- holdout_ba_loglik %>%
   full_join(train_ba_loglik) %>%
   mutate(train = ifelse(train == TRUE, 'train', 'test'),
          Distribution = case_when(
@@ -75,18 +75,27 @@ holdout_ba_loglik %>%
            grepl('_tpareto', .$model) ~ 'Tapered Pareto',
            grepl('weibull', .$model) ~ 'Weibull'
          )) %>%
-  spread(train, value) %>%
+  spread(train, value)
+
+label_d <- loglik_d %>%
+  group_by(Distribution) %>%
+  summarize(med_test = median(test),
+            med_train = median(train))
+
+loglik_d %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
-  geom_point(alpha = .05) +
+  geom_point(alpha = .1) +
   xlab('Log likelihood: training set') +
   ylab('Log likelihood: test set') +
   scale_color_manual('Burn area distribution', values = cols) +
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
-  theme(legend.justification = c(1, 0), legend.position = c(1, 0)) +
   theme_minimal() +
-  ylim(-26000, -22000) +
-  xlim(-76400, -75545)
-ggsave(filename = 'fig/loglik-burns.png', width = 6, height = 4)
+  ylim(-26000, -21500) +
+  xlim(-76400, -75300) +
+  geom_text_repel(aes(x = med_train, y = med_test, label = Distribution),
+             data = label_d, color = 'black', size = 3, box.padding = .5) +
+  theme(legend.position = 'none')
+ggsave(filename = 'fig/loglik-burns.png', width = 5, height = 3.5)
 
 rm(holdout_ba_loglik)
 rm(train_ba_loglik)
@@ -212,7 +221,7 @@ max_plot <- train_max %>%
   ggplot(aes(train, test, color = Distribution)) +
   theme_minimal() +
   scale_color_manual('Burn area distribution', values = cols) +
-  geom_point(alpha = .4, shape = 1) +
+  geom_point(alpha = .4) +
   xlab('max(acres): training data') +
   ylab('max(acres): test data') +
   scale_x_log10() +
@@ -244,7 +253,7 @@ sum_plot <- train_max %>%
   ggplot(aes(train, test, color = Distribution)) +
   theme_minimal() +
   scale_color_manual('Burn area distribution', values = cols) +
-  geom_point(alpha = .4, shape = 1) +
+  geom_point(alpha = .4) +
   xlab('sum(acres): training data') +
   ylab('sum(acres): test data') +
   scale_x_log10() +
@@ -258,10 +267,7 @@ sum_plot <- train_max %>%
   theme(
     strip.background = element_blank(),
     strip.text.x = element_blank(),
-  ) +
-  # add dashed lines to indicate area of contiguous U.S.
-  geom_vline(xintercept = 1996726201.6, linetype = 'dotted', alpha = .5) +
-  geom_hline(yintercept = 1996726201.6, linetype = 'dotted', alpha = .5)
+  )
 
 plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4)
 ggsave(filename = 'fig/ppc-density-funs.png', width = 9, height = 7)
