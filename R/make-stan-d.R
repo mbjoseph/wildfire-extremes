@@ -63,7 +63,10 @@ stan_d <- list(
   holdout_b_idx = holdout_b_idx,
   holdout_b = holdout_burns$R_ACRES - min_size,
 
-  min_size = min_size
+  min_size = min_size,
+
+  W = nb_mat,
+  W_n = sum(nb_mat) / 2
   )
 
 # assert that there are no missing values in stan_d
