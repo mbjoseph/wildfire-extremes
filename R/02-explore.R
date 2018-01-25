@@ -2,7 +2,23 @@ library(tidyverse)
 library(lubridate)
 library(rstan)
 library(splines)
+library(spdep)
 source("R/01-clean_data.R")
+
+# generate spatial neighbors
+if (!file.exists('nb.rds')) {
+  nb <- poly2nb(as(ecoregions, 'Spatial'))
+  write_rds(nb, 'nb.rds')
+} else {
+  nb <- read_rds('nb.rds')
+}
+
+nb_agg <- aggregate(nb, ecoregions$NA_L3NAME)
+
+nb_mat <- nb2mat(nb_agg, style = 'B')
+
+
+
 
 ecoregion_df <- as(ecoregions, "Spatial") %>%
   data.frame
