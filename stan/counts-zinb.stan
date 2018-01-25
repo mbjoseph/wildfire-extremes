@@ -1,3 +1,36 @@
+functions {
+  /**
+  * Return the log probability of a unit-scale proper
+  * conditional autoregressive (CAR) prior
+  * with a sparse representation for the adjacency matrix
+  *
+  * @param phi Vector containing the parameters with a CAR prior
+  * @param gamma Dependence (usually spatial) parameter for the CAR prior (real)
+  * @param W_sparse Sparse representation of adjacency matrix (int array)
+  * @param N Length of phi (int)
+  * @param W_n Number of adjacent pairs (int)
+  * @param D_sparse Number of neighbors for each location (vector)
+  * @param lambda_car Eigenvalues of D^{-1/2}*W*D^{-1/2} (vector)
+  *
+  * @return Log probability density of CAR prior up to additive constant
+  */
+  real sparse_car_lpdf(vector phi, real gamma,
+    int[,] W_sparse, vector D_sparse, vector lambda_car, int N, int W_n) {
+      row_vector[N] phit_D; // phi' * D
+      row_vector[N] phit_W; // phi' * W
+      vector[N] ldet_terms;
+
+      phit_D = (phi .* D_sparse)';
+      phit_W = rep_row_vector(0, N);
+      for (i in 1:W_n) {
+        phit_W[W_sparse[i, 1]] = phit_W[W_sparse[i, 1]] + phi[W_sparse[i, 2]];
+        phit_W[W_sparse[i, 2]] = phit_W[W_sparse[i, 2]] + phi[W_sparse[i, 1]];
+      }
+
+      for (i in 1:N) ldet_terms[i] = log1m(gamma * lambda_car[i]);
+      return 0.5 * (sum(ldet_terms) - (phit_D * phi - gamma * (phit_W * phi)));
+  }
+}
 data {
   int<lower = 1> N; // # spatial units
   int<lower = 1> T; // # timesteps
@@ -32,11 +65,41 @@ data {
   int<lower = 1> n_holdout_c;
   int<lower = 1, upper = N * T> holdout_c_idx[n_holdout_c];
   int<lower = 0> holdout_c[n_holdout_c];
+
+  int<lower = 1, upper = N * T> eps_idx_train[n_count];
+  matrix<lower = 0, upper = 1>[N, N] W; // adjacency matrix
+  int W_n;                // number of adjacent region pairs
 }
 
 transformed data {
   vector[n_count] log_area_train = log_area[er_idx_train];
   vector[N * T] log_area_full = log_area[er_idx_full];
+  int W_sparse[W_n, 2];   // adjacency pairs
+  vector[N] D_sparse;     // diagonal of D (number of neigbors for each site)
+  vector[N] lambda_car;       // eigenvalues of invsqrtD * W * invsqrtD
+
+  { // generate sparse representation for W
+  int counter;
+  counter = 1;
+  // loop over upper triangular part of W to identify neighbor pairs
+    for (i in 1:(N - 1)) {
+      for (j in (i + 1):N) {
+        if (W[i, j] == 1) {
+          W_sparse[counter, 1] = i;
+          W_sparse[counter, 2] = j;
+          counter = counter + 1;
+        }
+      }
+    }
+  }
+  for (i in 1:N) D_sparse[i] = sum(W[i]);
+  {
+    vector[N] invsqrtD;
+    for (i in 1:N) {
+      invsqrtD[i] = 1 / sqrt(D_sparse[i]);
+    }
+    lambda_car = eigenvalues_sym(quad_form(W, diag_matrix(invsqrtD)));
+  }
 }
 
 parameters {
@@ -47,6 +110,12 @@ parameters {
   vector<lower = 0>[M] c_aux;
   cholesky_factor_corr[M] L_beta;
   real<lower = 0> nb_prec;
+
+  // car params
+  vector<lower = 0, upper = 1>[M] gamma; // spatial dependence
+  vector<lower = 0, upper = 1>[M] eta;   // autoregressive param
+  vector<lower = 0>[M] sigma_phi;        // time difference spatial sd
+  matrix[N, T] phiR[M];                  // unscaled values
 }
 
 transformed parameters {
@@ -56,6 +125,19 @@ transformed parameters {
   matrix[M, p] lambda_tilde;
   vector[p] lambda_sq;
   vector[M] c;
+  matrix[N, T] phi[M];
+  vector[N * T] phi_vec[M];
+
+  for (i in 1:M) {
+    for (j in 1:N) {
+      phi[i][j, 1] = phiR[i][j, 1] * sigma_phi[i]; // initial time step
+      for (t in 2:T) {
+        // autoregressive structure for subsequent time steps
+        phi[i][j, t] = eta[i] * phi[i][j, t - 1] + phiR[i][j, t] * sigma_phi[i];
+      }
+    }
+    phi_vec[i] = to_vector(phi[i]);
+  }
 
   c = slab_scale * sqrt(c_aux);
 
@@ -73,9 +155,11 @@ transformed parameters {
 
   mu_count = alpha[1]
              + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[1, ]')
+             + phi_vec[1][eps_idx_train]
              + log_area_train;
   logit_p = alpha[2]
-                  + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[2, ]');
+             + csr_matrix_times_vector(n_count, p, w_tc, v_tc, u_tc, beta[2, ]')
+             + phi_vec[2][eps_idx_train];
 }
 
 model {
@@ -87,6 +171,13 @@ model {
   alpha ~ normal(0, 5);
   tau ~ normal(0, 5);
   nb_prec ~ normal(0, 5);
+
+  sigma_phi ~ normal(0, 1);
+  for (i in 1:M) {
+    for (t in 1:T) {
+      phiR[i][, t] ~ sparse_car(gamma[i], W_sparse, D_sparse, lambda_car, N, W_n);
+    }
+  }
 
   // number of fires
   for (i in 1:n_count) {
@@ -105,21 +196,35 @@ generated quantities {
   vector[N * T] mu_full[M];
   matrix[M, M] Rho_beta = multiply_lower_tri_self_transpose(L_beta);
   vector[N * T] count_pred;
+  vector[n_count] pearson_resid;
   vector[n_holdout_c] holdout_loglik_c;
   vector[n_count] train_loglik_c;
 
   // expected values
   for (i in 1:M){
     mu_full[i] = alpha[i]
-               + csr_matrix_times_vector(N * T, p, w, v, u, beta[i, ]');
+               + csr_matrix_times_vector(N * T, p, w, v, u, beta[i, ]')
+                + phi_vec[i];
   }
 
   // expected log counts need an offset for area
-  mu_full[1] = mu_full[1] + log_area_full; // this is no longer M because M'th element is pr(0)
+  mu_full[1] = mu_full[1] + log_area_full;
 
   // posterior predictions for the number of fires
   for (i in 1:(N * T)) {
     count_pred[i] = bernoulli_logit_rng(mu_full[2][i]) * neg_binomial_2_log_rng(mu_full[1][i], nb_prec);
+  }
+
+  {
+    // compute pearson residuals
+    vector[N * T] pr = inv_logit(mu_full[2]);
+    vector[N * T] mu_nb = exp(mu_full[1]);
+    vector[N * T] var_pr = pr .* (1 - pr);
+    vector[N * T] var_nb = mu_nb + square(mu_nb) ./ nb_prec;
+    vector[N * T] zinb_mean = pr .* mu_nb;
+    vector[N * T] zinb_var = square(pr) .* var_nb + square(mu_nb) .* var_pr + var_nb .* var_pr;
+    for (i in 1:n_count)
+      pearson_resid[i] = (counts[i] - zinb_mean[eps_idx_train[i]]) / sqrt(zinb_var[eps_idx_train[i]]);
   }
 
   // training log likelihoods
