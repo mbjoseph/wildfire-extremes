@@ -5,13 +5,13 @@ count_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
                 'count_pred',
                 'lambda_tilde',
                 'holdout_loglik_c', 'train_loglik_c',
-                'sigma_phi', 'gamma', 'phi', 'eta',
-                'pearson_resid')
+                'sigma_phi', 'gamma', 'phi', 'eta')
 
 burn_area_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
                     'loglik_f',
                     'lambda_tilde',
-                    'holdout_loglik_b', 'size_rep', 'holdout_rep')
+                    'holdout_loglik_b', 'size_rep', 'holdout_rep',
+                    'sigma_phi', 'phi', 'eta')
 
 control_list <- list(
   adapt_delta = 0.99,
@@ -19,7 +19,7 @@ control_list <- list(
 )
 
 n_iter <- 1000
-ref_rate <- 10
+ref_rate <- 1
 
 # Count models --------------------------------------------------------
 zi_d <- stan_d
@@ -86,11 +86,11 @@ gc()
 ba_pareto_init <- stan_model('stan/area-pareto.stan')
 ba_pareto_fit <- sampling(
   ba_pareto_init,
-  pars = burn_area_pars,
+  pars = c('shape', burn_area_pars),
   data = stan_d,
   cores = 4,
   refresh = ref_rate,
-  init_r = .01,
+  init_r = .1,
   control = control_list,
   iter = n_iter)
 write_rds(ba_pareto_fit, 'ba_pareto_fit.rds')

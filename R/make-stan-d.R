@@ -66,7 +66,8 @@ stan_d <- list(
   min_size = min_size,
 
   W = nb_mat,
-  W_n = sum(nb_mat) / 2
+  W_n = sum(nb_mat) / 2,
+  tb_idx = tb_idx
   )
 
 # assert that there are no missing values in stan_d
