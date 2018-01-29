@@ -163,8 +163,8 @@ train_burn_covs <- train_burns %>%
 
 # train_burn_covs has no duplicate er_ym's: should be fewer rows than train_burns
 assert_that(nrow(train_burn_covs) < nrow(train_burns))
-
-X_tb <- X[match(train_burn_covs$er_ym, st_covs$er_ym), ]
+tb_idx <- match(train_burn_covs$er_ym, st_covs$er_ym)
+X_tb <- X[tb_idx, ]
 assert_that(identical(nrow(X_tb), nrow(train_burn_covs)))
 sparse_X_tb <- extract_sparse_parts(X_tb)
 
