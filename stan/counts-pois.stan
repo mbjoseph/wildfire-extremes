@@ -1,24 +1,21 @@
 functions {
   /**
-  * Return the log probability of a unit-scale proper
-  * conditional autoregressive (CAR) prior
+  * Return the log probability of a unit-scale intrinsic
+  * autoregressive (IAR) prior
   * with a sparse representation for the adjacency matrix
   *
-  * @param phi Vector containing the parameters with a CAR prior
-  * @param gamma Dependence (usually spatial) parameter for the CAR prior (real)
+  * @param phi Vector containing the parameters with a IAR prior
   * @param W_sparse Sparse representation of adjacency matrix (int array)
+  * @param D_sparse Number of neighbors for each location (vector)
   * @param N Length of phi (int)
   * @param W_n Number of adjacent pairs (int)
-  * @param D_sparse Number of neighbors for each location (vector)
-  * @param lambda_car Eigenvalues of D^{-1/2}*W*D^{-1/2} (vector)
   *
   * @return Log probability density of CAR prior up to additive constant
   */
-  real sparse_car_lpdf(vector phi, real gamma,
-    int[,] W_sparse, vector D_sparse, vector lambda_car, int N, int W_n) {
+  real sparse_iar_lpdf(vector phi,
+    int[,] W_sparse, vector D_sparse, int N, int W_n) {
       row_vector[N] phit_D; // phi' * D
       row_vector[N] phit_W; // phi' * W
-      vector[N] ldet_terms;
 
       phit_D = (phi .* D_sparse)';
       phit_W = rep_row_vector(0, N);
@@ -27,8 +24,7 @@ functions {
         phit_W[W_sparse[i, 2]] = phit_W[W_sparse[i, 2]] + phi[W_sparse[i, 1]];
       }
 
-      for (i in 1:N) ldet_terms[i] = log1m(gamma * lambda_car[i]);
-      return 0.5 * (sum(ldet_terms) - (phit_D * phi - gamma * (phit_W * phi)));
+      return 0.5 * -(phit_D * phi - (phit_W * phi));
   }
 }
 data {
@@ -74,9 +70,8 @@ data {
 transformed data {
   vector[n_count] log_area_train = log_area[er_idx_train];
   vector[N * T] log_area_full = log_area[er_idx_full];
-    int W_sparse[W_n, 2];   // adjacency pairs
+  int W_sparse[W_n, 2];   // adjacency pairs
   vector[N] D_sparse;     // diagonal of D (number of neigbors for each site)
-  vector[N] lambda_car;       // eigenvalues of invsqrtD * W * invsqrtD
 
   { // generate sparse representation for W
   int counter;
@@ -93,13 +88,6 @@ transformed data {
     }
   }
   for (i in 1:N) D_sparse[i] = sum(W[i]);
-  {
-    vector[N] invsqrtD;
-    for (i in 1:N) {
-      invsqrtD[i] = 1 / sqrt(D_sparse[i]);
-    }
-    lambda_car = eigenvalues_sym(quad_form(W, diag_matrix(invsqrtD)));
-  }
 }
 
 parameters {
@@ -110,10 +98,9 @@ parameters {
   vector<lower = 0>[M] c_aux;
   cholesky_factor_corr[M] L_beta;
 
-  // car params
-  vector<lower = 0, upper = 1>[M] gamma; // spatial dependence
+  // iar params
   vector<lower = 0, upper = 1>[M] eta;   // autoregressive param
-  vector<lower = 0>[M] sigma_phi;     // time difference spatial sd
+  vector<lower = 0>[M] sigma_phi;        // time difference spatial sd
   matrix[N, T] phiR[M];                  // unscaled values
 }
 
@@ -127,16 +114,23 @@ transformed parameters {
   vector[N * T] phi_vec[M];
 
   for (i in 1:M) {
-    for (j in 1:N) {
-      phi[i][j, 1] = phiR[i][j, 1] * sigma_phi[i]; // initial time step
-      for (t in 2:T) {
-        // autoregressive structure for subsequent time steps
-        phi[i][j, t] = eta[i] * phi[i][j, t - 1] + phiR[i][j, t] * sigma_phi[i];
+    { // first timestep
+      real phi0_mean = mean(phiR[i][, 1]);
+      for (j in 1:N) {
+        phi[i][j, 1] = (phiR[i][j, 1] - phi0_mean) * sigma_phi[i];
+      }
+    }
+    for (t in 2:T) {
+      { // subsequent timesteps
+        real phi_mean = mean(phiR[i][, t]);
+        for (j in 1:N) {
+          phi[i][j, t] =  eta[i] * phi[i][j, t - 1]
+                    + (phiR[i][j, t] - phi_mean) * sigma_phi[i];
+        }
       }
     }
     phi_vec[i] = to_vector(phi[i]);
   }
-
 
   c = slab_scale * sqrt(c_aux);
 
@@ -170,7 +164,7 @@ model {
   sigma_phi ~ normal(0, 1);
   for (i in 1:M) {
     for (t in 1:T) {
-      phiR[i][, t] ~ sparse_car(gamma[i], W_sparse, D_sparse, lambda_car, N, W_n);
+      phiR[i][, t] ~ sparse_iar(W_sparse, D_sparse, N, W_n);
     }
   }
 
@@ -194,13 +188,14 @@ generated quantities {
   }
 
   // expected log counts need an offset for area
-  mu_full[1] = mu_full[1] + log_area_full; // this is no longer M because M'th element is pr(0)
+  mu_full[1] = mu_full[1] + log_area_full;
 
 
   {
     vector[N * T] poisson_mean = exp(mu_full[1]);
     for (i in 1:n_count)
-      pearson_resid[i] = (counts[i] - poisson_mean[eps_idx_train[i]]) / sqrt(poisson_mean[eps_idx_train[i]]);
+      pearson_resid[i] = (counts[i] - poisson_mean[eps_idx_train[i]])
+                          / sqrt(poisson_mean[eps_idx_train[i]]);
   }
 
   // posterior predictions for the number of fires
