@@ -1,15 +1,14 @@
 functions {
   /**
   * Return the log probability of a unit-scale intrinsic
-  * conditional autoregressive (IAR) prior
+  * autoregressive (IAR) prior
   * with a sparse representation for the adjacency matrix
   *
   * @param phi Vector containing the parameters with a IAR prior
   * @param W_sparse Sparse representation of adjacency matrix (int array)
+  * @param D_sparse Number of neighbors for each location (vector)
   * @param N Length of phi (int)
   * @param W_n Number of adjacent pairs (int)
-  * @param D_sparse Number of neighbors for each location (vector)
-  * @param lambda_car Eigenvalues of D^{-1/2}*W*D^{-1/2} (vector)
   *
   * @return Log probability density of CAR prior up to additive constant
   */
@@ -28,6 +27,7 @@ functions {
       return 0.5 * -(phit_D * phi - (phit_W * phi));
   }
 }
+
 data {
   int<lower = 1> N; // # spatial units
   int<lower = 1> T; // # timesteps
@@ -69,7 +69,6 @@ transformed data {
   int n_burn_mu = n_u_tb - 1;
   int W_sparse[W_n, 2];   // adjacency pairs
   vector[N] D_sparse;     // diagonal of D (number of neigbors for each site)
-  vector[N] lambda_car;       // eigenvalues of invsqrtD * W * invsqrtD
 
   { // generate sparse representation for W
   int counter;
@@ -86,13 +85,6 @@ transformed data {
     }
   }
   for (i in 1:N) D_sparse[i] = sum(W[i]);
-  {
-    vector[N] invsqrtD;
-    for (i in 1:N) {
-      invsqrtD[i] = 1 / sqrt(D_sparse[i]);
-    }
-    lambda_car = eigenvalues_sym(quad_form(W, diag_matrix(invsqrtD)));
-  }
 }
 
 parameters {
@@ -107,7 +99,7 @@ parameters {
   // iar params
   vector<lower = 0, upper = 1>[M] eta;   // autoregressive param
   vector<lower = 0>[M] sigma_phi;        // time difference spatial sd
-  matrix[T, N] phiR;                  // unscaled values
+  matrix[T, N] phiR;                     // unscaled values
 }
 
 transformed parameters {
@@ -120,7 +112,7 @@ transformed parameters {
   vector[N * T] phi_vec;
 
 
-  phi[1] = phiR[1] * sigma_phi[1];
+  phi[1] = (phiR[1] - mean(phiR[1])) * sigma_phi[1];
   for (t in 2:T)
     phi[t] = eta[1] * phi[t -1] + (phiR[t] - mean(phiR[t])) * sigma_phi[1];
 
