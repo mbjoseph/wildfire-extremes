@@ -19,7 +19,7 @@ holdout_c_rep <- read_rds('holdout_c_rep.rds')
 train_c_rep <- filter(train_c_rep, iter < 500)
 holdout_c_rep <- filter(holdout_c_rep, iter < 500)
 
-# Total burn areas by year
+# Total counts by year
 train_y_rep <- train_c_rep %>%
   group_by(year, iter, model) %>%
   summarize(total_pred = sum(value),
@@ -73,13 +73,18 @@ holdout_full_rep <- holdout_c_rep %>%
 
 holdout_full_rep %>%
   filter(model == 'zinb_fit.rds') %>%
-  ggplot(aes(ym, med)) +
-  geom_line() +
+  left_join(holdout_counts) %>%
+  mutate(in_interval = n_fire >= lo & n_fire <= hi) %>%
+  ggplot(aes(ym, med, color = in_interval)) +
   facet_wrap(~NA_L3NAME) +
-  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = .4) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = .4, color = NA) +
   scale_y_log10(breaks = c(0, 1, 10, 100, 1000, 10000)) +
   theme_minimal() +
-  geom_point(data = holdout_counts, aes(y = n_fire), col = 'red', size = .5)
+  geom_point(aes(y = n_fire), size = .7) +
+  xlab('Time') +
+  ylab('Number of fires > 1000 acres') +
+  scale_color_manual(values = c('red', 'black')) +
+  theme(legend.position = 'none')
 ggsave('fig/count-preds.png', width = 18, height = 10)
 
 # zoom in on problematic ecoregions
@@ -88,13 +93,12 @@ train_full_rep %>%
   mutate(train = 'train') %>%
   full_join(holdout_full_rep %>% mutate(train = 'test')) %>%
   full_join(er_df) %>%
+  filter(NA_L3NAME == 'Southern Rockies') %>%
   ggplot(aes(ym, med)) +
   facet_wrap(~NA_L3NAME) +
   geom_ribbon(aes(ymin = lo, ymax = hi, fill = train), alpha = .4) +
   scale_fill_manual(values = c('red', 'dodgerblue')) +
-  scale_y_log10(breaks = c(0, 1, 10, 100, 1000, 10000)) +
-  theme_minimal() +
-  geom_line(data = count_df, aes(y = n_fire),
-            col = 'black', size = .2)
+  #scale_y_log10(breaks = c(0, 1, 10, 100, 1000)) +
+  theme_minimal()
 ggsave('fig/count-preds-full.png', width = 80, height = 10, limitsize = FALSE)
 

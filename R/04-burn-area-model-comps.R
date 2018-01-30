@@ -90,8 +90,8 @@ loglik_d %>%
   scale_color_manual('Burn area distribution', values = cols) +
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
   theme_minimal() +
-  ylim(-26000, -21500) +
-  xlim(-76400, -75300) +
+  # ylim(-26000, -21500) +
+  # xlim(-76400, -75300) +
   geom_text_repel(aes(x = med_train, y = med_test, label = Distribution),
              data = label_d, color = 'black', size = 3, box.padding = .5) +
   theme(legend.position = 'none')

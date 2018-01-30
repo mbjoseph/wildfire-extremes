@@ -3,6 +3,7 @@ soucr('R/make-stan-d.R')
 library(extraDistr)
 library(ggridges)
 library(ggthemes)
+library(plotly)
 
 fit <- read_rds(path = list.files(pattern = 'lognormal_.*'))
 
@@ -10,7 +11,6 @@ fit <- read_rds(path = list.files(pattern = 'lognormal_.*'))
 traceplot(fit, inc_warmup = TRUE)
 
 traceplot(fit, pars = c('tau', 'c', 'alpha'))
-traceplot(fit, pars = c('Rho_beta'))
 
 # Extract posterior draws and visualize results ---------------------------
 post <- rstan::extract(fit)

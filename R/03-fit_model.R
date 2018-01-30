@@ -5,7 +5,7 @@ count_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
                 'count_pred',
                 'lambda_tilde',
                 'holdout_loglik_c', 'train_loglik_c',
-                'sigma_phi', 'gamma', 'phi', 'eta')
+                'sigma_phi', 'phi', 'eta')
 
 burn_area_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
                     'loglik_f',
@@ -39,9 +39,9 @@ write_rds(pois_fit, path = 'pois_fit.rds')
 zip_init <- stan_model('stan/counts-zip.stan')
 zip_fit <- vb(zip_init,
               data = zi_d,
-              eta = .2,
+              eta = .5,
               pars = count_pars,
-              tol_rel_obj = 0.01,
+              tol_rel_obj = 0.008,
               init = 0,
               adapt_engaged = FALSE)
 write_rds(zip_fit, path = 'zip_fit.rds')
@@ -50,9 +50,9 @@ nb_init <- stan_model('stan/counts-nb.stan')
 nb_fit <- vb(
   nb_init,
   data = stan_d,
-  eta = .05,
+  eta = .1,
   pars = c(count_pars, 'nb_prec'),
-  tol_rel_obj = 0.01,
+  tol_rel_obj = 0.008,
   init = 0,
   adapt_engaged = FALSE)
 write_rds(nb_fit, path = 'nb_fit.rds')
@@ -60,7 +60,7 @@ write_rds(nb_fit, path = 'nb_fit.rds')
 zinb_init <- stan_model('stan/counts-zinb.stan')
 zinb_fit <- vb(zinb_init,
               data = zi_d,
-              eta = .05,
+              eta = .1,
               pars = c(count_pars, 'nb_prec'),
               tol_rel_obj = 0.008,
               init = 0,

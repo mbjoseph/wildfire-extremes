@@ -79,9 +79,7 @@ holdout_c_loglik %>%
   xlab('Log likelihood: training set') +
   ylab('Log likelihood: test set') +
   scale_color_manual('Count distribution', values = cols) +
-  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
-  xlim(-40000, -7000) +
-  ylim(-5000, -1500)
+  guides(colour = guide_legend(override.aes = list(alpha = 1)))
 ggsave(filename = 'fig/loglik-counts.png', width = 6, height = 4)
 
 
