@@ -83,8 +83,9 @@ label_d <- loglik_d %>%
             med_train = median(train))
 
 loglik_d %>%
+  filter(!(Distribution %in% c('Gamma', 'Weibull'))) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
-  geom_point(alpha = .1) +
+  geom_point(alpha = .9) +
   xlab('Log likelihood: training set') +
   ylab('Log likelihood: test set') +
   scale_color_manual('Burn area distribution', values = cols) +
@@ -93,7 +94,8 @@ loglik_d %>%
   # ylim(-26000, -21500) +
   # xlim(-76400, -75300) +
   geom_text_repel(aes(x = med_train, y = med_test, label = Distribution),
-             data = label_d, color = 'black', size = 3, box.padding = .5) +
+             data = filter(label_d, !(Distribution %in% c('Gamma', 'Weibull'))),
+             color = 'black', size = 3, box.padding = .1) +
   theme(legend.position = 'none')
 ggsave(filename = 'fig/loglik-burns.png', width = 5, height = 3.5)
 

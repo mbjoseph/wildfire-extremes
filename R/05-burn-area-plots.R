@@ -4,6 +4,7 @@ library(extraDistr)
 library(ggridges)
 library(ggthemes)
 library(plotly)
+library(viridis)
 
 fit <- read_rds(path = list.files(pattern = 'lognormal_.*'))
 
@@ -34,13 +35,13 @@ beta_summary <- beta_df %>%
             p_pos = mean(value > 0)) %>%
   ungroup %>%
   mutate(variable = colnamesX[col],
-         nonzero = p_neg > .9 | p_pos > .9)
+         nonzero = p_neg > .8 | p_pos > .8)
 
 beta_summary %>%
   filter(nonzero) %>%
-  select(dim, col, p_neg, p_pos, variable) %>%
+  select(dim, col, p_neg, p_pos, variable, median) %>%
   left_join(beta_df) %>%
-  ggplot(aes(value, variable)) +
+  ggplot(aes(value, reorder(variable, median))) +
   geom_density_ridges() +
   geom_vline(xintercept = 0, linetype = 'dashed') +
   facet_wrap(~ dim, scales = 'free') +
@@ -103,20 +104,21 @@ mu_df %>%
   ylab('Lognormal mean')
 
 # plotting expected values vs. covariates
+cmap <- c(viridis(12, option = 'C'),
+          rev(viridis(12, option = 'C')))
+
 mu_df %>%
   full_join(st_covs) %>%
   left_join(dplyr::distinct(tbl_df(ecoregions),
                             NA_L3NAME, NA_L1CODE)) %>%
-  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME),
-         point_cols = ifelse(NA_L3NAME == 'Canadian Rockies',
-                             'CR',
-                             ifelse(NA_L3NAME == 'Central Appalachians',
-                                    'CA',
-                                    'other'))) %>%
-  ggplot(aes(rmin, exp(median) + 1000, color = point_cols)) +
-  geom_point(alpha = .3, size = .5) +
-  theme_minimal() +
+  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
+  ggplot(aes(rmin, exp(median), color = month)) +
+  scale_color_gradientn(colors = cmap) +
+  #theme_bw() +
   facet_wrap(~NA_L2NAME) +
   xlab('Mean minimum daily relative humidity') +
-  ylab('Expected burn area')
-# canadian rockies and central appalachians stand out
+  ylab('Expected burn area') +
+  scale_y_log10() +
+  geom_linerange(aes(ymin = exp(q1), ymax = exp(q9)), alpha = .5) +
+  geom_point(alpha = .9, size = .5)
+
