@@ -7,6 +7,7 @@ library(ggridges)
 library(viridis)
 library(ggthemes)
 library(plotly)
+library(ggrepel)
 
 fit <- read_rds(path = list.files(pattern = 'zinb_fit.*'))
 
@@ -38,14 +39,9 @@ beta_summary <- beta_df %>%
             p_pos = mean(value > 0)) %>%
   ungroup %>%
   mutate(variable = colnamesX[col],
-         nonzero = p_neg > .95 | p_pos > .95)
-
-beta_summary %>%
-  filter(nonzero) %>%
-  select(dim, col, p_neg, p_pos, variable, median, mean) %>%
-  left_join(beta_df) %>%
+         nonzero = p_neg > .95 | p_pos > .95) %>%
   mutate(Response = ifelse(dim == 1,
-                           'Negative binomial mean',
+                           'Negative binomial component',
                            'Zero-inflation component'),
          variable = gsub('bs_', '', variable),
          variable = gsub('crmin', 'humidity', variable),
@@ -61,7 +57,41 @@ beta_summary %>%
          variable = gsub('NAME', ' ', variable),
          variable = gsub('_', ': ', variable),
          variable = tolower(variable),
-         variable = tools::toTitleCase(variable)) %>%
+         variable = tools::toTitleCase(variable))
+
+# show all coefficients
+beta_summary %>%
+  group_by(Response) %>%
+  mutate(max_abs = max(abs(median)),
+         rel_size = median / max_abs) %>%
+  ggplot(aes(y = median,
+             x = variable,
+             color = rel_size ^ 2 * sign(rel_size),
+             alpha = rel_size ^ 2)) +
+  geom_point(size = .3) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        axis.text.x = element_blank(),
+        panel.grid.major.x = element_blank()) +
+  facet_wrap(~ Response, scales = 'free', nrow = 2) +
+  geom_segment(aes(y = lo, yend = hi,
+                   xend = variable),
+               size = .3) +
+  xlab('Coefficient') +
+  ylab('Coefficient value') +
+  scale_color_gradient2(mid = 'black', low = 'blue', high = 'red') +
+  theme(legend.position = 'none') +
+  geom_text_repel(aes(label = ifelse(abs(rel_size) > .35, variable, '')),
+                  alpha = 1, size = 2.5)
+ggsave('fig/all-coefs.png', width = 8, height = 4)
+
+
+# show important coefficients
+beta_summary %>%
+  filter(nonzero) %>%
+  select(dim, col, p_neg, p_pos, variable,
+         median, mean, variable, Response) %>%
+  left_join(beta_df) %>%
   ggplot(aes(value, reorder(variable, mean), fill = median)) +
   theme_minimal() +
   geom_density_ridges(scale = 3, rel_min_height = 0.005,
@@ -123,36 +153,53 @@ st_covs %>%
         strip.text.x = element_text(size = 8, color = 'grey30'))
 ggsave('fig/humidity-counts.png', width = 9, height = 6)
 
+
+
+st_covs %>%
+  full_join(mu_df) %>%
+  filter(year < cutoff_year) %>%
+  mutate(temperature_c = tmmx - 273.15) %>%
+  ggplot(aes(x = temperature_c,
+             y = med / (1000 * area),
+             color = month)) +
+  geom_linerange(aes(ymin = lo / (1000 * area),
+                     ymax = hi / (1000 * area)),
+                 alpha = .1) +
+  geom_point(size = .5) +
+  theme_minimal() +
+  facet_wrap(~ fct_reorder(l2_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(25))) +
+  scale_color_gradientn(colors = cmap, 'Month') +
+  scale_y_log10() +
+  xlab('Mean daily maximum air temperature (C)') +
+  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  theme(panel.grid.minor = element_blank(),
+        strip.text.x = element_text(size = 8, color = 'grey30'))
+ggsave('fig/air-temp-counts.png', width = 9, height = 6)
+
+
+
 st_covs %>%
   full_join(mu_df) %>%
   filter(year < cutoff_year) %>%
   ggplot(aes(x = vs,
              y = med / (1000 * area),
              color = month)) +
+  geom_linerange(aes(ymin = lo / (1000 * area),
+                     ymax = hi / (1000 * area)),
+                 alpha = .1) +
   geom_point(size = .5) +
   theme_minimal() +
-  facet_wrap(~ NA_L2NAME,
-             labeller = labeller(NA_L2NAME = label_wrap_gen(20))) +
-  scale_color_gradientn(colors = cmap) +
+  facet_wrap(~ fct_reorder(l2_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(25))) +
+  scale_color_gradientn(colors = cmap, 'Month') +
   scale_y_log10() +
-  xlab('Mean daily wind speed') +
-  ylab('Expected fire density (# per sq. km)')
+  xlab('Mean monthly wind speed') +
+  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  theme(panel.grid.minor = element_blank(),
+        strip.text.x = element_text(size = 8, color = 'grey30'))
+ggsave('fig/wind-counts.png', width = 9, height = 6)
 
-st_covs %>%
-  full_join(mu_df) %>%
-  filter(year < cutoff_year) %>%
-  ggplot(aes(x = prev_12mo_precip,
-             y = med / (1000 * area),
-             color = month)) +
-  geom_point(size = .5) +
-  theme_minimal() +
-  facet_wrap(~ NA_L2NAME,
-             labeller = labeller(NA_L2NAME = label_wrap_gen(20))) +
-  scale_color_gradientn(colors = cmap) +
-  scale_y_log10() +
-  xlab('Mean previous 12 month precipitation') +
-  ylab('Expected fire density (# per sq. km)') +
-  scale_x_log10()
 
 st_covs %>%
   full_join(mu_df) %>%
@@ -160,29 +207,42 @@ st_covs %>%
   ggplot(aes(x = pr,
              y = med / (1000 * area),
              color = month)) +
+  geom_linerange(aes(ymin = lo / (1000 * area),
+                     ymax = hi / (1000 * area)),
+                 alpha = .1) +
   geom_point(size = .5) +
   theme_minimal() +
-  facet_wrap(~ NA_L2NAME,
-             labeller = labeller(NA_L2NAME = label_wrap_gen(20))) +
-  scale_color_gradientn(colors = cmap) +
+  facet_wrap(~ fct_reorder(l2_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(25))) +
+  scale_color_gradientn(colors = cmap, 'Month') +
   scale_y_log10() +
-  xlab('Same month precipitation') +
-  ylab('Expected fire density (# per sq. km)') +
+  xlab('Mean monthly precipitation') +
+  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  theme(panel.grid.minor = element_blank(),
+        strip.text.x = element_text(size = 8, color = 'grey30')) +
   scale_x_log10()
+ggsave('fig/precip-counts.png', width = 9, height = 6)
+
 
 st_covs %>%
   full_join(mu_df) %>%
   filter(year < cutoff_year) %>%
-  ggplot(aes(x = tmmx,
+  ggplot(aes(x = prev_12mo_precip,
              y = med / (1000 * area),
-             color = month,
-             group = NA_L3NAME)) +
+             color = month)) +
+  geom_linerange(aes(ymin = lo / (1000 * area),
+                     ymax = hi / (1000 * area)),
+                 alpha = .1) +
   geom_point(size = .5) +
   theme_minimal() +
-  facet_wrap(~ NA_L2NAME,
-             labeller = labeller(NA_L2NAME = label_wrap_gen(20))) +
-  scale_color_gradientn(colors = cmap) +
+  facet_wrap(~ fct_reorder(l2_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(25))) +
+  scale_color_gradientn(colors = cmap, 'Month') +
   scale_y_log10() +
-  xlab('Air temperature') +
-  ylab('Expected fire density (# per sq. km)')
+  xlab('Mean precipitation over previous 12 months') +
+  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  theme(panel.grid.minor = element_blank(),
+        strip.text.x = element_text(size = 8, color = 'grey30')) +
+  scale_x_log10()
+ggsave('fig/precip12-counts.png', width = 9, height = 6)
 
