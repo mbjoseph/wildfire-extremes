@@ -99,6 +99,13 @@ loglik_d %>%
   theme(legend.position = 'none')
 ggsave(filename = 'fig/loglik-burns.png', width = 5, height = 3.5)
 
+loglik_d %>%
+  filter((Distribution %in% c('Gamma', 'Weibull'))) %>%
+  group_by(Distribution) %>%
+  summarize(min_test = min(test),
+            max_test = max(test))
+
+
 rm(holdout_ba_loglik)
 rm(train_ba_loglik)
 gc()

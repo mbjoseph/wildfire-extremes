@@ -6,6 +6,7 @@ library(extraDistr)
 library(ggridges)
 library(ggExtra)
 library(patchwork)
+library(ggrepel)
 
 source('R/02-explore.R')
 source('R/make-stan-d.R')
@@ -21,7 +22,7 @@ count_fits <- grep(model_fits, pattern = 'ba_', value = TRUE, invert = TRUE)
 cols <- c('Poisson' = 'green3',
           'Negative binomial' = 'skyblue',
           'ZI Poisson' = 'orange',
-          'ZI Negative binomial' = 'purple')
+          'ZI Negative binomial' = 'hotpink1')
 
 # for each model fit, produce a vector of the holdout log likelihoods
 holdout_c_loglik <- list()
@@ -63,8 +64,7 @@ holdout_c_loglik <- bind_rows(holdout_c_loglik) %>%
 train_c_loglik <- bind_rows(train_c_loglik) %>%
   mutate(train = TRUE)
 
-
-holdout_c_loglik %>%
+ll_d <- holdout_c_loglik %>%
   full_join(train_c_loglik) %>%
   mutate(train = ifelse(train == TRUE, 'train', 'test'),
          Distribution = case_when(
@@ -72,14 +72,26 @@ holdout_c_loglik %>%
            grepl('pois', .$model) ~ 'Poisson',
            grepl('zip', .$model) ~ 'ZI Poisson',
            grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
-  spread(train, value) %>%
+  spread(train, value)
+
+ll_labels <- ll_d %>%
+  group_by(Distribution) %>%
+  summarize(test = median(test),
+            train = median(train))
+
+ll_d %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
   theme_minimal() +
   geom_point(alpha = .5) +
   xlab('Log likelihood: training set') +
   ylab('Log likelihood: test set') +
   scale_color_manual('Count distribution', values = cols) +
-  guides(colour = guide_legend(override.aes = list(alpha = 1)))
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  theme(panel.grid.minor = element_blank(),
+        legend.position = 'none') +
+  geom_text_repel(data = ll_labels,
+                  aes(label = Distribution),
+                  color = 'black')
 ggsave(filename = 'fig/loglik-counts.png', width = 6, height = 4)
 
 
@@ -129,7 +141,8 @@ den_plot <- pr_df %>%
   geom_point(data = emp_pr,
             aes(x = n_fire, y = pr_value),
             inherit.aes = FALSE) +
-  theme(legend.position = 'none') +
+  theme(legend.position = 'none',
+        panel.grid.minor = element_blank()) +
   xlab('Counts > 1000 acres') +
   ylab('Pr(counts > 1000 acres)')
 
@@ -172,7 +185,8 @@ zero_plot <- ppc_counts %>%
   theme(legend.position = 'none') +
   theme(
     strip.background = element_blank(),
-    strip.text.x = element_blank()
+    strip.text.x = element_blank(),
+    panel.grid.minor = element_blank()
   )
 
 max_plot <- ppc_counts %>%
@@ -200,11 +214,10 @@ max_plot <- ppc_counts %>%
              linetype = 'dashed', color = 'black') +
   geom_hline(yintercept = max(stan_d$holdout_c),
              linetype = 'dashed', color = 'black') +
-  theme(legend.position = 'none') +
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_blank()
-  )
+  theme(legend.position = 'none',
+        strip.background = element_blank(),
+        strip.text.x = element_blank(),
+        panel.grid.minor = element_blank())
 
 sum_plot <- ppc_counts %>%
   mutate(train = 'train') %>%
@@ -230,13 +243,10 @@ sum_plot <- ppc_counts %>%
              linetype = 'dashed', color = 'black') +
   geom_hline(yintercept = sum(stan_d$holdout_c),
              linetype = 'dashed', color = 'black') +
-  theme(legend.position = 'none') +
-  scale_x_log10() +
-  scale_y_log10() +
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_blank()
-  )
+  theme(legend.position = 'none',
+        strip.background = element_blank(),
+        strip.text.x = element_blank(),
+        panel.grid.minor = element_blank())
 
 plot_grid(den_plot, zero_plot, max_plot, sum_plot, ncol = 1)
 ggsave('fig/ppc-counts.png', width = 9, height = 7)
