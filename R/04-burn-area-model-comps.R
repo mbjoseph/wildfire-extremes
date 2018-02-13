@@ -280,3 +280,40 @@ sum_plot <- train_max %>%
 
 plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4)
 ggsave(filename = 'fig/ppc-density-funs.png', width = 9, height = 7)
+
+
+
+
+
+# Evaluate posterior predictive interval coverage in test set -------------
+test_pred_intervals <- holdout_ba_rep %>%
+  bind_rows %>%
+  group_by(idx, model) %>%
+  summarize(med = median(value),
+            lo = quantile(value, .025),
+            hi = quantile(value, .975)) %>%
+  mutate(true_exceedance = stan_d$holdout_b[idx],
+         true_in_interval = lo <= true_exceedance & hi >= true_exceedance,
+         NA_L3NAME = holdout_burns$NA_L3NAME[idx])
+
+# overall coverage for each model
+test_pred_intervals %>%
+  group_by(model) %>%
+  summarize(mean(true_in_interval))
+
+# ecoregion-specific coverage for log normal model
+er_coverage <- test_pred_intervals %>%
+  filter(model == 'ba_lognormal_fit.rds') %>%
+  group_by(NA_L3NAME) %>%
+  summarize(coverage = mean(true_in_interval),
+            n = n()) %>%
+  arrange(coverage)
+
+# low values are for ecoregions with few fires -probably not a good
+# indication of future performance
+er_coverage %>%
+  mutate(label = ifelse(coverage < .8,
+                        paste0(NA_L3NAME, ': n = ', n), '')) %>%
+  ggplot(aes(x = n, coverage)) +
+  geom_point() +
+  geom_text_repel(aes(label = label))

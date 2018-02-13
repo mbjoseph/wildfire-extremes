@@ -111,7 +111,7 @@ write_rds(ba_tpareto_fit, 'ba_tpareto_fit.rds')
 ba_lognormal_init <- stan_model('stan/area-lognormal.stan')
 ba_lognormal_fit <- sampling(
   ba_lognormal_init,
-  pars = burn_area_pars,
+  pars = c('scale', burn_area_pars),
   data = stan_d,
   cores = 4,
   refresh = ref_rate,
