@@ -52,12 +52,49 @@ assert_that(all(test_preds$id == test_preds$id1))
 test_preds <- test_preds %>%
   select(-ends_with('1'))
 
+
+# Inference over total burn area for the test period ----------------------
+
+total_df <- test_preds %>%
+  left_join(select(st_covs, id, year)) %>%
+  # filter out zero event records (don't contribute to sum)
+  filter(n_event > 0, year >= cutoff_year) %>%
+  rowwise() %>%
+  mutate(total_area = sum(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
+  ungroup
+
+
+actual_totals <- holdout_burns %>%
+  select(-geometry) %>%
+  as_tibble %>%
+  summarize(total_area = sum(R_ACRES),
+            total_events = n())
+
+total_df %>%
+  group_by(iter) %>%
+  summarize(total_area = sum(total_area),
+            total_events = sum(n_event)) %>%
+  ggplot(aes(x = total_events, total_area)) +
+  geom_point(alpha = .5) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank()) +
+  geom_point(data = actual_totals, color = 'red',
+             size = 6) +
+  xlab('Total number of fires > 1000 acres: 2010-2015') +
+  ylab('Total burn area: 2010-2015')
+
+
+
 # Generate derived parameters about the distribution of maxima
 nmax_q <- function(p, n, mu, sigma) {
+  # quantile function for the n-sample maximum of normally
+  # distributed random variables
   erf.inv <- function(x) qnorm((x + 1)/2)/sqrt(2)
-
   sigma * sqrt(2) * erf.inv(2 * p^(1/n) - 1) + mu
 }
+
+
+
 
 test_preds <- test_preds %>%
   mutate(log_p = n_event * pnorm(log(100000), mean = ln_mu, sd = ln_scale, log.p = TRUE),
@@ -146,26 +183,110 @@ n_vs_exc <- exceedance_summary %>%
   scale_color_viridis(direction = -1, 'Mean humidity')
 ggsave(plot = n_vs_exc,
        'fig/number-vs-exceedance.png',
-       width = 7, height = 3.5)
+       width = 6, height = 3)
 
 # show on map
-class(ecoregions)
+# class(ecoregions)
+#
+# ecoregions$exceedance_prob <- exceedance_summary$`Exceedance probability`[match(ecoregions$NA_L3NAME, exceedance_summary$NA_L3NAME)]
+#
+# simpler_ecoregions <- ecoregions %>%
+#   as('Spatial') %>%
+#   rmapshaper::ms_simplify(keep = .01) %>%
+#   sf::st_as_sf()
+#
+# exc_map <- simpler_ecoregions %>%
+#   ggplot() +
+#   geom_sf(aes(fill = exceedance_prob),
+#           color = 'white',
+#           size = .1) +
+#   scale_fill_viridis(trans = 'log', option = 'B',
+#                      'Million acre\nexceedance\nprobability',
+#                      breaks = c(.00001, .0001, .001, .01)) +
+#   geom_sf(data = mtbs, color = 'black', alpha = .1, size = .01) +
+#   hrbrthemes::theme_ipsum_rc(base_family = 'helvetica')
+# ggsave(plot = exc_map, 'fig/million-acre-exceedance-map.png', width = 7, height = 3.5)
+#
 
-ecoregions$exceedance_prob <- exceedance_summary$`Exceedance probability`[match(ecoregions$NA_L3NAME, exceedance_summary$NA_L3NAME)]
 
-simpler_ecoregions <- ecoregions %>%
-  as('Spatial') %>%
-  rmapshaper::ms_simplify(keep = .01) %>%
-  sf::st_as_sf()
+# Evaluate interval coverage ----------------------------------------------
+# first, get theoretical 2.5% and 97.5% quantiles for each spatiotemporal unit
+test_preds <- test_preds %>%
+  mutate(qlo = exp(nmax_q(.001, n = n_event, mu = ln_mu, sigma = ln_scale)),
+         qhi = exp(nmax_q(.999, n = n_event, mu = ln_mu, sigma = ln_scale)))
 
-exc_map <- simpler_ecoregions %>%
-  ggplot() +
-  geom_sf(aes(fill = exceedance_prob),
-          color = 'white',
-          size = .1) +
-  scale_fill_viridis(trans = 'log', option = 'B',
-                     'Million acre\nexceedance\nprobability',
-                     breaks = c(.00001, .0001, .001, .01)) +
-  geom_sf(data = mtbs, color = 'black', alpha = .1, size = .01) +
-  hrbrthemes::theme_ipsum_rc(base_family = 'helvetica')
-ggsave(plot = exc_map, 'fig/million-acre-exceedance-map.png', width = 7, height = 3.5)
+interval_df <- test_preds %>%
+  group_by(NA_L3NAME, ym) %>%
+  summarize(m_qlo = mean(qlo),
+            m_qhi = mean(qhi))
+
+max_df <- mtbs %>%
+  select(-geometry) %>%
+  as.data.frame() %>%
+  as_tibble %>%
+  group_by(NA_L3NAME, ym) %>%
+  summarize(empirical_max = max(R_ACRES - min_size)) %>%
+  ungroup %>%
+  left_join(distinct(st_covs, NA_L3NAME, NA_L2NAME)) %>%
+  group_by(NA_L2NAME) %>%
+  mutate(n_events = n())
+
+most_events_ers <- max_df %>%
+  distinct(NA_L2NAME, n_events) %>%
+  arrange(-n_events)
+
+n_er_to_plot <- 4
+er_to_plot <- most_events_ers$NA_L2NAME[1:n_er_to_plot]
+
+interval_df <- interval_df %>%
+  left_join(select(st_covs,
+                   NA_L3NAME, NA_L2NAME, rmin,
+                   ym, year)) %>%
+  left_join(max_df) %>%
+  filter(year >= cutoff_year) %>%
+  mutate(l2_er = tools::toTitleCase(tolower(as.character(NA_L2NAME))),
+         l2_er = gsub(' and ', ' & ', l2_er),
+         l2_er = gsub('Usa ', '', l2_er),
+         l3_er = gsub(' and ', ' & ', NA_L3NAME),
+         longer_than_limit = nchar(l3_er) > 32,
+         l3_er = substr(l3_er, start = 1, stop = 32),
+         l3_er = ifelse(longer_than_limit,
+                        paste0(l3_er, '...'),
+                        l3_er))
+
+interval_df %>%
+  filter(NA_L2NAME %in% er_to_plot) %>%
+  ggplot(aes(x = ym, group = NA_L3NAME)) +
+  geom_ribbon(aes(ymin = m_qlo, ymax = m_qhi),
+              color = NA, alpha = .2,
+              fill = 'firebrick') +
+  scale_y_log10() +
+  theme_minimal() +
+  facet_wrap(~ fct_reorder(l2_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(305))) +
+  geom_point(aes(y = empirical_max), size = .3) +
+  xlab('') +
+  ylab('Maximum event size') +
+  theme(panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size = 7))
+ggsave('fig/max-preds-l2-minimal.png', width = 5, height = 3)
+
+# plot for all level 3 ecoregions (for supplement?)
+interval_df %>%
+  ggplot(aes(x = ym, group = NA_L3NAME)) +
+  geom_ribbon(aes(ymin = m_qlo, ymax = m_qhi),
+              color = NA,
+              fill = 'firebrick', alpha = .6) +
+  scale_y_log10() +
+  theme_minimal() +
+  facet_wrap(~ fct_reorder(l3_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(23))) +
+  geom_point(aes(y = empirical_max), size = .3) +
+  xlab('') +
+  ylab('Maximum event size') +
+  theme(panel.grid.minor = element_blank(),
+        strip.text = element_text(size = 5.5),
+        axis.text.x = element_text(angle = 90, size = 8),
+        axis.text.y = element_text(size = 8))
+ggsave('fig/max-preds-l3-all.png', width = 10, height = 10)
+
