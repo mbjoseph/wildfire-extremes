@@ -76,8 +76,12 @@ write_attribution_plot <- function(which_ecoregion,
                                    which_dim = 1,
                                    effect_threshold = .5,
                                    max_iter = 500) {
-  lower_ecoregion <- tolower(gsub(' |/', '-', which_ecoregion))
-  if (grepl(lower_ecoregion, list.files(path = 'fig/effs/'))) {
+  plot_name <- file.path('fig', 'effs',
+                         paste0(tolower(gsub(' |/', '-', which_ecoregion)),
+                                '-', which_dim,
+                                '.png'))
+
+  if (file.exists(plot_name)) {
     return(0)
   }
   subd <- mu_df %>%
@@ -157,10 +161,6 @@ write_attribution_plot <- function(which_ecoregion,
     facet_wrap(~variable, ncol = 1) +
     scale_color_gdocs('Variable') +
     scale_fill_gdocs('Variable')
-  plot_name <- file.path('fig', 'effs',
-                         paste0(tolower(gsub(' |/', '-', which_ecoregion)),
-                                '-', which_dim,
-                                '.png'))
   ggsave(filename = plot_name, plot = p, width = 7, height = 5)
 
   # median plot

@@ -78,7 +78,87 @@ total_df %>%
              data = actual_totals, linetype = 'dashed') +
   xlab('Total burn area (acres): 2010-2015') +
   ylab('Posterior density')
+ggsave('fig/test-set-burn-area.png', width = 5, height = 3)
 
+
+# Compare total burn area predictions for two time periods ----------------
+# 1984 - 1996, 1997 - 2009
+first_period <-  test_preds %>%
+  left_join(select(st_covs, id, year)) %>%
+  # filter out zero event records (don't contribute to sum)
+  filter(n_event > 0, year < 1997, iter < 100) %>%
+  group_by(iter, year, NA_L3NAME) %>%
+  summarize(total_area = sum(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
+  group_by(iter, NA_L3NAME) %>%
+  summarize(mean_total_area = mean(total_area)) %>% # average across years (expected total)
+  group_by(NA_L3NAME) %>%
+  summarize(med_total = median(mean_total_area)) %>%
+  mutate(period = '1984 - 1996')
+
+second_period <- test_preds %>%
+  left_join(select(st_covs, id, year)) %>%
+  # filter out zero event records (don't contribute to sum)
+  filter(n_event > 0, year >= 1997, year < cutoff_year, iter < 100) %>%
+  group_by(iter, year, NA_L3NAME) %>%
+  summarize(total_area = sum(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
+  group_by(iter, NA_L3NAME) %>%
+  summarize(mean_total_area = mean(total_area)) %>% # average across years (expected total)
+  group_by(NA_L3NAME) %>%
+  summarize(med_total = median(mean_total_area)) %>%
+  mutate(period = '1997 - 2009')
+
+if (!file.exists('simpler_ecoregions.rds')) {
+  simpler_ecoregions <- ecoregions %>%
+    as('Spatial') %>%
+    rmapshaper::ms_simplify(keep = .01) %>%
+    sf::st_as_sf()
+  write_rds(simpler_ecoregions, 'simpler_ecoregions.rds')
+} else {
+  simpler_ecoregions <- read_rds('simper_ecoregions.rds')
+}
+
+# make a dataset with first & second period values and their diffs
+total_map_df <- first_period %>%
+  full_join(second_period) %>%
+  spread(period, med_total) %>%
+  mutate(Difference = `1997 - 2009` - `1984 - 1996`)
+
+
+
+burn_area_map <- total_map_df %>%
+  gather(period, value, -NA_L3NAME) %>%
+  filter(period != 'Difference') %>%
+  left_join(simpler_ecoregions) %>%
+  ggplot() +
+  geom_sf(aes(fill = value), size = .1) +
+  scale_fill_viridis('Expected annual\nburn area',  option = 'B') +
+  theme_minimal() +
+  facet_wrap(~period, nrow = 1, strip.position = 'bottom') +
+  theme(axis.text = element_blank(),
+        legend.position = 'left',
+        panel.grid.major = element_line(color = "white"),
+        axis.ticks = element_blank(),
+        legend.background = element_blank())
+ggsave('fig/burn-area-map.png', plot = burn_area_map, width = 9, height = 9)
+
+burn_area_difference_map <- total_map_df %>%
+  gather(period, value, -NA_L3NAME) %>%
+  filter(period == 'Difference') %>%
+  left_join(simpler_ecoregions) %>%
+  ggplot() +
+  geom_sf(aes(fill = value), size = .1) +
+  scale_fill_gradient2(low = 'dodgerblue', high = 'darkred',
+                       'Difference') +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        axis.ticks = element_blank(),
+        legend.background = element_blank())
+ggsave('fig/burn-area-difference-map.png',
+       plot = burn_area_difference_map, width = 9, height = 5)
+
+burn_area_map + burn_area_difference_map + plot_layout(ncol = 2, widths = c(2, 1))
+ggsave('fig/tripanel-burn-area-map.png', width = 15, height = 4)
 
 
 # Generate derived parameters about the distribution of maxima
@@ -186,10 +266,7 @@ class(ecoregions)
 
 ecoregions$exceedance_prob <- exceedance_summary$`Exceedance probability`[match(ecoregions$NA_L3NAME, exceedance_summary$NA_L3NAME)]
 
-simpler_ecoregions <- ecoregions %>%
-  as('Spatial') %>%
-  rmapshaper::ms_simplify(keep = .01) %>%
-  sf::st_as_sf()
+
 
 exc_map <- simpler_ecoregions %>%
   ggplot() +

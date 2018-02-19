@@ -155,6 +155,27 @@ st_covs %>%
 ggsave('fig/humidity-counts.png', width = 9, height = 6)
 
 
+p <- st_covs %>%
+  full_join(mu_df) %>%
+  filter(year < cutoff_year) %>%
+  group_by(NA_L3NAME, year) %>%
+  mutate(chd = median(chd),
+         med = median(med)) %>%
+  distinct(chd, med, NA_L3NAME, area) %>%
+  ggplot(aes(x = chd,
+             y = med / (1000 * area),
+             group = NA_L3NAME)) +
+  geom_point(size = .5, alpha = .4, aes(color = year)) +
+  theme_minimal() +
+
+  scale_y_log10() +
+  xlab('Housing density') +
+  ylab('Median annual fire density') +
+  theme(panel.grid.minor = element_blank(),
+        strip.text.x = element_text(size = 8, color = 'grey30')) +
+  geom_smooth(method = 'lm', se = FALSE)
+ggplotly(p)
+
 
 st_covs %>%
   full_join(mu_df) %>%
