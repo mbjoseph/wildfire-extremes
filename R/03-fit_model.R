@@ -67,6 +67,17 @@ zinb_fit <- vb(zinb_init,
               adapt_engaged = FALSE)
 write_rds(zinb_fit, path = 'zinb_fit.rds')
 
+# zinb model was best, here's the full run:
+zinb_full_fit <- sampling(zinb_init,
+                          data = zi_d,
+                          init_r = 0.01,
+                          pars = c(count_pars, 'nb_prec'),
+                          iter = n_iter,
+                          control = control_list,
+                          refresh = ref_rate,
+                          cores = 4)
+write_rds(zinb_full_fit, path = 'zinb_full_fit.rds')
+
 
 # Burn area models --------------------------------------------------------
 ba_gamma_init <- stan_model('stan/area-gamma.stan')

@@ -14,11 +14,7 @@ source('R/make-stan-d.R')
 # using the ZINB + lognormal model
 
 # we need the predicted counts from the zinb model
-zinb_preds <- read_rds('holdout_c_rep.rds') %>%
-  filter(model == 'zinb_fit.rds') %>%
-  full_join(read_rds('train_c_rep.rds') %>% filter(model == 'zinb_fit.rds')) %>%
-  select(-ym, -model) %>%
-  left_join(select(st_covs, id, NA_L3NAME, ym)) %>%
+zinb_preds <- read_rds('count-preds.rds') %>%
   rename(n_event = value) %>%
   select(-year) %>%
   arrange(iter, id)
@@ -74,14 +70,14 @@ total_df %>%
   group_by(iter) %>%
   summarize(total_area = sum(total_area),
             total_events = sum(n_event)) %>%
-  ggplot(aes(x = total_events, total_area)) +
-  geom_point(alpha = .5) +
+  ggplot(aes(x = total_area)) +
+  geom_density(alpha = .6, fill = 'red3', color = NA) +
   theme_minimal() +
   theme(panel.grid.minor = element_blank()) +
-  geom_point(data = actual_totals, color = 'red',
-             size = 6) +
-  xlab('Total number of fires > 1000 acres: 2010-2015') +
-  ylab('Total burn area: 2010-2015')
+  geom_vline(aes(xintercept = total_area),
+             data = actual_totals, linetype = 'dashed') +
+  xlab('Total burn area (acres): 2010-2015') +
+  ylab('Posterior density')
 
 
 
@@ -141,7 +137,7 @@ pred_df <- expand.grid(x = 1e6 - min_size,
                        id = holdout_ids,
                        iter = 1:max(test_preds$iter))
 
-iter_max <- 600
+iter_max <- 1000
 exceedance_df <- test_preds %>%
   filter(iter < iter_max, id %in% holdout_ids) %>%
   full_join(filter(pred_df, iter < iter_max))
@@ -186,34 +182,34 @@ ggsave(plot = n_vs_exc,
        width = 6, height = 3)
 
 # show on map
-# class(ecoregions)
-#
-# ecoregions$exceedance_prob <- exceedance_summary$`Exceedance probability`[match(ecoregions$NA_L3NAME, exceedance_summary$NA_L3NAME)]
-#
-# simpler_ecoregions <- ecoregions %>%
-#   as('Spatial') %>%
-#   rmapshaper::ms_simplify(keep = .01) %>%
-#   sf::st_as_sf()
-#
-# exc_map <- simpler_ecoregions %>%
-#   ggplot() +
-#   geom_sf(aes(fill = exceedance_prob),
-#           color = 'white',
-#           size = .1) +
-#   scale_fill_viridis(trans = 'log', option = 'B',
-#                      'Million acre\nexceedance\nprobability',
-#                      breaks = c(.00001, .0001, .001, .01)) +
-#   geom_sf(data = mtbs, color = 'black', alpha = .1, size = .01) +
-#   hrbrthemes::theme_ipsum_rc(base_family = 'helvetica')
-# ggsave(plot = exc_map, 'fig/million-acre-exceedance-map.png', width = 7, height = 3.5)
-#
+class(ecoregions)
+
+ecoregions$exceedance_prob <- exceedance_summary$`Exceedance probability`[match(ecoregions$NA_L3NAME, exceedance_summary$NA_L3NAME)]
+
+simpler_ecoregions <- ecoregions %>%
+  as('Spatial') %>%
+  rmapshaper::ms_simplify(keep = .01) %>%
+  sf::st_as_sf()
+
+exc_map <- simpler_ecoregions %>%
+  ggplot() +
+  geom_sf(aes(fill = exceedance_prob),
+          color = 'white',
+          size = .1) +
+  scale_fill_viridis(trans = 'log', option = 'B',
+                     'Million acre\nexceedance\nprobability',
+                     breaks = c(.00001, .0001, .001, .01)) +
+  geom_sf(data = mtbs, color = 'black', alpha = .1, size = .01) +
+  hrbrthemes::theme_ipsum_rc(base_family = 'helvetica')
+ggsave(plot = exc_map, 'fig/million-acre-exceedance-map.png', width = 7, height = 3.5)
+
 
 
 # Evaluate interval coverage ----------------------------------------------
 # first, get theoretical 2.5% and 97.5% quantiles for each spatiotemporal unit
 test_preds <- test_preds %>%
-  mutate(qlo = exp(nmax_q(.001, n = n_event, mu = ln_mu, sigma = ln_scale)),
-         qhi = exp(nmax_q(.999, n = n_event, mu = ln_mu, sigma = ln_scale)))
+  mutate(qlo = exp(nmax_q(.005, n = n_event, mu = ln_mu, sigma = ln_scale)),
+         qhi = exp(nmax_q(.995, n = n_event, mu = ln_mu, sigma = ln_scale)))
 
 interval_df <- test_preds %>%
   group_by(NA_L3NAME, ym) %>%
@@ -235,7 +231,7 @@ most_events_ers <- max_df %>%
   distinct(NA_L2NAME, n_events) %>%
   arrange(-n_events)
 
-n_er_to_plot <- 4
+n_er_to_plot <- 6
 er_to_plot <- most_events_ers$NA_L2NAME[1:n_er_to_plot]
 
 interval_df <- interval_df %>%

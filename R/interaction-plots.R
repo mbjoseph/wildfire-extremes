@@ -7,9 +7,10 @@ library(magick)
 library(snowfall)
 library(loo)
 library(ggExtra)
+library(viridis)
 
 source('R/02-explore.R')
-m_fit <- read_rds('zinb_fit.rds')
+m_fit <- read_rds('zinb_full_fit.rds')
 post <- rstan::extract(m_fit)
 rm(m_fit)
 gc()
@@ -27,9 +28,6 @@ beta_df <- post$beta %>%
   mutate(variable = colnamesX[col],
          nonzero = p_neg > .95 | p_pos > .95)
 
-nz_beta <- beta_df %>%
-  filter(nonzero)
-
 med_df <- beta_df %>%
   select(dim, median, variable) %>%
   spread(dim, median) %>%
@@ -41,7 +39,7 @@ med_df %>%
   geom_hline(yintercept = 0, alpha = .2) +
   geom_vline(xintercept = 0, alpha = .2) +
   geom_point() +
-  geom_bin2d(binwidth = c(.004, .004), color = NA) +
+  geom_bin2d(binwidth = c(.1, .1), color = NA) +
   theme_minimal() +
   scale_fill_viridis_c(trans = 'log', option = 'B',
                        breaks = c(1, 10, 100, 1000), 'Count') +
@@ -66,56 +64,84 @@ mu_df <- post$mu_full %>%
   ungroup
 
 
-write_attribution_plot <- function(which_ecoregion, which_dim = 1) {
+unique_ecoregions <- unique(st_covs$NA_L3NAME)
+
+write_attribution_plot <- function(which_ecoregion,
+                                   which_dim = 1,
+                                   effect_threshold = .5) {
   subd <- mu_df %>%
     left_join(distinct(st_covs, NA_L3NAME, ym, row, year)) %>%
-    filter(NA_L3NAME == which_ecoregion, response == which_dim)
+    filter(NA_L3NAME == which_ecoregion, response == which_dim) %>%
+    mutate(row_index = 1:n())
 
   X_sub <- X[subd$row, ]
+
+  nonzero_columns <- which(apply(X_sub, 2, function(x) !all(x == 0)))
+
+  X_sub <- X_sub[, nonzero_columns]
 
   # for each variable and each ym, compute the product of the covariate and the coefficient
   n_iter <- length(post$lp__)
   elementwise_effs <- array(0, dim = c(nrow(X_sub), ncol(X_sub)))
   colnames(elementwise_effs) <- colnames(X_sub)
-  assert_that(ncol(X_sub) == dim(post$beta)[3])
   pb <- txtProgressBar(max = nrow(X_sub), style = 3)
   for (i in 1:nrow(X_sub)) {
     for (j in 1:ncol(X_sub)) {
       if (X_sub[i, j] != 0) {
-        elementwise_effs[i, j] <- median(X_sub[i, j] * post$beta[, which_dim, j])
+        elementwise_effs[i, j] <- median(X_sub[i, j] * post$beta[, which_dim, nonzero_columns[j]])
       }
     }
     setTxtProgressBar(pb, i)
   }
 
-  # subset this matrix to columns that are not all equal to zero
-  all_zero <- apply(elementwise_effs, 2, FUN = function(x) sum(x) == 0)
-  elementwise_effs <- elementwise_effs[, !all_zero]
+  # aggregate by variable
+  effects_to_plot <- elementwise_effs %>%
+    reshape2::melt(varnames = c('row_index', 'col')) %>%
+    as_tibble %>%
+    mutate(col = as.character(col),
+           variable = case_when(grepl('ctri', .$col) ~ 'Terrain ruggedness',
+                                grepl('chd', .$col) ~ 'Housing density',
+                                grepl('cvs', .$col) ~ 'Wind speed',
+                                grepl('cpr_', .$col) ~ 'Monthly precip.',
+                                grepl('cpr12_', .$col) ~ '12 month precip.',
+                                grepl('ctmx', .$col) ~ 'Temperature',
+                                grepl('crmin', .$col) ~ 'Humidity'),
+           variable = ifelse(is.na(variable), col, variable),
+           variable = gsub('NA_', '', variable),
+           variable = gsub('NAME', ' ', variable),
+           variable = gsub('_', ': ', variable),
+           variable = tolower(variable),
+           variable = tools::toTitleCase(variable)) %>%
+    group_by(row_index, variable) %>%
+    summarize(n = n(),
+              total_effect = sum(value)) %>%
+    left_join(subd) %>%
+    ungroup
 
-  # subset further to columns with nonzero coefficients
-  effects_to_plot <- elementwise_effs[, colnames(elementwise_effs) %in% nz_beta$variable] %>%
-    as_tibble
-
-  p <- bind_cols(subd, effects_to_plot) %>%
-    gather(explanatory_variable, effect, -response, -row, -median,
-           -lo, -hi, -NA_L3NAME, -year, -ym) %>%
-    ggplot(aes(ym, y = effect)) +
+  p <- effects_to_plot %>%
+    group_by(variable) %>%
+    mutate(max_effect = max(abs(total_effect))) %>%
+    filter(max_effect > effect_threshold) %>%
+    ggplot(aes(ym, y = total_effect, color = variable)) +
     geom_line() +
-    facet_wrap(~explanatory_variable, ncol = 1) +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank()) +
     xlab('Time') +
-    ylab('Contribution to the expected number of fires') +
+    ylab('Contribution to E(n)') +
     geom_hline(yintercept = 0, linetype = 'dashed') +
-    ggtitle(paste('Esitmated effects for ', which_ecoregion))
+    ggtitle(which_ecoregion) +
+    scale_color_discrete('Variable')
   plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
                                 '-', which_dim,
                                 '.png'))
-  ggsave(filename = plot_name, plot = p, width = 10, height = 20)
+  ggsave(filename = plot_name, plot = p, width = 6, height = 3.5)
+  p
 }
 
 dir.create(file.path('fig', 'effs'))
 
-unique_ecoregions <- unique(st_covs$NA_L3NAME)
+plot_list <- list()
 for (i in seq_along(unique_ecoregions)) {
-  write_attribution_plot(unique_ecoregions[i], which_dim = 1)
+  plot_list[[i]] <- write_attribution_plot(unique_ecoregions[i], which_dim = 1)
 }

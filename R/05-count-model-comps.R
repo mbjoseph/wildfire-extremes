@@ -1,5 +1,6 @@
 
 # Model comparisons for counts --------------------------------------------
+# using the variational approximation
 library(tidyverse)
 library(cowplot)
 library(extraDistr)
@@ -15,8 +16,11 @@ source('R/make-stan-d.R')
 #system("aws s3 cp s3://earthlab-mjoseph .. --recursive --exclude '*' --include '*.rds'")
 
 model_fits <- list.files(pattern = '*.fit.*\\.rds')
-
 count_fits <- grep(model_fits, pattern = 'ba_', value = TRUE, invert = TRUE)
+
+# subset to variational fits
+count_fits <- grep(count_fits, pattern = 'full', value = TRUE, invert = TRUE)
+
 
 # data frame for plotting colors
 cols <- c('Poisson' = 'green3',
@@ -99,11 +103,9 @@ ggsave(filename = 'fig/loglik-counts.png', width = 6, height = 4)
 ## Generate plots to evaluate distributional assumptions
 train_c_rep <- train_c_rep %>%
   bind_rows
-write_rds(train_c_rep, 'train_c_rep.rds')
 
 holdout_c_rep <- holdout_c_rep %>%
   bind_rows
-write_rds(holdout_c_rep, 'holdout_c_rep.rds')
 
 pr_df <- train_c_rep %>%
   group_by(iter, value, model) %>%

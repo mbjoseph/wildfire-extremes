@@ -9,7 +9,7 @@ library(ggthemes)
 library(plotly)
 library(ggrepel)
 
-fit <- read_rds(path = list.files(pattern = 'zinb_fit.*'))
+fit <- read_rds(path = 'zinb_full_fit.rds')
 
 # Evaluate convergence ----------------------------------------------------
 traceplot(fit, inc_warmup = TRUE)
@@ -39,7 +39,7 @@ beta_summary <- beta_df %>%
             p_pos = mean(value > 0)) %>%
   ungroup %>%
   mutate(variable = colnamesX[col],
-         nonzero = p_neg > .95 | p_pos > .95) %>%
+         nonzero = p_neg > .85 | p_pos > .85) %>%
   mutate(Response = ifelse(dim == 1,
                            'Negative binomial component',
                            'Zero-inflation component'),
@@ -49,6 +49,7 @@ beta_summary <- beta_df %>%
          variable = gsub('cvs', 'wind speed', variable),
          variable = gsub('cpr12', '12 mo. precip.', variable),
          variable = gsub('cpr', 'precipitation', variable),
+         variable = gsub('chd', 'Housing density', variable),
          variable = ifelse(grepl(':', x = variable),
                            paste0('Intxn(', variable, ')'),
                            variable),
@@ -97,13 +98,13 @@ beta_summary %>%
   geom_density_ridges(scale = 3, rel_min_height = 0.005,
                       color = alpha(1, .6)) +
   geom_vline(xintercept = 0, linetype = 'dashed', alpha = .1) +
-  facet_wrap(~ Response, scales = 'free', nrow = 2, shrink = TRUE) +
+  facet_grid(Response ~ ., scales = 'free',
+             shrink = TRUE, space = 'free_y') +
   theme(axis.text.y = element_text(size = 7)) +
   scale_fill_gradient2() +
   theme(legend.position = 'none',
         panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_line(color = 'grey95'),
-        axis.text.y = element_text(size = 6)) +
+        panel.grid.major.y = element_line(color = 'grey95')) +
   ylab('') +
   xlab('')
 ggsave('fig/fire-effs.pdf', width = 6, height = 7)
@@ -148,7 +149,7 @@ st_covs %>%
   scale_color_gradientn(colors = cmap, 'Month') +
   scale_y_log10() +
   xlab('Mean daily minimum humidity') +
-  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
   theme(panel.grid.minor = element_blank(),
         strip.text.x = element_text(size = 8, color = 'grey30'))
 ggsave('fig/humidity-counts.png', width = 9, height = 6)
@@ -172,7 +173,7 @@ st_covs %>%
   scale_color_gradientn(colors = cmap, 'Month') +
   scale_y_log10() +
   xlab('Mean daily maximum air temperature (C)') +
-  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
   theme(panel.grid.minor = element_blank(),
         strip.text.x = element_text(size = 8, color = 'grey30'))
 ggsave('fig/air-temp-counts.png', width = 9, height = 6)
@@ -195,7 +196,7 @@ st_covs %>%
   scale_color_gradientn(colors = cmap, 'Month') +
   scale_y_log10() +
   xlab('Mean monthly wind speed') +
-  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
   theme(panel.grid.minor = element_blank(),
         strip.text.x = element_text(size = 8, color = 'grey30'))
 ggsave('fig/wind-counts.png', width = 9, height = 6)
@@ -217,7 +218,7 @@ st_covs %>%
   scale_color_gradientn(colors = cmap, 'Month') +
   scale_y_log10() +
   xlab('Mean monthly precipitation') +
-  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
   theme(panel.grid.minor = element_blank(),
         strip.text.x = element_text(size = 8, color = 'grey30')) +
   scale_x_log10()
@@ -240,7 +241,7 @@ st_covs %>%
   scale_color_gradientn(colors = cmap, 'Month') +
   scale_y_log10() +
   xlab('Mean precipitation over previous 12 months') +
-  ylab(expression(paste('Expected fire density: # per ', km^2))) +
+  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
   theme(panel.grid.minor = element_blank(),
         strip.text.x = element_text(size = 8, color = 'grey30')) +
   scale_x_log10()
