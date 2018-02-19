@@ -8,6 +8,7 @@ library(snowfall)
 library(loo)
 library(ggExtra)
 library(viridis)
+library(ggthemes)
 
 source('R/02-explore.R')
 m_fit <- read_rds('zinb_full_fit.rds')
@@ -63,12 +64,22 @@ mu_df <- post$mu_full %>%
             hi = quantile(value, 0.95)) %>%
   ungroup
 
+mtbs_totals <- mtbs %>%
+  select(-geometry) %>%
+  as_tibble %>%
+  group_by(ym, NA_L3NAME) %>%
+  summarize(total_area = sum(R_ACRES))
 
 unique_ecoregions <- unique(st_covs$NA_L3NAME)
 
 write_attribution_plot <- function(which_ecoregion,
                                    which_dim = 1,
-                                   effect_threshold = .5) {
+                                   effect_threshold = .5,
+                                   max_iter = 500) {
+  lower_ecoregion <- tolower(gsub(' |/', '-', which_ecoregion))
+  if (grepl(lower_ecoregion, list.files(path = 'fig/effs/'))) {
+    return(0)
+  }
   subd <- mu_df %>%
     left_join(distinct(st_covs, NA_L3NAME, ym, row, year)) %>%
     filter(NA_L3NAME == which_ecoregion, response == which_dim) %>%
@@ -82,61 +93,97 @@ write_attribution_plot <- function(which_ecoregion,
 
   # for each variable and each ym, compute the product of the covariate and the coefficient
   n_iter <- length(post$lp__)
-  elementwise_effs <- array(0, dim = c(nrow(X_sub), ncol(X_sub)))
+  elementwise_effs <- array(0, dim = c(nrow(X_sub), ncol(X_sub), n_iter))
   colnames(elementwise_effs) <- colnames(X_sub)
+  effects_to_plot <- list()
   pb <- txtProgressBar(max = nrow(X_sub), style = 3)
   for (i in 1:nrow(X_sub)) {
     for (j in 1:ncol(X_sub)) {
       if (X_sub[i, j] != 0) {
-        elementwise_effs[i, j] <- median(X_sub[i, j] * post$beta[, which_dim, nonzero_columns[j]])
+        elementwise_effs[i, j, ] <- X_sub[i, j] * post$beta[, which_dim, nonzero_columns[j]]
       }
     }
+    effects_to_plot[[i]] <- elementwise_effs[i, , ] %>%
+      reshape2::melt(varnames = c('col', 'iter')) %>%
+      as_tibble %>%
+      filter(iter < max_iter) %>%
+      mutate(col = as.character(col),
+             variable = case_when(grepl('ctri', .$col) ~ 'Terrain ruggedness',
+                                  grepl('chd', .$col) ~ 'Housing density',
+                                  grepl('cvs', .$col) ~ 'Wind speed',
+                                  grepl('cpr_', .$col) ~ 'Monthly precip.',
+                                  grepl('cpr12_', .$col) ~ '12 month precip.',
+                                  grepl('ctmx', .$col) ~ 'Temperature',
+                                  grepl('crmin', .$col) ~ 'Humidity'),
+             variable = ifelse(is.na(variable), col, variable),
+             variable = gsub('NA_', '', variable),
+             variable = gsub('NAME', ' ', variable),
+             variable = gsub('_', ': ', variable),
+             row_index = i) %>%
+      group_by(row_index, variable, iter) %>%
+      summarize(total_effect = sum(value)) %>%
+      group_by(row_index, variable) %>%
+      summarize(median_eff = median(total_effect),
+                lo_eff = quantile(total_effect, .025),
+                hi_eff = quantile(total_effect, .975)) %>%
+      ungroup
     setTxtProgressBar(pb, i)
   }
 
+
+
   # aggregate by variable
-  effects_to_plot <- elementwise_effs %>%
-    reshape2::melt(varnames = c('row_index', 'col')) %>%
-    as_tibble %>%
-    mutate(col = as.character(col),
-           variable = case_when(grepl('ctri', .$col) ~ 'Terrain ruggedness',
-                                grepl('chd', .$col) ~ 'Housing density',
-                                grepl('cvs', .$col) ~ 'Wind speed',
-                                grepl('cpr_', .$col) ~ 'Monthly precip.',
-                                grepl('cpr12_', .$col) ~ '12 month precip.',
-                                grepl('ctmx', .$col) ~ 'Temperature',
-                                grepl('crmin', .$col) ~ 'Humidity'),
-           variable = ifelse(is.na(variable), col, variable),
-           variable = gsub('NA_', '', variable),
-           variable = gsub('NAME', ' ', variable),
-           variable = gsub('_', ': ', variable),
-           variable = tolower(variable),
-           variable = tools::toTitleCase(variable)) %>%
-    group_by(row_index, variable) %>%
-    summarize(n = n(),
-              total_effect = sum(value)) %>%
-    left_join(subd) %>%
-    ungroup
+  effects_to_plot <- effects_to_plot %>%
+    bind_rows %>%
+    left_join(select(subd, row_index, ym, NA_L3NAME)) %>%
+    ungroup %>%
+    mutate(variable = tolower(variable),
+           variable = tools::toTitleCase(variable))
+
 
   p <- effects_to_plot %>%
-    group_by(variable) %>%
-    mutate(max_effect = max(abs(total_effect))) %>%
-    filter(max_effect > effect_threshold) %>%
-    ggplot(aes(ym, y = total_effect, color = variable)) +
+    filter(!grepl('^L', variable),
+           variable != 'Terrain Ruggedness') %>%
+    ggplot(aes(ym, y = median_eff, color = variable)) +
+    geom_ribbon(aes(fill = variable, ymin = lo_eff, ymax = hi_eff),
+                alpha = .3, color = NA) +
     geom_line() +
     theme_minimal() +
-    theme(panel.grid.minor = element_blank()) +
+    theme(panel.grid.minor = element_blank(),
+          legend.position = 'none') +
     xlab('Time') +
-    ylab('Contribution to E(n)') +
-    geom_hline(yintercept = 0, linetype = 'dashed') +
+    ylab('Contribution to fire risk') +
     ggtitle(which_ecoregion) +
-    scale_color_discrete('Variable')
+    facet_wrap(~variable, ncol = 1) +
+    scale_color_gdocs('Variable') +
+    scale_fill_gdocs('Variable')
   plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
                                 '-', which_dim,
                                 '.png'))
-  ggsave(filename = plot_name, plot = p, width = 6, height = 3.5)
-  p
+  ggsave(filename = plot_name, plot = p, width = 7, height = 5)
+
+  # median plot
+  p_med <- effects_to_plot %>%
+    group_by(variable) %>%
+    mutate(max_median = max(abs(median_eff))) %>%
+    filter(!grepl('^L', variable),
+           variable != 'Terrain Ruggedness',
+           max_median > effect_threshold) %>%
+    ggplot(aes(ym, y = median_eff, color = variable)) +
+    geom_hline(yintercept = 0) +
+    geom_line() +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank()) +
+    xlab('Time') +
+    ylab('Contribution to fire risk') +
+    ggtitle(which_ecoregion) +
+    scale_color_discrete('Variable')
+  med_plot_name <- file.path('fig', 'effs',
+                         paste0(tolower(gsub(' |/', '-', which_ecoregion)),
+                                '-', which_dim, '-', 'med',
+                                '.png'))
+  ggsave(filename = med_plot_name, plot = p_med, width = 8, height = 3.5)
 }
 
 dir.create(file.path('fig', 'effs'))
@@ -145,3 +192,4 @@ plot_list <- list()
 for (i in seq_along(unique_ecoregions)) {
   plot_list[[i]] <- write_attribution_plot(unique_ecoregions[i], which_dim = 1)
 }
+
