@@ -98,8 +98,8 @@ beta_summary %>%
   geom_density_ridges(scale = 3, rel_min_height = 0.005,
                       color = alpha(1, .6)) +
   geom_vline(xintercept = 0, linetype = 'dashed', alpha = .1) +
-  facet_grid(Response ~ ., scales = 'free',
-             shrink = TRUE, space = 'free_y') +
+  facet_wrap(~ Response, scales = 'free',
+             shrink = TRUE, ncol = 1) +
   theme(axis.text.y = element_text(size = 7)) +
   scale_fill_gradient2() +
   theme(legend.position = 'none',
@@ -112,6 +112,76 @@ ggsave('fig/fire-effs.pdf', width = 6, height = 7)
 rm(beta_df)
 gc()
 
+
+# Partial effect plots ----------------------------------------------------
+which_var <- 'crmin'
+
+partial_effs <- list()
+n_iter <- length(post$lp__)
+unique_ers <- unique(st_covs$NA_L3NAME)
+pb <- txtProgressBar(max = length(unique_ers), style = 3)
+for (i in seq_along(unique_ers)) {
+  setTxtProgressBar(pb, i)
+  subdf <- st_covs %>%
+    filter(NA_L3NAME == unique_ers[i]) %>%
+    mutate(row_id = 1:n())
+  X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
+  cols <- grepl(which_var, colnames(X_sub))
+
+  effects <- array(dim = c(nrow(X_sub), 2, 3)) # 2 responses, 3: med, lo, hi
+  for (j in 1:nrow(X_sub)) {  # month j
+    for (k in 1:2) {          # response k
+      vals <- X_sub[j, cols] %*% t(post$beta[, k, cols])
+      effects[j, k, 1] <- quantile(vals, .025)
+      effects[j, k, 2] <- median(vals)
+      effects[j, k, 3] <- quantile(vals, .975)
+    }
+  }
+  partial_effs[[i]] <- effects %>%
+    reshape2::melt(varnames = c('row_id', 'response', 'quantity')) %>%
+    as_tibble %>%
+    mutate(response = ifelse(response == 1, 'negbinom', 'zeroinfl'),
+           quantity = case_when(.$quantity == 1 ~ 'lo',
+                                .$quantity == 2 ~ 'med',
+                                .$quantity == 3 ~ 'hi')) %>%
+    spread(quantity, value) %>%
+    left_join(select(subdf, row_id, NA_L3NAME, year, ym, housing_density))
+}
+close(pb)
+
+p <- partial_effs %>%
+  bind_rows %>%
+  left_join(st_covs) %>%
+  mutate(response = ifelse(response == 'negbinom',
+                           'Negative binomial component',
+                           'Zero-inflation component')) %>%
+  ggplot(aes(rmin, med, group = NA_L3NAME)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), color = NA, alpha = .1) +
+  geom_line(alpha = .4) +
+  theme_minimal() +
+  facet_wrap( ~ response, nrow = 2, scales = 'free_y') +
+  scale_x_log10() +
+  xlab('Mean daily minimum humidity') +
+  ylab('Partial effect')
+ggplotly(p)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Expected values vs. covariate values ------------------------------------
 mu_df <- post$mu_full %>%
   reshape2::melt(varnames = c('iter', 'dim', 'id')) %>%
   as_tibble() %>%
@@ -155,25 +225,26 @@ st_covs %>%
 ggsave('fig/humidity-counts.png', width = 9, height = 6)
 
 
+# Housing density?? -------------------------------------------------------
 p <- st_covs %>%
   full_join(mu_df) %>%
   filter(year < cutoff_year) %>%
   group_by(NA_L3NAME, year) %>%
-  mutate(chd = median(chd),
+  mutate(housing_density = median(housing_density),
          med = median(med)) %>%
-  distinct(chd, med, NA_L3NAME, area) %>%
-  ggplot(aes(x = chd,
+  distinct(housing_density, med, NA_L3NAME, area) %>%
+  ggplot(aes(x = housing_density,
              y = med / (1000 * area),
              group = NA_L3NAME)) +
-  geom_point(size = .5, alpha = .4, aes(color = year)) +
+  geom_point(size = .5, alpha = .4) +
   theme_minimal() +
-
   scale_y_log10() +
   xlab('Housing density') +
   ylab('Median annual fire density') +
   theme(panel.grid.minor = element_blank(),
         strip.text.x = element_text(size = 8, color = 'grey30')) +
-  geom_smooth(method = 'lm', se = FALSE)
+  geom_smooth(method = 'lm', se = FALSE) +
+  scale_x_log10()
 ggplotly(p)
 
 

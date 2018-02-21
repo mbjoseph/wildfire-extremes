@@ -108,13 +108,6 @@ X_bs_df <- bind_cols(X_bs_df)
 assert_that(!any(is.na(X_bs_df)))
 
 # Create design matrices --------------------------------------------------
-hd_terms <- grep('chd', names(X_bs_df), value = TRUE)
-
-model_terms <- expand.grid(hd_term = hd_terms,
-            other_terms = grep('chd', names(X_bs_df), value = TRUE, invert = TRUE)) %>%
-  as.matrix %>%
-  apply(1, paste, collapse = ' * ')
-
 l3_terms <- paste0('NA_L3NAME * ', names(X_bs_df)) %>%
   paste(collapse = ' + ')
 l2_terms <- paste0('NA_L2NAME * ', names(X_bs_df)) %>%
@@ -127,7 +120,6 @@ st_covs <- st_covs %>%
   as_tibble
 
 X <- model.matrix(as.formula(paste('~ 0 + ctri + ',
-                                   model_terms,
                                    l1_terms,
                                    l2_terms,
                                    l3_terms,
