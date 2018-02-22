@@ -1,13 +1,13 @@
 source('R/02-explore.R')
-soucr('R/make-stan-d.R')
-library(extraDistr)
+source('R/make-stan-d.R')
 library(ggridges)
 library(ggthemes)
 library(plotly)
 library(viridis)
 library(ggrepel)
+library(patchwork)
 
-fit <- read_rds(path = list.files(pattern = 'lognormal_.*'))
+fit <- read_rds('ba_lognormal_fit.rds')
 
 # Evaluate convergence ----------------------------------------------------
 traceplot(fit, inc_warmup = TRUE)
@@ -102,6 +102,65 @@ beta_summary %>%
 
 gc()
 
+
+
+# Partial effect plots ----------------------------------------------------
+
+which_var <- 'crmin'
+
+partial_effs <- list()
+n_iter <- length(post$lp__)
+unique_ers <- unique(st_covs$NA_L3NAME)
+pb <- txtProgressBar(max = length(unique_ers), style = 3)
+for (i in seq_along(unique_ers)) {
+  setTxtProgressBar(pb, i)
+  subdf <- st_covs %>%
+    filter(NA_L3NAME == unique_ers[i]) %>%
+    mutate(row_id = 1:n())
+  X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
+  cols <- grepl(which_var, colnames(X_sub))
+
+  effects <- array(dim = c(nrow(X_sub), 3)) # 3: med, lo, hi
+  for (j in 1:nrow(X_sub)) {  # month j
+    vals <- X_sub[j, cols] %*% t(post$beta[, 1, cols])
+    effects[j, 1] <- quantile(vals, .025)
+    effects[j, 2] <- median(vals)
+    effects[j, 3] <- quantile(vals, .975)
+  }
+  partial_effs[[i]] <- effects %>%
+    reshape2::melt(varnames = c('row_id', 'quantity')) %>%
+    as_tibble %>%
+    mutate(quantity = case_when(.$quantity == 1 ~ 'lo',
+                                .$quantity == 2 ~ 'med',
+                                .$quantity == 3 ~ 'hi')) %>%
+    spread(quantity, value) %>%
+    left_join(select(subdf, row_id, NA_L3NAME, year, ym, housing_density))
+}
+close(pb)
+
+p <- partial_effs %>%
+  bind_rows %>%
+  left_join(st_covs) %>%
+  mutate(NA_L1NAME = tolower(NA_L1NAME),
+         NA_L1NAME = factor(tools::toTitleCase(NA_L1NAME)),
+         NA_L1NAME = fct_reorder(NA_L1NAME, rmin)) %>%
+  ggplot(aes(rmin, med, group = NA_L3NAME)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), color = NA,
+              alpha = .1) +
+  scale_fill_gdocs() +
+  geom_line(alpha = .3) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank(),
+        legend.position = 'none') +
+  xlab('Mean daily minimum humidity') +
+  ylab('Partial effect') +
+  ggtitle('A')
+p
+ggplotly(p)
+
+
+
+
 # Visualize some predictions ----------------------------------------------
 st_covs$row <- 1:nrow(st_covs)
 
@@ -111,92 +170,70 @@ mu_df <- post$mu_full %>%
   group_by(row) %>%
   summarize(median = median(value),
             lo = quantile(value, 0.05),
-            hi = quantile(value, 0.95),
-            q1 = quantile(value, .1),
-            q2 = quantile(value, .2),
-            q3 = quantile(value, .3),
-            q4 = quantile(value, .4),
-            q6 = quantile(value, .6),
-            q7 = quantile(value, .7),
-            q8 = quantile(value, .8),
-            q9 = quantile(value, .9)) %>%
+            hi = quantile(value, 0.95)) %>%
   ungroup
 
-## Visualize parameter time series
-plot_mu_ts <- function(df) {
-  df %>%
-    ggplot(aes(ym, median, fill = NA_L1NAME)) +
-    theme_minimal() +
-    geom_ribbon(aes(ymin = lo, ymax = hi),
-                alpha = .3, color = NA) +
-    geom_ribbon(aes(ymin = q1, ymax = q9),
-                alpha = .3, color = NA) +
-    geom_ribbon(aes(ymin = q2, ymax = q8),
-                alpha = .3, color = NA) +
-    geom_ribbon(aes(ymin = q3, ymax = q7),
-                alpha = .3, color = NA) +
-    geom_ribbon(aes(ymin = q4, ymax = q6),
-                alpha = .3, color = NA) +
-    geom_line(size = .1) +
-    facet_wrap(~ facet_factor) +
-    xlab('Date') +
-    geom_vline(xintercept = cutoff_year,
-               linetype = 'dashed', col = 'grey') +
-    scale_color_gdocs() +
-    scale_fill_gdocs() +
-    theme(legend.position = 'none')
-}
-
 # location parameter
-mu_df %>%
+loc_ts <- mu_df %>%
   full_join(st_covs) %>%
   left_join(dplyr::distinct(tbl_df(ecoregions),
                             NA_L3NAME, NA_L1CODE)) %>%
   mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
-  plot_mu_ts +
-  ylab('Lognormal mean')
+  mutate(NA_L1NAME = tolower(NA_L1NAME),
+         NA_L1NAME = factor(tools::toTitleCase(NA_L1NAME)),
+         NA_L1NAME = fct_reorder(NA_L1NAME, rmin))
+
+location_ts_plot <- loc_ts %>%
+#  filter(year < cutoff_year) %>%
+  group_by(NA_L1NAME) %>%
+  mutate(alpha_val = .5 / length(unique(NA_L3NAME))) %>%
+  ggplot(aes(ym, exp(median) + min_size,
+             fill = NA_L1NAME,
+             group = NA_L3NAME)) +
+  theme_minimal() +
+  geom_ribbon(aes(ymin = exp(lo) + min_size,
+                  ymax = exp(hi) + min_size,
+                  alpha = alpha_val),
+              color = NA) +
+  geom_line(size = .2, aes(alpha = alpha_val)) +
+  xlab('') +
+  scale_alpha_continuous(range = c(.2, .6)) +
+  scale_color_gdocs() +
+  scale_fill_gdocs() +
+  theme(legend.position = 'none',
+        panel.grid.minor = element_blank()) +
+  scale_y_log10() +
+  ylab('Expected fire size') +
+  facet_wrap(~ NA_L1NAME, nrow = 2,
+             labeller = labeller(.rows = label_wrap_gen(23))) +
+  ggtitle('C')
+location_ts_plot
 
 # plotting expected values vs. covariates
-cmap <- c(viridis(12, option = 'C'),
-          rev(viridis(12, option = 'C')))
+cmap <- c(viridis(6, option = 'C'),
+          rev(viridis(6, option = 'C')))
 
-mu_df %>%
-  full_join(st_covs) %>%
-  left_join(dplyr::distinct(tbl_df(ecoregions),
-                            NA_L3NAME, NA_L1CODE)) %>%
-  mutate(facet_factor = paste(NA_L1CODE, NA_L3NAME)) %>%
-  ggplot(aes(rmin, exp(median), color = month)) +
-  scale_color_gradientn(colors = cmap) +
-  theme_minimal() +
-  facet_wrap(~NA_L2NAME) +
-  xlab('Mean minimum daily relative humidity') +
-  ylab('Expected burn area') +
-  scale_y_log10() +
-  geom_linerange(aes(ymin = exp(q1), ymax = exp(q9)), alpha = .5) +
-  geom_point(alpha = .9, size = .5)
-
-
-
-st_covs %>%
+humidity_scatter <- st_covs %>%
   full_join(mu_df) %>%
   filter(year < cutoff_year) %>%
   mutate(l2_er = tools::toTitleCase(tolower(as.character(NA_L2NAME))),
          l2_er = gsub(' and ', ' & ', l2_er),
          l2_er = gsub('Usa ', '', l2_er)) %>%
   ggplot(aes(x = rmin,
-             y = exp(median),
+             y = exp(median) + min_size,
              color = month)) +
-  geom_linerange(aes(ymin = exp(q1),
-                     ymax = exp(q9)),
-                 alpha = .1) +
-  geom_point(size = .5) +
+  geom_point(alpha = .6) +
   theme_minimal() +
-  facet_wrap(~ fct_reorder(l2_er, rmin),
-             labeller = labeller(.rows = label_wrap_gen(25))) +
   scale_color_gradientn(colors = cmap, 'Month') +
-  scale_y_log10() +
   xlab('Mean daily minimum humidity') +
-  ylab('Expected burn area exceedance (acres > 1000)') +
+  ylab('Expected fire size') +
   theme(panel.grid.minor = element_blank(),
-        strip.text.x = element_text(size = 8, color = 'grey30'))
+        strip.text.x = element_text(size = 8, color = 'grey30')) +
+  ggtitle('B')
+humidity_scatter
 ggsave('fig/humidity-burn-area.png', width = 9, height = 6)
+
+q <- (p + humidity_scatter) / location_ts_plot + plot_layout(heights = c(.6, 1))
+q
+ggsave('fig/burn-area-effs.png', plot = q, width = 8.5, height = 5)
+ggsave('fig/burn-area-effs.pdf', plot = q, width = 8.5, height = 5)
