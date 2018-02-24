@@ -17,6 +17,14 @@ nb_agg <- aggregate(nb, ecoregions$NA_L3NAME)
 
 nb_mat <- nb2mat(nb_agg, style = 'B')
 
+# generate neighborhood data for car prior
+listw <- nb2listw(nb_agg, style = 'B', zero.policy = TRUE)
+listw$style
+B <- as(listw, 'symmetricMatrix')
+# B is suitable for building N, N_edges, node1, and node2
+# following http://mc-stan.org/users/documentation/case-studies/icar_stan.html
+
+
 
 
 

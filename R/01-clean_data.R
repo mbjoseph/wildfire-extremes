@@ -5,6 +5,7 @@ library(foreign)
 library(purrr)
 library(sf)
 library(zoo)
+library(RCurl)
 
 source("R/fetch-fire-data.R")
 

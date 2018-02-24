@@ -1,32 +1,3 @@
-functions {
-  /**
-  * Return the log probability of a unit-scale intrinsic
-  * autoregressive (IAR) prior
-  * with a sparse representation for the adjacency matrix
-  *
-  * @param phi Vector containing the parameters with a IAR prior
-  * @param W_sparse Sparse representation of adjacency matrix (int array)
-  * @param D_sparse Number of neighbors for each location (vector)
-  * @param N Length of phi (int)
-  * @param W_n Number of adjacent pairs (int)
-  *
-  * @return Log probability density of CAR prior up to additive constant
-  */
-  real sparse_iar_lpdf(vector phi,
-    int[,] W_sparse, vector D_sparse, int N, int W_n) {
-      row_vector[N] phit_D; // phi' * D
-      row_vector[N] phit_W; // phi' * W
-
-      phit_D = (phi .* D_sparse)';
-      phit_W = rep_row_vector(0, N);
-      for (i in 1:W_n) {
-        phit_W[W_sparse[i, 1]] = phit_W[W_sparse[i, 1]] + phi[W_sparse[i, 2]];
-        phit_W[W_sparse[i, 2]] = phit_W[W_sparse[i, 2]] + phi[W_sparse[i, 1]];
-      }
-
-      return 0.5 * -(phit_D * phi - (phit_W * phi));
-  }
-}
 data {
   int<lower = 1> N; // # spatial units
   int<lower = 1> T; // # timesteps
@@ -63,31 +34,14 @@ data {
   int<lower = 0> holdout_c[n_holdout_c];
 
   int<lower = 1, upper = N * T> eps_idx_train[n_count];
-  matrix<lower = 0, upper = 1>[N, N] W; // adjacency matrix
-  int W_n;                // number of adjacent region pairs
+  int<lower = 0> n_edges;
+  int<lower = 1, upper = N> node1[n_edges];
+  int<lower = 1, upper = N> node2[n_edges];
 }
 
 transformed data {
   vector[n_count] log_area_train = log_area[er_idx_train];
   vector[N * T] log_area_full = log_area[er_idx_full];
-  int W_sparse[W_n, 2];   // adjacency pairs
-  vector[N] D_sparse;     // diagonal of D (number of neigbors for each site)
-
-  { // generate sparse representation for W
-  int counter;
-  counter = 1;
-  // loop over upper triangular part of W to identify neighbor pairs
-    for (i in 1:(N - 1)) {
-      for (j in (i + 1):N) {
-        if (W[i, j] == 1) {
-          W_sparse[counter, 1] = i;
-          W_sparse[counter, 2] = j;
-          counter = counter + 1;
-        }
-      }
-    }
-  }
-  for (i in 1:N) D_sparse[i] = sum(W[i]);
 }
 
 parameters {
@@ -102,7 +56,7 @@ parameters {
   // iar params
   vector<lower = 0, upper = 1>[M] eta;   // autoregressive param
   vector<lower = 0>[M] sigma_phi;        // time difference spatial sd
-  matrix[N, T] phiR[M];                  // unscaled values
+  vector[N] phiR[M, T];                  // unscaled values
 }
 
 transformed parameters {
@@ -116,20 +70,11 @@ transformed parameters {
   vector[N * T] phi_vec[M];
 
   for (i in 1:M) {
-    { // first timestep
-      real phi0_mean = mean(phiR[i][, 1]);
-      for (j in 1:N) {
-        phi[i][j, 1] = (phiR[i][j, 1] - phi0_mean) * sigma_phi[i];
-      }
-    }
+    // first timestep
+    phi[i][1] = phiR[i, 1]' * sigma_phi[i];
     for (t in 2:T) {
-      { // subsequent timesteps
-        real phi_mean = mean(phiR[i][, t]);
-        for (j in 1:N) {
-          phi[i][j, t] =  eta[i] * phi[i][j, t - 1]
-                    + (phiR[i][j, t] - phi_mean) * sigma_phi[i];
-        }
-      }
+      // subsequent timesteps
+      phi[i][t] = eta[i] * phi[i][t - 1] + phiR[i, t]' * sigma_phi[i];
     }
     phi_vec[i] = to_vector(phi[i]);
   }
@@ -168,9 +113,12 @@ model {
   nb_prec ~ normal(0, 5);
 
   sigma_phi ~ normal(0, 1);
+  eta ~ beta(8, 2);
   for (i in 1:M) {
     for (t in 1:T) {
-      phiR[i][, t] ~ sparse_iar(W_sparse, D_sparse, N, W_n);
+      // IAR prior
+      target += -0.5 * dot_self(phiR[i, t][node1] - phiR[i, t][node2]);
+      sum(phiR[i, t]) ~ normal(0, .001 * N);
     }
   }
 

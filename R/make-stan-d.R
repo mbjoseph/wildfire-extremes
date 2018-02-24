@@ -65,8 +65,9 @@ stan_d <- list(
 
   min_size = min_size,
 
-  W = nb_mat,
-  W_n = sum(nb_mat) / 2,
+  n_edges = length(B@i),
+  node1 = B@i + 1, # add one to offset zero-based index
+  node2 = B@j + 1,
   tb_idx = tb_idx
   )
 
