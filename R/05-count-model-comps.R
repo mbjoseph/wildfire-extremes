@@ -252,4 +252,3 @@ sum_plot <- ppc_counts %>%
 
 plot_grid(den_plot, zero_plot, max_plot, sum_plot, ncol = 1)
 ggsave('fig/ppc-counts.png', width = 9, height = 7)
-

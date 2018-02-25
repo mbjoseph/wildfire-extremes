@@ -28,7 +28,7 @@ zi_d$M <- 2
 pois_init <- stan_model('stan/counts-pois.stan')
 pois_fit <- vb(pois_init,
                data = stan_d,
-               eta = .2,
+               eta = .5,
                init = 0,
                pars = count_pars,
                tol_rel_obj = 0.008,
@@ -39,7 +39,7 @@ write_rds(pois_fit, path = 'pois_fit.rds')
 zip_init <- stan_model('stan/counts-zip.stan')
 zip_fit <- vb(zip_init,
               data = zi_d,
-              eta = .5,
+              eta = .3,
               pars = count_pars,
               tol_rel_obj = 0.008,
               init = 0,
@@ -50,7 +50,7 @@ nb_init <- stan_model('stan/counts-nb.stan')
 nb_fit <- vb(
   nb_init,
   data = stan_d,
-  eta = .1,
+  eta = .4,
   pars = c(count_pars, 'nb_prec'),
   tol_rel_obj = 0.008,
   init = 0,
@@ -60,7 +60,7 @@ write_rds(nb_fit, path = 'nb_fit.rds')
 zinb_init <- stan_model('stan/counts-zinb.stan')
 zinb_fit <- vb(zinb_init,
               data = zi_d,
-              eta = .1,
+              eta = .3,
               pars = c(count_pars, 'nb_prec'),
               tol_rel_obj = 0.008,
               init = 0,
@@ -105,6 +105,7 @@ ba_pareto_fit <- sampling(
   control = control_list,
   iter = n_iter)
 write_rds(ba_pareto_fit, 'ba_pareto_fit.rds')
+gc()
 
 ba_tpareto_init <- stan_model('stan/area-tpareto.stan')
 ba_tpareto_fit <- sampling(
@@ -117,7 +118,7 @@ ba_tpareto_fit <- sampling(
   control = control_list,
   iter = n_iter)
 write_rds(ba_tpareto_fit, 'ba_tpareto_fit.rds')
-
+gc()
 
 ba_lognormal_init <- stan_model('stan/area-lognormal.stan')
 ba_lognormal_fit <- sampling(

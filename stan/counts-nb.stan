@@ -66,17 +66,16 @@ transformed parameters {
   matrix[M, p] lambda_tilde;
   vector[p] lambda_sq;
   vector[M] c;
-  matrix[N, T] phi[M];
+  matrix[T, N] phi[M];
   vector[N * T] phi_vec[M];
 
   for (i in 1:M) {
-    // first timestep
     phi[i][1] = phiR[i, 1]' * sigma_phi[i];
     for (t in 2:T) {
       // subsequent timesteps
       phi[i][t] = eta[i] * phi[i][t - 1] + phiR[i, t]' * sigma_phi[i];
     }
-    phi_vec[i] = to_vector(phi[i]);
+    phi_vec[i] = to_vector(phi[i]');
   }
 
   c = slab_scale * sqrt(c_aux);
