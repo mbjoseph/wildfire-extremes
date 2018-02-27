@@ -114,7 +114,7 @@ gc()
 
 
 # Partial effect plots ----------------------------------------------------
-which_var <- 'crmin'
+which_var <- c('ctmx')
 
 partial_effs <- list()
 n_iter <- length(post$lp__)
@@ -131,7 +131,7 @@ for (i in seq_along(unique_ers)) {
   effects <- array(dim = c(nrow(X_sub), 2, 3)) # 2 responses, 3: med, lo, hi
   for (j in 1:nrow(X_sub)) {  # month j
     for (k in 1:2) {          # response k
-      vals <- X_sub[j, cols] %*% t(post$beta[, k, cols])
+      vals <- X_sub[j, cols] %*% t(post$beta[1:100, k, cols])
       effects[j, k, 1] <- quantile(vals, .025)
       effects[j, k, 2] <- median(vals)
       effects[j, k, 3] <- quantile(vals, .975)
@@ -152,16 +152,14 @@ close(pb)
 p <- partial_effs %>%
   bind_rows %>%
   left_join(st_covs) %>%
-  mutate(response = ifelse(response == 'negbinom',
-                           'Negative binomial component',
-                           'Zero-inflation component')) %>%
-  ggplot(aes(rmin, med, group = NA_L3NAME)) +
-  geom_ribbon(aes(ymin = lo, ymax = hi), color = NA, alpha = .1) +
-  geom_line(alpha = .4) +
+  filter(response == 'negbinom') %>%
+  ggplot(aes(tmmx, med, group = NA_L3NAME, color = NA_L1NAME)) +
+#  geom_ribbon(aes(ymin = lo, ymax = hi), color = NA, alpha = .1) +
+  geom_line(alpha = .8) +
   theme_minimal() +
-  facet_wrap( ~ response, nrow = 2, scales = 'free_y') +
-  scale_x_log10() +
-  xlab('Mean daily minimum humidity') +
+  #facet_wrap(~ NA_L1NAME, scales = 'free_y') +
+  #scale_x_log10() +
+  xlab('Mean daily temperature') +
   ylab('Partial effect')
 ggplotly(p)
 
