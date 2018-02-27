@@ -273,10 +273,8 @@ sum_plot <- train_max %>%
              data = actual_sums, color = 'black', linetype = 'dashed') +
   geom_hline(aes(yintercept = test),
              data = actual_sums, color = 'black', linetype = 'dashed') +
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_blank(),
-  )
+  theme(strip.background = element_blank(),
+    strip.text.x = element_blank())
 
 plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4)
 ggsave(filename = 'fig/ppc-density-funs.png', width = 9, height = 7)

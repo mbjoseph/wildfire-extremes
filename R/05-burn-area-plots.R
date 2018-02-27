@@ -2,7 +2,6 @@ source('R/02-explore.R')
 source('R/make-stan-d.R')
 library(ggridges)
 library(ggthemes)
-library(plotly)
 library(viridis)
 library(ggrepel)
 library(patchwork)
@@ -54,7 +53,7 @@ beta_summary <- beta_df %>%
          variable = tools::toTitleCase(variable))
 
 # show all coefficients
-beta_summary %>%
+coefplot <- beta_summary %>%
   mutate(max_abs = max(abs(median)),
          rel_size = median / max_abs) %>%
   ggplot(aes(y = median,
@@ -74,7 +73,9 @@ beta_summary %>%
   scale_color_gradient2(mid = 'black', low = 'blue', high = 'red') +
   theme(legend.position = 'none') +
   geom_text_repel(aes(label = ifelse(abs(rel_size) > .35, variable, '')),
-                  alpha = 1, size = 2.5)
+                  alpha = 1, size = 2.5) +
+  ggtitle('A')
+coefplot
 
 # show important coefficients
 beta_summary %>%
@@ -98,8 +99,7 @@ beta_summary %>%
 
 
 beta_summary %>%
-  filter(p_neg > .8 | p_pos > .8)
-
+  filter(p_neg > .9 | p_pos > .9)
 gc()
 
 
@@ -154,9 +154,8 @@ p <- partial_effs %>%
         legend.position = 'none') +
   xlab('Mean daily minimum humidity') +
   ylab('Partial effect') +
-  ggtitle('A')
+  ggtitle('B')
 p
-ggplotly(p)
 
 
 
@@ -231,9 +230,8 @@ humidity_scatter <- st_covs %>%
         strip.text.x = element_text(size = 8, color = 'grey30')) +
   ggtitle('B')
 humidity_scatter
-ggsave('fig/humidity-burn-area.png', width = 9, height = 6)
 
-q <- (p + humidity_scatter) / location_ts_plot + plot_layout(heights = c(.6, 1))
+q <- (coefplot + p) / location_ts_plot + plot_layout(heights = c(.6, 1), ncol = 1)
 q
 ggsave('fig/burn-area-effs.png', plot = q, width = 8.5, height = 5)
 ggsave('fig/burn-area-effs.pdf', plot = q, width = 8.5, height = 5)
