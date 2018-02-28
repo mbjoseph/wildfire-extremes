@@ -247,22 +247,3 @@ p <- effect_plot_df %>%
 p
 ggsave('fig/count-partial-effs.png', width = 6, height = 4.5)
 
-
-# Expected values vs. covariate values ------------------------------------
-mu_df <- post$mu_full %>%
-  reshape2::melt(varnames = c('iter', 'dim', 'id')) %>%
-  as_tibble() %>%
-  spread(dim, value) %>%
-  mutate(expected_value = exp(`1`) * plogis(`2`)) %>%
-  group_by(id) %>%
-  summarize(med = median(expected_value),
-            lo = quantile(expected_value, .05),
-            hi = quantile(expected_value, .95))
-
-st_covs <- st_covs %>%
-  group_by(NA_L3NAME) %>%
-  mutate(mean_hd = mean(housing_density),
-         facet_factor = paste(NA_L2CODE, NA_L3NAME, sep = ': '),
-         l2_er = tools::toTitleCase(tolower(as.character(NA_L2NAME))),
-         l2_er = gsub(' and ', ' & ', l2_er),
-         l2_er = gsub('Usa ', '', l2_er))
