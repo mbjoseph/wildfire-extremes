@@ -50,9 +50,9 @@ beta_summary <- beta_df %>%
          variable = gsub('cpr12', '12 mo. precip.', variable),
          variable = gsub('cpr', 'precipitation', variable),
          variable = gsub('chd', 'Housing density', variable),
-         variable = ifelse(grepl(':', x = variable),
-                           paste0('Intxn(', variable, ')'),
-                           variable),
+         # variable = ifelse(grepl(':', x = variable),
+         #                   paste0('(', variable, ')'),
+         #                   variable),
          variable = gsub(':', ' x ', variable),
          variable = gsub('NA_', '', variable),
          variable = gsub('NAME', ' ', variable),
@@ -61,31 +61,56 @@ beta_summary <- beta_df %>%
          variable = tools::toTitleCase(variable))
 
 # show all coefficients
-beta_summary %>%
+coefplot <- beta_summary %>%
   group_by(Response) %>%
   mutate(max_abs = max(abs(median)),
          rel_size = median / max_abs) %>%
   ggplot(aes(y = median,
              x = variable,
-             color = rel_size ^ 2 * sign(rel_size),
-             alpha = rel_size ^ 2)) +
-  geom_point(size = .3) +
+             color = ifelse(nonzero, sign(median), rel_size))) +
+  geom_point(aes(size = nonzero)) +
   theme_minimal() +
   theme(panel.grid.minor = element_blank(),
         axis.text.x = element_blank(),
         panel.grid.major.x = element_blank()) +
   facet_wrap(~ Response, scales = 'free', nrow = 2) +
   geom_segment(aes(y = lo, yend = hi,
-                   xend = variable),
-               size = .3) +
+                   xend = variable, size = nonzero)) +
+  scale_size_manual(values = c(.2, 1)) +
   xlab('Coefficient') +
   ylab('Coefficient value') +
-  scale_color_gradient2(mid = 'black', low = 'blue', high = 'red') +
+  scale_color_gradient2(mid = 'lightgrey', low = 'blue', high = 'red') +
   theme(legend.position = 'none') +
-  geom_text_repel(aes(label = ifelse(abs(rel_size) > .35, variable, '')),
-                  alpha = 1, size = 2.5)
+  geom_text_repel(aes(label = ifelse(nonzero, variable, '')),
+                  alpha = 1, size = 2.5, color = 'black')
+coefplot
 ggsave('fig/all-coefs.png', width = 8, height = 4)
 
+# bivariate effects plot
+bivar_d <- beta_summary %>%
+  select(-dim, -col, -p_neg, -p_pos) %>%
+  gather(which_val, value, -Response, -variable) %>%
+  mutate(response_var = paste(Response, which_val, sep = '_')) %>%
+  select(-Response, -which_val) %>%
+  spread(response_var, value)
+
+ptsize <- .5
+bivar_effs <- bivar_d %>%
+  ggplot(aes(`Zero-inflation component_median`, `Negative binomial component_median`)) +
+  geom_point(alpha = .1, col = 'grey', shape = 1, size = ptsize) +
+  geom_point(data = filter(bivar_d, `Negative binomial component_nonzero` |
+                                      `Zero-inflation component_nonzero`),
+             size = ptsize) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank()) +
+  geom_text_repel(aes(label = variable),
+                  data = filter(bivar_d, `Negative binomial component_nonzero` |
+                                  `Zero-inflation component_nonzero`),
+                  size = 3, max.iter = 10000, segment.alpha = .2) +
+  ylab('Negative binomial effect') +
+  xlab('Zero-inflation effect')
+bivar_effs
+ggsave('fig/bivar-effs.png', width = 6, height = 4)
 
 # show important coefficients
 beta_summary %>%
@@ -114,69 +139,113 @@ gc()
 
 
 # Partial effect plots ----------------------------------------------------
-which_var <- c('ctmx')
+which_var <- c('ctmx', 'crmin', 'cpr', 'cvs', 'cpr12', 'chd')
+complete_name <- c('tmmx', 'rmin', 'pr', 'vs', 'prev_12mo_precip', 'housing_density')
+assert_that(length(which_var) == length(complete_name))
 
 partial_effs <- list()
 n_iter <- length(post$lp__)
 unique_ers <- unique(st_covs$NA_L3NAME)
 pb <- txtProgressBar(max = length(unique_ers), style = 3)
-for (i in seq_along(unique_ers)) {
-  setTxtProgressBar(pb, i)
-  subdf <- st_covs %>%
-    filter(NA_L3NAME == unique_ers[i]) %>%
-    mutate(row_id = 1:n())
-  X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
-  cols <- grepl(which_var, colnames(X_sub))
-
-  effects <- array(dim = c(nrow(X_sub), 2, 3)) # 2 responses, 3: med, lo, hi
-  for (j in 1:nrow(X_sub)) {  # month j
-    for (k in 1:2) {          # response k
-      vals <- X_sub[j, cols] %*% t(post$beta[1:100, k, cols])
-      effects[j, k, 1] <- quantile(vals, .025)
-      effects[j, k, 2] <- median(vals)
-      effects[j, k, 3] <- quantile(vals, .975)
+for (v in seq_along(which_var)) {
+  print(paste('Processing', which_var[v]))
+  for (i in seq_along(unique_ers)) {
+    setTxtProgressBar(pb, i)
+    subdf <- st_covs %>%
+      filter(NA_L3NAME == unique_ers[i]) %>%
+      mutate(row_id = 1:n())
+    X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
+    cols <- grepl(which_var[v], colnames(X_sub))
+    if (which_var[v] == 'cpr') {
+      cols <- grepl(which_var[v], colnames(X_sub)) &
+        !grepl('cpr12', colnames(X_sub))
     }
+
+    effects <- array(dim = c(nrow(X_sub), 2, 3)) # 2 responses, 3: med, lo, hi
+    for (j in 1:nrow(X_sub)) {  # month j
+      for (k in 1:2) {          # response k
+        vals <- X_sub[j, cols] %*% t(post$beta[, k, cols])
+        effects[j, k, 1] <- quantile(vals, .025)
+        effects[j, k, 2] <- median(vals)
+        effects[j, k, 3] <- quantile(vals, .975)
+      }
+    }
+    partial_effs[[length(partial_effs) + 1]] <- effects %>%
+      reshape2::melt(varnames = c('row_id', 'response', 'quantity')) %>%
+      as_tibble %>%
+      mutate(response = ifelse(response == 1, 'negbinom', 'zeroinfl'),
+             quantity = case_when(.$quantity == 1 ~ 'lo',
+                                  .$quantity == 2 ~ 'med',
+                                  .$quantity == 3 ~ 'hi'),
+             var = which_var[v]) %>%
+      spread(quantity, value) %>%
+      left_join(select(subdf, row_id, NA_L3NAME, ym))
   }
-  partial_effs[[i]] <- effects %>%
-    reshape2::melt(varnames = c('row_id', 'response', 'quantity')) %>%
-    as_tibble %>%
-    mutate(response = ifelse(response == 1, 'negbinom', 'zeroinfl'),
-           quantity = case_when(.$quantity == 1 ~ 'lo',
-                                .$quantity == 2 ~ 'med',
-                                .$quantity == 3 ~ 'hi')) %>%
-    spread(quantity, value) %>%
-    left_join(select(subdf, row_id, NA_L3NAME, year, ym, housing_density))
 }
 close(pb)
 
-p <- partial_effs %>%
+
+name_df <- tibble(covariate = which_var,
+                  untrans_cov = complete_name,
+                  fancy_name = c('Air temperature (C)',
+                                 'Relative humidity (%)',
+                                 'Precipitation: same month (mm)',
+                                 'Wind speed (m/s)',
+                                 'Precipitation: 12 month (mm)',
+                                 'Housing density (units per km^2)'))
+
+effect_plot_df <- list()
+for (i in seq_along(which_var)) {
+  effect_plot_df[[i]] <- partial_effs %>%
+    bind_rows %>%
+    filter(var == which_var[i]) %>%
+    left_join(st_covs) %>%
+    mutate(covariate = which_var[i]) %>%
+    left_join(name_df) %>%
+    filter(response == 'negbinom') %>%
+    mutate(covariate = complete_name[i]) %>%
+    rename(covariate_value = !!complete_name[i]) %>%
+    select(covariate, covariate_value, med, lo, hi,
+           NA_L3NAME, ym, NA_L1NAME, NA_L2NAME,
+           fancy_name)
+}
+
+annotation_df <- tibble(
+  untrans_cov = c('tmmx', 'tmmx'),
+  covariate_value = c(-7, 13),
+  med = c(2, 3.5),
+  label = c('Great Plains', 'Eastern Temperate Forests'),
+  NA_L1NAME = c('GREAT PLAINS', 'EASTERN TEMPERATE FORESTS')
+)
+
+better_name <- distinct(ecoregion_df, NA_L1NAME) %>%
+  mutate(l1_er = tools::toTitleCase(tolower(NA_L1NAME))) %>%
+  mutate(ifelse(l1_er == 'Southern Semi-Arid Highlands',
+                'Southern Semi-arid Highlands',
+                l1_er))
+
+p <- effect_plot_df %>%
   bind_rows %>%
-  left_join(st_covs) %>%
-  filter(response == 'negbinom') %>%
-  ggplot(aes(tmmx, med, group = NA_L3NAME, color = NA_L1NAME)) +
-#  geom_ribbon(aes(ymin = lo, ymax = hi), color = NA, alpha = .1) +
-  geom_line(alpha = .8) +
+  mutate(covariate_value = case_when(
+    .$covariate == 'tmmx' ~ covariate_value - 273.15,
+    .$covariate == 'rmin' ~ covariate_value / 100,
+    TRUE ~ covariate_value)) %>%
+  left_join(better_name) %>%
+  ggplot(aes(covariate_value, y = med)) +
   theme_minimal() +
-  #facet_wrap(~ NA_L1NAME, scales = 'free_y') +
-  #scale_x_log10() +
-  xlab('Mean daily temperature') +
-  ylab('Partial effect')
-ggplotly(p)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  geom_ribbon(aes(ymin = lo, ymax = hi, group = NA_L3NAME),
+              color = NA, alpha = .04) +
+  geom_line(alpha = .5, aes(group = NA_L3NAME, color = l1_er)) +
+  ylab('Partial effect') +
+  # geom_text(data = annotation_df %>% left_join(name_df),
+  #           aes(label = label, color = NA_L1NAME), size = 3.5) +
+  facet_wrap(~fancy_name, scales = 'free', ncol = 2) +
+  scale_color_gdocs('') +
+  xlab('') +
+  theme(panel.grid.minor = element_blank(),
+        legend.position = 'none')
+p
+ggsave('fig/count-partial-effs.png', width = 6, height = 4.5)
 
 
 # Expected values vs. covariate values ------------------------------------
@@ -197,143 +266,3 @@ st_covs <- st_covs %>%
          l2_er = tools::toTitleCase(tolower(as.character(NA_L2NAME))),
          l2_er = gsub(' and ', ' & ', l2_er),
          l2_er = gsub('Usa ', '', l2_er))
-
-cmap <- c(viridis(12, option = 'C'),
-          rev(viridis(12, option = 'C')))
-
-st_covs %>%
-  full_join(mu_df) %>%
-  filter(year < cutoff_year) %>%
-  ggplot(aes(x = rmin,
-             y = med / (1000 * area),
-             color = month)) +
-  geom_linerange(aes(ymin = lo / (1000 * area),
-                     ymax = hi / (1000 * area)),
-                 alpha = .1) +
-  geom_point(size = .5) +
-  theme_minimal() +
-  facet_wrap(~ fct_reorder(l2_er, rmin),
-             labeller = labeller(.rows = label_wrap_gen(25))) +
-  scale_color_gradientn(colors = cmap, 'Month') +
-  scale_y_log10() +
-  xlab('Mean daily minimum humidity') +
-  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
-  theme(panel.grid.minor = element_blank(),
-        strip.text.x = element_text(size = 8, color = 'grey30'))
-ggsave('fig/humidity-counts.png', width = 9, height = 6)
-
-
-# Housing density?? -------------------------------------------------------
-p <- st_covs %>%
-  full_join(mu_df) %>%
-  filter(year < cutoff_year) %>%
-  group_by(NA_L3NAME, year) %>%
-  mutate(housing_density = median(housing_density),
-         med = median(med)) %>%
-  distinct(housing_density, med, NA_L3NAME, area) %>%
-  ggplot(aes(x = housing_density,
-             y = med / (1000 * area),
-             group = NA_L3NAME)) +
-  geom_point(size = .5, alpha = .4) +
-  theme_minimal() +
-  scale_y_log10() +
-  xlab('Housing density') +
-  ylab('Median annual fire density') +
-  theme(panel.grid.minor = element_blank(),
-        strip.text.x = element_text(size = 8, color = 'grey30')) +
-  geom_smooth(method = 'lm', se = FALSE) +
-  scale_x_log10()
-ggplotly(p)
-
-
-st_covs %>%
-  full_join(mu_df) %>%
-  filter(year < cutoff_year) %>%
-  mutate(temperature_c = tmmx - 273.15) %>%
-  ggplot(aes(x = temperature_c,
-             y = med / (1000 * area),
-             color = month)) +
-  geom_linerange(aes(ymin = lo / (1000 * area),
-                     ymax = hi / (1000 * area)),
-                 alpha = .1) +
-  geom_point(size = .5) +
-  theme_minimal() +
-  facet_wrap(~ fct_reorder(l2_er, rmin),
-             labeller = labeller(.rows = label_wrap_gen(25))) +
-  scale_color_gradientn(colors = cmap, 'Month') +
-  scale_y_log10() +
-  xlab('Mean daily maximum air temperature (C)') +
-  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
-  theme(panel.grid.minor = element_blank(),
-        strip.text.x = element_text(size = 8, color = 'grey30'))
-ggsave('fig/air-temp-counts.png', width = 9, height = 6)
-
-
-
-st_covs %>%
-  full_join(mu_df) %>%
-  filter(year < cutoff_year) %>%
-  ggplot(aes(x = vs,
-             y = med / (1000 * area),
-             color = month)) +
-  geom_linerange(aes(ymin = lo / (1000 * area),
-                     ymax = hi / (1000 * area)),
-                 alpha = .1) +
-  geom_point(size = .5) +
-  theme_minimal() +
-  facet_wrap(~ fct_reorder(l2_er, rmin),
-             labeller = labeller(.rows = label_wrap_gen(25))) +
-  scale_color_gradientn(colors = cmap, 'Month') +
-  scale_y_log10() +
-  xlab('Mean monthly wind speed') +
-  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
-  theme(panel.grid.minor = element_blank(),
-        strip.text.x = element_text(size = 8, color = 'grey30'))
-ggsave('fig/wind-counts.png', width = 9, height = 6)
-
-
-st_covs %>%
-  full_join(mu_df) %>%
-  filter(year < cutoff_year) %>%
-  ggplot(aes(x = pr,
-             y = med / (1000 * area),
-             color = month)) +
-  geom_linerange(aes(ymin = lo / (1000 * area),
-                     ymax = hi / (1000 * area)),
-                 alpha = .1) +
-  geom_point(size = .5) +
-  theme_minimal() +
-  facet_wrap(~ fct_reorder(l2_er, rmin),
-             labeller = labeller(.rows = label_wrap_gen(25))) +
-  scale_color_gradientn(colors = cmap, 'Month') +
-  scale_y_log10() +
-  xlab('Mean monthly precipitation') +
-  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
-  theme(panel.grid.minor = element_blank(),
-        strip.text.x = element_text(size = 8, color = 'grey30')) +
-  scale_x_log10()
-ggsave('fig/precip-counts.png', width = 9, height = 6)
-
-
-st_covs %>%
-  full_join(mu_df) %>%
-  filter(year < cutoff_year) %>%
-  ggplot(aes(x = prev_12mo_precip,
-             y = med / (1000 * area),
-             color = month)) +
-  geom_linerange(aes(ymin = lo / (1000 * area),
-                     ymax = hi / (1000 * area)),
-                 alpha = .1) +
-  geom_point(size = .5) +
-  theme_minimal() +
-  facet_wrap(~ fct_reorder(l2_er, rmin),
-             labeller = labeller(.rows = label_wrap_gen(25))) +
-  scale_color_gradientn(colors = cmap, 'Month') +
-  scale_y_log10() +
-  xlab('Mean precipitation over previous 12 months') +
-  ylab(expression(paste('Expected fire density: # per (month x ', km^2, ')'))) +
-  theme(panel.grid.minor = element_blank(),
-        strip.text.x = element_text(size = 8, color = 'grey30')) +
-  scale_x_log10()
-ggsave('fig/precip12-counts.png', width = 9, height = 6)
-
