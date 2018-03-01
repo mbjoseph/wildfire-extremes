@@ -1,35 +1,17 @@
 library(raster)
 library(rstan)
 library(sf)
-library(rmapshaper)
 library(tidyverse)
-library(magick)
-library(snowfall)
-library(loo)
-library(ggExtra)
-library(viridis)
 library(ggthemes)
+library(patchwork)
 
 source('R/02-explore.R')
+source('R/make-stan-d.R')
 m_fit <- read_rds('zinb_full_fit.rds')
 post <- rstan::extract(m_fit)
 ba_post <- rstan::extract(read_rds('ba_lognormal_fit.rds'))
 rm(m_fit)
 gc()
-
-beta_df <- post$beta %>%
-  reshape2::melt(varnames = c('iter', 'dim', 'col')) %>%
-  tbl_df %>%
-  group_by(dim, col) %>%
-  summarize(median = median(value),
-            lo = quantile(value, 0.05),
-            hi = quantile(value, 0.95),
-            p_neg = mean(value < 0),
-            p_pos = mean(value > 0)) %>%
-  ungroup %>%
-  mutate(variable = colnamesX[col],
-         nonzero = p_neg > .95 | p_pos > .95)
-
 
 # plot the contribution of each explanatory variable on a response
 st_covs$row <- 1:nrow(st_covs)
@@ -42,21 +24,15 @@ mu_df <- post$mu_full %>%
             lo = quantile(value, 0.05),
             hi = quantile(value, 0.95)) %>%
   ungroup
-
-mtbs_totals <- mtbs %>%
-  select(-geometry) %>%
-  as_tibble %>%
-  group_by(ym, NA_L3NAME) %>%
-  summarize(total_area = sum(R_ACRES))
-
 unique_ecoregions <- unique(st_covs$NA_L3NAME)
 
 
 write_attribution_plot <- function(which_ecoregion,
-                                   max_iter = 1000) {
+                                   max_iter = 2000) {
 
-  which_ecoregion <- 'Arizona/New Mexico Mountains'
-  max_iter <- 100
+  which_ecoregion <- max_d$NA_L3NAME
+  max_iter <- 2000
+
 
   plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
@@ -76,16 +52,24 @@ write_attribution_plot <- function(which_ecoregion,
 
   # for each response, variable, and ym, multiply covariate and coefficient
   n_iter <- min(max_iter, length(post$lp__))
-  elementwise_effs <- array(0, dim = c(nrow(X_sub), ncol(X_sub), n_iter, 2))
+  # 3 dims, one for each response (2 for count, one for burn area)
+  elementwise_effs <- array(0, dim = c(nrow(X_sub), ncol(X_sub), n_iter, 3))
   colnames(elementwise_effs) <- colnames(X_sub)
   effects_to_plot <- list()
   pb <- txtProgressBar(max = nrow(X_sub), style = 3)
   for (i in 1:nrow(X_sub)) {
     for (j in 1:ncol(X_sub)) {
-      for (response in 1:2) {
+      for (response in 1:3) {
         if (X_sub[i, j] != 0) {
-          elementwise_effs[i, j, , response] <- X_sub[i, j] *
-                      post$beta[1:max_iter, response, nonzero_columns[j]]
+          if (response == 1) {
+            # burn area mean
+            elementwise_effs[i, j, , response] <- X_sub[i, j] *
+              ba_post$beta[1:max_iter, response, nonzero_columns[j]]
+          } else {
+            # count params
+            elementwise_effs[i, j, , response] <- X_sub[i, j] *
+              post$beta[1:max_iter, response - 1, nonzero_columns[j]]
+          }
         }
       }
     }
@@ -125,40 +109,108 @@ write_attribution_plot <- function(which_ecoregion,
 
 
   # median plot
-  effects_summary %>%
-    group_by(variable, response) %>%
+  plot_data <- effects_summary %>%
     filter(!grepl('^L', variable),
            variable != 'Terrain Ruggedness',
            year >= cutoff_year) %>%
+    mutate(Response = case_when(.$response == 1 ~ 'Lognormal mean (burn area)',
+                                .$response == 2 ~ 'Negative binomial mean (number of fires)',
+                                .$response == 3 ~ 'Zero-inflation component (number of fires)'),
+           variable = factor(tools::toTitleCase(tolower(variable)),
+                             levels = c('Humidity', 'Temperature',
+                                        'Housing Density', 'Monthly Precip.',
+                                        '12 Month Precip.', 'Wind Speed')))
+
+  p_med <- plot_data %>%
     ggplot(aes(ym, y = median_eff, color = variable)) +
     geom_line() +
-    geom_point(size = .2) +
-    facet_wrap(~response, scales = 'free_y', ncol = 1) +
+    facet_wrap(~Response, scales = 'free_y', ncol = 1) +
     theme_minimal() +
     theme(panel.grid.minor = element_blank()) +
-    xlab('Time') +
-    ylab('Contribution to fire risk') +
-    ggtitle(which_ecoregion) +
-    scale_color_discrete('Variable')
+    xlab('') +
+    ylab('Contribution to linear predictor') +
+    scale_color_manual('', values = c('dodgerblue',
+                                              'red',
+                                              scales::alpha(
+                                                c('green4',
+                                                  'pink',
+                                                  'orange',
+                                                  'lightblue'), .7)))
   med_plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
-                                '-', which_dim, '-', 'med',
+                                '-', 'med',
                                 '.png'))
-  ggsave(filename = med_plot_name, plot = p_med, width = 8, height = 3.5)
-  return(list(plot = p_med, effects = effects_to_plot))
+  ggsave(filename = med_plot_name,
+         plot = p_med + ggtitle(which_ecoregion),
+         width = 8, height = 3.5)
+  return(list(plot = p_med,
+              effects = effects_to_plot %>%
+                bind_rows %>%
+                left_join(select(subd, row_index, ym, NA_L3NAME, year)),
+              plot_data = plot_data))
 }
 
 # choose a case study: why not the biggest fire in the train set?
 max_d <- holdout_burns[which.max(holdout_burns$R_ACRES), ]
 
-write_attribution_plot(max_d$NA_L3NAME, which_dim = 1)
+case_study_plot <- write_attribution_plot(max_d$NA_L3NAME)
+
+p1 <- case_study_plot$plot +
+  geom_vline(aes(xintercept = ym), data = max_d, lty = 'dotted')
+p1
+ggsave(filename = 'fig/attribution-plot.png', plot = p1,
+       width = 7, height = 4)
 
 
-# Create for every ecoregion (takes a long time)
-# dir.create(file.path('fig', 'effs'))
-#
-# plot_list <- list()
-# for (i in seq_along(unique_ecoregions)) {
-#   plot_list[[i]] <- write_attribution_plot(unique_ecoregions[i], which_dim = 1)
-# }
+# now, look at analytical results for posterior over maxima vs. actual
+nmax_q <- function(p, n, mu, sigma) {
+  # quantile function for the n-sample maximum of normally
+  # distributed random variables
+  erf.inv <- function(x) qnorm((x + 1)/2)/sqrt(2)
+  sigma * sqrt(2) * erf.inv(2 * p^(1/n) - 1) + mu
+}
 
+test_preds <- read_rds('test_preds.rds')
+
+max_d_preds <- test_preds %>%
+  filter(NA_L3NAME == max_d$NA_L3NAME,
+         ym %in% c(max_d$ym, max_d$ym + 1/12, max_d$ym + 2/12)) %>%
+  select(-log_p, -starts_with('q'))
+
+# get 99% credible intervals
+max_d_preds %>%
+  filter(n_event > 0) %>%
+  group_by(ym) %>%
+  summarize(lo = exp(mean(nmax_q(.005, n_event, ln_mu, ln_scale))) + min_size,
+            hi = exp(mean(nmax_q(.995, n_event, ln_mu, ln_scale))) + min_size)
+max_d$R_ACRES
+
+
+
+
+
+
+
+# Optional CDF visualizations ------------------------------------------
+# Visualize the cdf
+p2 <- max_d_preds %>%
+  filter(n_event > 0) %>%
+  mutate(probs = list(seq(.5, .999, length.out = 100))) %>%
+  unnest %>%
+  mutate(quantiles = nmax_q(probs, n = n_event, mu = ln_mu, sigma = ln_scale)) %>%
+  ggplot(aes(x = exp(quantiles) + min_size, y = 1 - probs)) +
+  geom_line(aes(group = interaction(iter, ym), color = factor(ym)),
+            alpha = .1) +
+  scale_x_log10() +
+  geom_vline(xintercept = max_d$R_ACRES, linetype = 'dashed') +
+  theme_minimal() +
+  xlab('z (burn area acres)') +
+  ylab('CDF: Pr(Z < z)') +
+  theme(panel.grid.minor = element_blank()) +
+  scale_y_log10() +
+  scale_color_ptol('') +
+  facet_wrap(~ym) +
+  theme(legend.position = 'none')
+p2
+
+p1 + p2 + plot_layout(ncol = 1)
