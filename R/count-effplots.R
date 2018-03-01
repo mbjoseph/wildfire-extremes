@@ -22,6 +22,9 @@ str(post)
 rm(fit)
 gc()
 
+# get 95% credible interval for Rho_beta
+quantile(post$Rho_beta[, 1, 2], c(0.025, .5, .975))
+
 
 
 # Coefficients that seem to be far from zero ------------------------------
