@@ -68,20 +68,30 @@ actual_totals <- holdout_burns %>%
   summarize(total_area = sum(R_ACRES),
             total_events = n())
 
-total_df %>%
+total_hist <- total_df %>%
   group_by(iter) %>%
   summarize(total_area = sum(total_area),
             total_events = sum(n_event)) %>%
   ggplot(aes(x = total_area)) +
-  geom_density(alpha = .6, fill = 'red3', color = NA) +
+  geom_histogram(alpha = .7, fill = 'red3', bins = 40) +
   theme_minimal() +
   theme(panel.grid.minor = element_blank()) +
   geom_vline(aes(xintercept = total_area),
              data = actual_totals, linetype = 'dashed') +
   xlab('Total burn area (acres): 2010-2015') +
   ylab('Posterior density')
-ggsave('fig/test-set-burn-area.png', width = 5, height = 3)
+total_hist
+ggsave('fig/test-set-burn-area.png', plot = total_hist, width = 5, height = 3)
 
+# numeric summaries
+total_df %>%
+  group_by(iter) %>%
+  summarize(total_area = sum(total_area),
+            total_events = sum(n_event)) %>%
+  ungroup %>%
+  summarize(median(total_area),
+            quantile(total_area, c(.025)),
+            quantile(total_area, c(.975)))
 
 # Compare total burn area predictions for two time periods ----------------
 # 1984 - 1996, 1997 - 2009
@@ -256,34 +266,17 @@ overall_million <- exceedance_df %>%
             total_events = sum(n_event)) %>%
   ungroup()
 
-p <- overall_million %>%
-  ggplot(aes(total_events, 1 - exp(total_p))) +
-  geom_point(alpha = .3, col = 'darkred') +
-  theme_minimal() +
-#  theme(panel.grid.minor = element_blank()) +
-  xlab('Total number of fires > 1000 acres') +
-  ylab('Probability of one event > 1,000,000 acres')
+p <- ggplot(overall_million, aes(x = 1 - exp(total_p))) +
+  geom_histogram(bins = 40, fill = 'darkred', alpha = .7) +
+  xlab('Probability of one event > 1,000,000 acres') +
+  theme_minimal()
+p
 
-ggMarginal(p)
-
-# show on map
-class(ecoregions)
-
-ecoregions$exceedance_prob <- exceedance_summary$`Exceedance probability`[match(ecoregions$NA_L3NAME, exceedance_summary$NA_L3NAME)]
-
-
-
-exc_map <- ecoregions %>%
-  ggplot() +
-  geom_sf(aes(fill = exceedance_prob),
-          color = 'white',
-          size = .1) +
-  scale_fill_viridis(trans = 'log', option = 'B',
-                     'Million acre\nexceedance\nprobability',
-                     breaks = c(.00001, .0001, .001, .01)) +
-  geom_sf(data = mtbs, color = 'black', alpha = .1, size = .01) +
-  hrbrthemes::theme_ipsum_rc(base_family = 'helvetica')
-ggsave(plot = exc_map, 'fig/million-acre-exceedance-map.png', width = 7, height = 3.5)
+# Get the probability of a million+ acre fire
+overall_million %>%
+  summarize(median(1 - exp(total_p)),
+            quantile(1 - exp(total_p), .025),
+            quantile(1 - exp(total_p), .975))
 
 
 
@@ -292,6 +285,8 @@ ggsave(plot = exc_map, 'fig/million-acre-exceedance-map.png', width = 7, height 
 test_preds <- test_preds %>%
   mutate(qlo = exp(nmax_q(.005, n = n_event, mu = ln_mu, sigma = ln_scale)),
          qhi = exp(nmax_q(.995, n = n_event, mu = ln_mu, sigma = ln_scale)))
+
+write_rds(test_preds, path = 'test_preds.rds')
 
 interval_df <- test_preds %>%
   group_by(NA_L3NAME, ym) %>%
@@ -369,3 +364,11 @@ interval_df %>%
         axis.text.y = element_text(size = 8))
 ggsave('fig/max-preds-l3-all.png', width = 10, height = 10)
 
+# get overall interval coverage stats for block maxima
+interval_df %>%
+  filter(!is.na(empirical_max)) %>%
+  mutate(in_interval = m_qlo <= empirical_max & m_qhi >= empirical_max) %>%
+  ungroup %>%
+  summarize(p_coverage = mean(in_interval),
+            p_max_was_bigger = mean(empirical_max > m_qhi),
+            n_max_was_bigger = sum(empirical_max > m_qhi))
