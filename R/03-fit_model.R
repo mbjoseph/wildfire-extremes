@@ -15,7 +15,7 @@ burn_area_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
 
 control_list <- list(
   adapt_delta = 0.99,
-  max_treedepth = 11
+  max_treedepth = 14
 )
 
 n_iter <- 1000
