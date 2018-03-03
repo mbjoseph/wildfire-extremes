@@ -5,9 +5,13 @@ source('R/helpers.R')
 
 ecoregion_shp <- load_ecoregions()
 
+# simplify the shapefile a bit - it's much finer than the rasters
+system('ogr2ogr -progress -simplify 40 data/processed/simple-ecoregions.shp data/raw/us_eco_l3/us_eco_l3.shp')
+
+ecoregion_shp <- rgdal::readOGR(dsn = "data/processed/",
+                                layer = "simple-ecoregions")
 ecoregion_shp <- spTransform(ecoregion_shp,
                        CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"))
-
 
 tifs <- list.files("data/processed",
                    pattern = ".tif",
