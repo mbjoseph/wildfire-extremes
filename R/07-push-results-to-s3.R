@@ -10,7 +10,8 @@ for (i in seq_along(model_fits)) {
   system(cmd)
 }
 
-system('aws s3 cp fig s3://earthlab-mjoseph/demo_evt/fig --recursive')
+# push figures to S3
+#system('aws s3 cp fig s3://earthlab-mjoseph/demo_evt/fig --recursive')
 
 # pull fits down
 # system('aws s3 cp s3://earthlab-mjoseph/demo_evt/ba_gamma_fit.rds . ')
