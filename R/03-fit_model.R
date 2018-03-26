@@ -14,8 +14,8 @@ burn_area_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
                     'sigma_phi', 'phi', 'eta')
 
 control_list <- list(
-  adapt_delta = 0.99,
-  max_treedepth = 14
+  adapt_delta = 0.9,
+  max_treedepth = 11
 )
 
 n_iter <- 1000
@@ -28,7 +28,7 @@ zi_d$M <- 2
 pois_init <- stan_model('stan/counts-pois.stan')
 pois_fit <- vb(pois_init,
                data = stan_d,
-               eta = .5,
+               eta = .3,
                init = 0,
                pars = count_pars,
                tol_rel_obj = 0.008,
