@@ -53,13 +53,11 @@ st_covs <- ecoregion_summaries %>%
   filter(!NA_L2NAME == "UPPER GILA MOUNTAINS (?)",
          year > 1983,
          ym <= max(mtbs$ym)) %>%
-  mutate(crmin = c(scale(rmin)),
-         cpr = c(scale(pr)),
-         ctmx = c(scale(tmmx)),
-         cvs = c(scale(vs)),
-         cpr12 = c(scale(prev_12mo_precip)),
-         ctri = c(scale(log(tri))),
-         chd = c(scale(log(housing_density)))) %>%
+  mutate(ctri = c(scale(log(tri))),
+         log_housing_density = log(housing_density),
+         pr = ifelse(pr < 0 , 0, pr),
+         log_pr = log(pr + .0001), # add a small jitter to avoid -Inf
+         log_pr12 = log(prev_12mo_precip)) %>%
   left_join(area_df) %>%
   droplevels %>%
   mutate(er_ym = paste(NA_L3NAME, ym, sep = "_")) %>%
@@ -100,7 +98,9 @@ T <- length(unique(st_covs$ym))
 assert_that(identical(nrow(st_covs), N * T))
 
 # Create b-splines for climate vars
-vars <- c('chd', 'cvs', 'cpr', 'cpr12', 'ctmx', 'crmin')
+vars <- c('log_housing_density', 'vs',
+          'log_pr', 'log_pr12', 'tmmx',
+          'rmin')
 
 df_each <- 5
 X_bs <- list()
@@ -184,3 +184,4 @@ assert_that(all(train_burn_covs$ym[burn_idx] == train_burns$ym))
 rm(X_tc)
 rm(X_tb)
 gc()
+
