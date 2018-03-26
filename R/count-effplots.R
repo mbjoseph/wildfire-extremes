@@ -142,26 +142,24 @@ gc()
 
 
 # Partial effect plots ----------------------------------------------------
-which_var <- c('ctmx', 'crmin', 'cpr', 'cvs', 'cpr12', 'chd')
-complete_name <- c('tmmx', 'rmin', 'pr', 'vs', 'prev_12mo_precip', 'housing_density')
-assert_that(length(which_var) == length(complete_name))
+vars
 
 partial_effs <- list()
 n_iter <- length(post$lp__)
 unique_ers <- unique(st_covs$NA_L3NAME)
 pb <- txtProgressBar(max = length(unique_ers), style = 3)
-for (v in seq_along(which_var)) {
-  print(paste('Processing', which_var[v]))
+for (v in seq_along(vars)) {
+  print(paste('Processing', vars[v]))
   for (i in seq_along(unique_ers)) {
     setTxtProgressBar(pb, i)
     subdf <- st_covs %>%
       filter(NA_L3NAME == unique_ers[i]) %>%
       mutate(row_id = 1:n())
     X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
-    cols <- grepl(which_var[v], colnames(X_sub))
-    if (which_var[v] == 'cpr') {
-      cols <- grepl(which_var[v], colnames(X_sub)) &
-        !grepl('cpr12', colnames(X_sub))
+    cols <- grepl(vars[v], colnames(X_sub))
+    if (vars[v] == 'log_pr') {
+      cols <- grepl(vars[v], colnames(X_sub)) &
+        !grepl('log_pr12', colnames(X_sub))
     }
 
     effects <- array(dim = c(nrow(X_sub), 2, 3)) # 2 responses, 3: med, lo, hi
@@ -180,7 +178,7 @@ for (v in seq_along(which_var)) {
              quantity = case_when(.$quantity == 1 ~ 'lo',
                                   .$quantity == 2 ~ 'med',
                                   .$quantity == 3 ~ 'hi'),
-             var = which_var[v]) %>%
+             var = vars[v]) %>%
       spread(quantity, value) %>%
       left_join(select(subdf, row_id, NA_L3NAME, ym))
   }
@@ -188,38 +186,28 @@ for (v in seq_along(which_var)) {
 close(pb)
 
 
-name_df <- tibble(covariate = which_var,
-                  untrans_cov = complete_name,
-                  fancy_name = c('Air temperature (C)',
-                                 'Relative humidity (%)',
-                                 'Precipitation: same month (mm)',
+name_df <- tibble(covariate = vars,
+                  fancy_name = c('Housing density (units per km^2)',
                                  'Wind speed (m/s)',
-                                 'Precipitation: 12 month (mm)',
-                                 'Housing density (units per km^2)'))
+                                 'log precipitation: same month (mm)',
+                                 'log precipitation: 12 month (mm)',
+                                 'Air temperature (C)',
+                                 'Relative humidity (%)'))
 
 effect_plot_df <- list()
-for (i in seq_along(which_var)) {
+for (i in seq_along(vars)) {
   effect_plot_df[[i]] <- partial_effs %>%
     bind_rows %>%
-    filter(var == which_var[i]) %>%
+    filter(var == vars[i]) %>%
     left_join(st_covs) %>%
-    mutate(covariate = which_var[i]) %>%
+    mutate(covariate = vars[i]) %>%
     left_join(name_df) %>%
     filter(response == 'negbinom') %>%
-    mutate(covariate = complete_name[i]) %>%
-    rename(covariate_value = !!complete_name[i]) %>%
+    rename(covariate_value = !!vars[i]) %>%
     select(covariate, covariate_value, med, lo, hi,
            NA_L3NAME, ym, NA_L1NAME, NA_L2NAME,
            fancy_name)
 }
-
-annotation_df <- tibble(
-  untrans_cov = c('tmmx', 'tmmx'),
-  covariate_value = c(-7, 13),
-  med = c(2, 3.5),
-  label = c('Great Plains', 'Eastern Temperate Forests'),
-  NA_L1NAME = c('GREAT PLAINS', 'EASTERN TEMPERATE FORESTS')
-)
 
 better_name <- distinct(ecoregion_df, NA_L1NAME) %>%
   mutate(l1_er = tools::toTitleCase(tolower(NA_L1NAME))) %>%
@@ -236,13 +224,11 @@ p <- effect_plot_df %>%
   left_join(better_name) %>%
   ggplot(aes(covariate_value, y = med)) +
   theme_minimal() +
-  geom_ribbon(aes(ymin = lo, ymax = hi, group = NA_L3NAME),
-              color = NA, alpha = .04) +
+  # geom_ribbon(aes(ymin = lo, ymax = hi, group = NA_L3NAME),
+  #             color = NA, alpha = .04) +
   geom_line(alpha = .5, aes(group = NA_L3NAME, color = l1_er)) +
   ylab('Partial effect') +
-  # geom_text(data = annotation_df %>% left_join(name_df),
-  #           aes(label = label, color = NA_L1NAME), size = 3.5) +
-  facet_wrap(~fancy_name, scales = 'free', ncol = 2) +
+  facet_wrap(~fancy_name, scales = 'free_x', ncol = 2) +
   scale_color_gdocs('') +
   xlab('') +
   theme(panel.grid.minor = element_blank(),
