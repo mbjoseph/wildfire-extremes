@@ -77,13 +77,13 @@ write_attribution_plot <- function(which_ecoregion,
       reshape2::melt(varnames = c('col', 'iter', 'response')) %>%
       as_tibble %>%
       mutate(col = as.character(col),
-             variable = case_when(grepl('ctri', .$col) ~ 'Terrain ruggedness',
-                                  grepl('chd', .$col) ~ 'Housing density',
-                                  grepl('cvs', .$col) ~ 'Wind speed',
-                                  grepl('cpr_', .$col) ~ 'Monthly precip.',
-                                  grepl('cpr12_', .$col) ~ '12 month precip.',
-                                  grepl('ctmx', .$col) ~ 'Temperature',
-                                  grepl('crmin', .$col) ~ 'Humidity'),
+             variable = case_when(grepl('tri', .$col) ~ 'Terrain ruggedness',
+                                  grepl('log_housing_density', .$col) ~ 'Housing density',
+                                  grepl('vs', .$col) ~ 'Wind speed',
+                                  grepl('log_pr_', .$col) ~ 'Monthly precip.',
+                                  grepl('log_pr12_', .$col) ~ '12 month precip.',
+                                  grepl('tmmx', .$col) ~ 'Temperature',
+                                  grepl('rmin', .$col) ~ 'Humidity'),
              variable = ifelse(is.na(variable), col, variable),
              variable = gsub('NA_', '', variable),
              variable = gsub('NAME', ' ', variable),
@@ -185,32 +185,3 @@ max_d_preds %>%
             hi = exp(mean(nmax_q(.995, n_event, ln_mu, ln_scale))) + min_size)
 max_d$R_ACRES
 
-
-
-
-
-
-
-# Optional CDF visualizations ------------------------------------------
-# Visualize the cdf
-p2 <- max_d_preds %>%
-  filter(n_event > 0) %>%
-  mutate(probs = list(seq(.5, .999, length.out = 100))) %>%
-  unnest %>%
-  mutate(quantiles = nmax_q(probs, n = n_event, mu = ln_mu, sigma = ln_scale)) %>%
-  ggplot(aes(x = exp(quantiles) + min_size, y = 1 - probs)) +
-  geom_line(aes(group = interaction(iter, ym), color = factor(ym)),
-            alpha = .1) +
-  scale_x_log10() +
-  geom_vline(xintercept = max_d$R_ACRES, linetype = 'dashed') +
-  theme_minimal() +
-  xlab('z (burn area acres)') +
-  ylab('CDF: Pr(Z < z)') +
-  theme(panel.grid.minor = element_blank()) +
-  scale_y_log10() +
-  scale_color_ptol('') +
-  facet_wrap(~ym) +
-  theme(legend.position = 'none')
-p2
-
-p1 + p2 + plot_layout(ncol = 1)
