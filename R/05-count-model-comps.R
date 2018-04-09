@@ -210,8 +210,8 @@ max_plot <- ppc_counts %>%
   xlab('max(count): training data') +
   ylab('max(count): test data') +
   scale_color_manual('Count distribution', values = cols) +
-  scale_x_log10() +
-  scale_y_log10() +
+  # scale_x_log10() +
+  # scale_y_log10() +
   geom_vline(xintercept = max(stan_d$counts),
              linetype = 'dashed', color = 'black') +
   geom_hline(yintercept = max(stan_d$holdout_c),

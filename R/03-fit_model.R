@@ -19,7 +19,7 @@ control_list <- list(
 )
 
 n_iter <- 1000
-ref_rate <- 1
+ref_rate <- 10
 
 # Count models --------------------------------------------------------
 zi_d <- stan_d
