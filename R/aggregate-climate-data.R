@@ -80,7 +80,8 @@ summarize_by_month <- function(url, mask_shp) {
   return(paste("File", out_name, "written"))
 }
 
-climate_data_urls <- read.csv('data/raw/climate-data.csv', stringsAsFactors = FALSE,
+climate_data_urls <- read.csv('data/raw/climate-data.csv',
+                              stringsAsFactors = FALSE,
                          nrows = 4) # REMOVE LATER
 
 
