@@ -4,13 +4,14 @@ library(raster)
 library(snowfall)
 library(rgdal)
 library(purrr)
+library(tidyverse)
 
 source('R/helpers.R')
 
 ecoregion_shp <- load_ecoregions()
 
 tifs <- list.files("data/processed",
-                   pattern = "*.tif",
+                   pattern = "den.*.tif$",
                    full.names = TRUE)
 
 extract_one <- function(filename, ecoregion_shp) {
@@ -20,13 +21,12 @@ extract_one <- function(filename, ecoregion_shp) {
     raster::values(r)[raster::values(r) == -999] <- NA
     res <- raster::extract(r, ecoregion_shp,
                            na.rm = TRUE, fun = mean, df = TRUE)
-    write.csv(res, file = out_name)
+    write.csv(res, file = out_name, row.names = FALSE)
   } else {
     res <- read.csv(out_name)
   }
   res
 }
-
 
 sfInit(parallel = TRUE, cpus = parallel::detectCores())
 sfExport(list = c("ecoregion_shp"))
@@ -37,8 +37,6 @@ extractions <- sfLapply(as.list(tifs),
 sfStop()
 
 stopifnot(all(lapply(extractions, nrow) == nrow(ecoregion_shp)))
-
-library(tidyverse)
 
 extraction_df <- extractions %>%
   bind_cols %>%
@@ -105,5 +103,3 @@ extraction_df %>%
 
 res %>%
   write_csv('data/processed/housing_density.csv')
-
-# system('aws s3 cp data/processed/housing_density.csv s3://earthlab-mjoseph/demo_evt/housing_density.csv --acl public-read')
