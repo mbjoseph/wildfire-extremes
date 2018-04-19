@@ -34,5 +34,3 @@ tri_df <- ecoregion_tri %>%
 # with aws s3 cp from command line
 tri_df %>%
   write_csv('data/processed/ecoregion_tri.csv')
-
-system('aws s3 cp ecoregion_tri.csv s3://earthlab-gridmet/ecoregion_tri.csv --acl public-read')
