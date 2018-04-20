@@ -2,7 +2,7 @@ library(raster)
 library(lubridate)
 library(rgdal)
 library(tidyverse)
-library(snowfall)
+library(parallel)
 
 if (!dir.exists("data/raw/cb_2016_us_nation_20m/")) {
   download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_nation_20m.zip",
@@ -26,17 +26,14 @@ summarize_by_month <- function(url, mask_shp) {
   file <- basename(url)
 
   # generate an output filename
-  out_name <- gsub(file,
-                   pattern = basename(file),
-                   replacement = paste0("monthly_",
-                                        basename(file))) %>%
-    gsub(pattern = ".nc", replacement = ".tif")
+  nc_name <- gsub(file,
+                  pattern = basename(file),
+                  replacement = paste0("monthly_",
+                                       basename(file)))
+  out_name <- gsub(x = nc_name, pattern = ".nc", replacement = ".tif")
 
   # determine which climate variable, and which year we have
-  file_split <- file %>%
-    basename %>%
-    strsplit(split = "_") %>%
-    unlist
+  file_split <- unlist(strsplit(basename(file), split = "_"))
   var <- file_split[1]
   year <- substr(file_split[2], start = 1, stop = 4)
 
@@ -60,39 +57,35 @@ summarize_by_month <- function(url, mask_shp) {
   }
 
   # generate monthly summary
-  raster <- stack(file)
+  raster <- raster::stack(file)
   start_date <- as.Date(paste(year, "01", "01", sep = "-"))
   end_date <- as.Date(paste(year, "12", "31", sep = "-"))
   date_seq <- seq(start_date, end_date, by = "1 day")
-  date_seq <- date_seq[1:nlayers(raster)]
-  month_seq <- month(date_seq)
+  date_seq <- date_seq[1:raster::nlayers(raster)]
+  month_seq <- lubridate::month(date_seq)
 
-  res <- stackApply(raster, month_seq, fun = fun)
-  corrected_res <- flip(t(res), direction = "x")
+  res <- raster::stackApply(raster, month_seq, fun = fun)
+  corrected_res <- raster::flip(raster::t(res), direction = "x")
   names(corrected_res) <- paste(var, year,
-                                unique(month(date_seq, label = TRUE)),
+                                unique(lubridate::month(date_seq, label = TRUE)),
                                 sep = "_")
   p4string <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
-  projection(corrected_res) <- CRS(p4string)
-  masked_res <- mask(corrected_res, mask_shp)
-  writeRaster(masked_res, out_name, format = "GTiff")
+  raster::projection(corrected_res) <- sp::CRS(p4string)
+  masked_res <- raster::mask(corrected_res, mask_shp)
+  raster::writeRaster(masked_res, out_name, format = "GTiff")
   unlink(file)
   return(paste("File", out_name, "written"))
 }
 
 climate_data_urls <- read.csv('data/raw/climate-data.csv',
-                              stringsAsFactors = FALSE,
-                         nrows = 4) # REMOVE LATER
+                              stringsAsFactors = FALSE, nrows = 16)
 
-
-sfInit(parallel = TRUE, cpus = parallel::detectCores())
-sfExport('usa_shp')
-sfLibrary(tidyverse)
-sfLibrary(raster)
-sfLibrary(lubridate)
-sfSapply(climate_data_urls$url, summarize_by_month, mask_shp = usa_shp)
-sfStop()
-
+cl <- makeCluster(getOption("cl.cores", detectCores() / 2))
+clusterApplyLB(cl,
+               x = climate_data_urls$url,
+               fun = summarize_by_month,
+               mask_shp = usa_shp)
+stopCluster(cl)
 
 ## move files to proper directories -------------------------------------------
 tifs_in_home_dir <- list.files(pattern = ".tif") %>%

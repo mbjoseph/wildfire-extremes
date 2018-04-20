@@ -21,8 +21,8 @@ tifs <- list.files("data/processed",
                    recursive = TRUE,
                    full.names = TRUE)
 
-
-
+# remove any housing density geotiffs that matched the file listing
+tifs <- tifs[!grepl('den[0-9]{2}\\.tif', tifs)]
 
 # Generate indices from polygons for raster extraction --------------------
 r <- raster::brick(tifs[1])
