@@ -161,6 +161,29 @@ p1
 ggsave(filename = 'fig/attribution-plot.png', plot = p1,
        width = 7, height = 4)
 
+# predictions for southern rockies
+max_d <- filter(holdout_burns, NA_L3NAME == 'Southern Rockies') %>%
+  arrange(-R_ACRES) %>%
+  top_n(n = 1)
+southern_rockies_plot <- write_attribution_plot(max_d$NA_L3NAME)
+
+southern_rockies_plot$plot_data %>%
+  filter(response == 1) %>%
+  ggplot(aes(ym, y = median_eff, color = variable)) +
+  geom_line() +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank()) +
+  xlab('') +
+  ylab('Contribution to extreme fire risk') +
+  scale_color_manual('', values = c('dodgerblue',
+                                    'red',
+                                    scales::alpha(
+                                      c('green4',
+                                        'pink',
+                                        'orange',
+                                        'lightblue'), .7))) +
+  xlab('Time')
+ggsave('fig/southern-rockies-risk.png', width = 8, height = 3)
 
 # now, look at analytical results for posterior over maxima vs. actual
 nmax_q <- function(p, n, mu, sigma) {

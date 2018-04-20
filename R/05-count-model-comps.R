@@ -2,10 +2,7 @@
 # Model comparisons for counts --------------------------------------------
 # using the variational approximation
 library(tidyverse)
-library(cowplot)
-library(extraDistr)
 library(ggridges)
-library(ggExtra)
 library(patchwork)
 library(ggrepel)
 

@@ -30,7 +30,6 @@ extract_one <- function(filename, ecoregion_shp) {
 
 sfInit(parallel = TRUE, cpus = parallel::detectCores())
 sfExport(list = c("ecoregion_shp"))
-
 extractions <- sfLapply(as.list(tifs),
                         fun = extract_one,
                         ecoregion_shp = ecoregion_shp)
@@ -53,7 +52,6 @@ extraction_df <- extractions %>%
     .$variable == 'den00' ~ 2000,
     .$variable == 'den10' ~ 2010,
     .$variable == 'den20' ~ 2020,
-    .$variable == 'den30' ~ 2030,
     .$variable == 'den80' ~ 1980,
     .$variable == 'den90' ~ 1990
   ),
@@ -101,5 +99,11 @@ extraction_df %>%
   facet_wrap(~ NA_L3NAME)
 
 
+out_file <- 'data/processed/housing_density.csv'
+
 res %>%
-  write_csv('data/processed/housing_density.csv')
+  write_csv(out_file)
+
+if (file.exists(out_file)) {
+  print(paste(out_file, 'successfully written'))
+}

@@ -3,7 +3,6 @@ library(rstan)
 library(viridis)
 library(ggridges)
 library(ggrepel)
-library(ggExtra)
 library(hrbrthemes)
 library(patchwork)
 source('R/02-explore.R')
@@ -93,84 +92,7 @@ total_df %>%
             quantile(total_area, c(.025)),
             quantile(total_area, c(.975)))
 
-# Compare total burn area predictions for two time periods ----------------
-# 1984 - 1996, 1997 - 2009
-# first_period <-  test_preds %>%
-#   left_join(select(st_covs, id, year)) %>%
-#   # filter out zero event records (don't contribute to sum)
-#   filter(n_event > 0, year < 1997, iter < 100) %>%
-#   group_by(iter, year, NA_L3NAME) %>%
-#   summarize(total_area = sum(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
-#   group_by(iter, NA_L3NAME) %>%
-#   summarize(mean_total_area = mean(total_area)) %>% # average across years (expected total)
-#   group_by(NA_L3NAME) %>%
-#   summarize(med_total = median(mean_total_area)) %>%
-#   mutate(period = '1984 - 1996')
-#
-# second_period <- test_preds %>%
-#   left_join(select(st_covs, id, year)) %>%
-#   # filter out zero event records (don't contribute to sum)
-#   filter(n_event > 0, year >= 1997, year < cutoff_year, iter < 100) %>%
-#   group_by(iter, year, NA_L3NAME) %>%
-#   summarize(total_area = sum(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
-#   group_by(iter, NA_L3NAME) %>%
-#   summarize(mean_total_area = mean(total_area)) %>% # average across years (expected total)
-#   group_by(NA_L3NAME) %>%
-#   summarize(med_total = median(mean_total_area)) %>%
-#   mutate(period = '1997 - 2009')
-#
-# if (!file.exists('simpler_ecoregions.rds')) {
-#   simpler_ecoregions <- ecoregions %>%
-#     as('Spatial') %>%
-#     rmapshaper::ms_simplify(keep = .005) %>%
-#     sf::st_as_sf()
-#   write_rds(simpler_ecoregions, 'simpler_ecoregions.rds')
-# } else {
-#   simpler_ecoregions <- read_rds('simper_ecoregions.rds')
-# }
-#
-# # make a dataset with first & second period values and their diffs
-# total_map_df <- first_period %>%
-#   full_join(second_period) %>%
-#   spread(period, med_total) %>%
-#   mutate(Difference = `1997 - 2009` - `1984 - 1996`)
-#
-#
-#
-# burn_area_map <- total_map_df %>%
-#   gather(period, value, -NA_L3NAME) %>%
-#   filter(period != 'Difference') %>%
-#   left_join(simpler_ecoregions) %>%
-#   ggplot() +
-#   geom_sf(aes(fill = value), size = .1) +
-#   scale_fill_viridis('Expected annual\nburn area',  option = 'B') +
-#   theme_minimal() +
-#   facet_wrap(~period, nrow = 1, strip.position = 'bottom') +
-#   theme(axis.text = element_blank(),
-#         legend.position = 'left',
-#         panel.grid.major = element_line(color = "white"),
-#         axis.ticks = element_blank(),
-#         legend.background = element_blank())
-# ggsave('fig/burn-area-map.png', plot = burn_area_map, width = 9, height = 9)
-#
-# burn_area_difference_map <- total_map_df %>%
-#   gather(period, value, -NA_L3NAME) %>%
-#   filter(period == 'Difference') %>%
-#   left_join(simpler_ecoregions) %>%
-#   ggplot() +
-#   geom_sf(aes(fill = value), size = .1) +
-#   scale_fill_gradient2(low = 'dodgerblue', high = 'darkred',
-#                        'Difference') +
-#   theme_minimal() +
-#   theme(axis.text = element_blank(),
-#         panel.grid.major = element_line(color = "white"),
-#         axis.ticks = element_blank(),
-#         legend.background = element_blank())
-# ggsave('fig/burn-area-difference-map.png',
-#        plot = burn_area_difference_map, width = 9, height = 5)
-#
-# burn_area_map + burn_area_difference_map + plot_layout(ncol = 2, widths = c(2, 1))
-# ggsave('fig/tripanel-burn-area-map.png', width = 15, height = 4)
+
 
 
 # Generate derived parameters about the distribution of maxima
@@ -363,6 +285,36 @@ interval_df %>%
         axis.text.x = element_text(angle = 90, size = 8),
         axis.text.y = element_text(size = 8))
 ggsave('fig/max-preds-l3-all.png', width = 10, height = 10)
+
+# plot just one l3 ecoregion (e.g., for presentation purposes)
+interval_df %>%
+  filter(NA_L3NAME == 'Southern Rockies') %>%
+  ggplot(aes(x = ym, group = NA_L3NAME)) +
+  geom_ribbon(aes(ymin = m_qlo + 1e3, ymax = m_qhi + 1e3),
+              color = NA,
+              fill = 'dodgerblue',
+              alpha = .6) +
+  scale_y_log10() +
+  theme_minimal() +
+  facet_wrap(~ NA_L3NAME) +
+  geom_point(aes(y = empirical_max + 1e3)) +
+  xlab('') +
+  ylab('Maximum wildfire size (acres)') +
+  theme(panel.grid.minor = element_blank(),
+        axis.text.x = element_text(size = 7)) +
+  xlab('Time')
+ggsave('fig/max-preds-s-rockies.png', width = 5, height = 3)
+
+# highlight southern rockies ecoregion on map
+names(ecoregions)
+ecoregions$is_so_rockies <- ecoregions$NA_L3NAME == 'Southern Rockies'
+ecoregions %>%
+  ggplot(aes(fill = is_so_rockies)) +
+  geom_sf(color = 'darkgrey', size = .5, alpha = .6) +
+  theme_ipsum() +
+  theme(legend.position = 'none') +
+  scale_fill_manual(values = c('white', 'dodgerblue'))
+ggsave('fig/map-s-rockies.png', width = 9, height = 5)
 
 # get overall interval coverage stats for block maxima
 interval_df %>%

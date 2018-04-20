@@ -2,7 +2,6 @@
 # Create tables for LOO-IC for each fit -----------------------------------
 library(loo)
 library(tidyverse)
-library(cowplot)
 library(ggthemes)
 library(ggrepel)
 

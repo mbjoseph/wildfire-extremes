@@ -124,7 +124,6 @@ housing_df <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-mjoseph/demo
 
 ecoregion_summaries <- ecoregion_summaries %>%
   left_join(read_rds('lagged_precip.rds')) %>%
-  left_join(read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gridmet/ecoregion_tri.csv')) %>%
   left_join(housing_df) %>%
   filter(year < 2017,
          ym > 'Jan 1984')
