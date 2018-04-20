@@ -6,7 +6,6 @@ source('R/make-stan-d.R')
 library(ggridges)
 library(viridis)
 library(ggthemes)
-library(plotly)
 library(ggrepel)
 
 fit <- read_rds(path = 'zinb_full_fit.rds')

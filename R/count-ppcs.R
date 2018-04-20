@@ -2,9 +2,7 @@
 # Model comparisons for counts --------------------------------------------
 library(tidyverse)
 library(cowplot)
-library(extraDistr)
 library(ggridges)
-library(ggExtra)
 library(patchwork)
 
 source('R/02-explore.R')

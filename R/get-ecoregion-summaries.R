@@ -1,82 +1,97 @@
+library(tidyverse)
 library(raster)
 library(snowfall)
 library(rgdal)
+library(assertthat)
 source('R/helpers.R')
 
-ecoregion_shp <- load_ecoregions()
 
-# simplify the shapefile a bit - it's much finer than the rasters
-system('ogr2ogr -progress -simplify 40 data/processed/simple-ecoregions.shp data/raw/us_eco_l3/us_eco_l3.shp')
+# Extracting monthly climate summaries for ecoregions ---------------------
+ecoregion_shp <- rgdal::readOGR(dsn = 'data/raw/us_eco_l3', layer = 'us_eco_l3') %>%
+  spTransform(CRSobj = CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"))
 
-ecoregion_shp <- rgdal::readOGR(dsn = "data/processed/",
-                                layer = "simple-ecoregions")
-ecoregion_shp <- spTransform(ecoregion_shp,
-                       CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"))
+ecoregion_shp$NA_L3NAME <- as.character(ecoregion_shp$NA_L3NAME)
+
+ecoregion_shp$NA_L3NAME <- ifelse(ecoregion_shp$NA_L3NAME == 'Chihuahuan Desert',
+                                  'Chihuahuan Deserts',
+                                  ecoregion_shp$NA_L3NAME)
 
 tifs <- list.files("data/processed",
                    pattern = ".tif",
                    recursive = TRUE,
                    full.names = TRUE)
 
-extract_one <- function(filename, ecoregion_shp) {
-  out_name <- gsub('.tif', '.csv', filename)
-  if (!file.exists(out_name)) {
-    res <- raster::extract(raster::stack(filename), ecoregion_shp,
-                    na.rm = TRUE, fun = mean, df = TRUE)
-    write.csv(res, file = out_name)
-  } else {
-    res <- read.csv(out_name)
-  }
-  res
+# remove any housing density geotiffs that matched the file listing
+tifs <- tifs[!grepl('den[0-9]{2}\\.tif', tifs)]
+
+# Generate indices from polygons for raster extraction --------------------
+r <- raster::brick(tifs[1])
+shp_raster_idx <- cellFromPolygon(r, ecoregion_shp)
+names(shp_raster_idx) <- ecoregion_shp$NA_L3NAME
+
+# this list of indices has one element per polygon, but we want one per region
+ecoregion_raster_idx <- vector(mode = 'list',
+                               length = length(unique(ecoregion_shp$NA_L3NAME)))
+ecoregion_names <- sort(unique(ecoregion_shp$NA_L3NAME))
+names(ecoregion_raster_idx) <- ecoregion_names
+for (i in seq_along(ecoregion_names)) {
+  list_elements <- names(shp_raster_idx) == ecoregion_names[i]
+  assert_that(any(list_elements))
+  ecoregion_raster_idx[[i]] <- shp_raster_idx[list_elements] %>%
+    unlist
 }
 
-sfInit(parallel = TRUE, cpus = parallel::detectCores())
-sfExport(list = c("ecoregion_shp"))
+# verify that no cells are duplicated
+assert_that(ecoregion_raster_idx %>%
+              sapply(FUN = function(x) any(duplicated(x))) %>%
+              sum == 0)
 
-extractions <- sfLapply(as.list(tifs),
-                        fun = extract_one,
-                        ecoregion_shp = ecoregion_shp)
-sfStop()
+# verify that all ecoregions have some cells
+assert_that(ecoregion_raster_idx %>%
+              sapply(FUN = function(x) length(x)) %>%
+              min > 0)
 
-# ensure that they all have the same length
-stopifnot(all(lapply(extractions, nrow) == nrow(ecoregion_shp)))
+# define an efficient extraction function to get mean values by polygon
+fast_extract <- function(rasterfile, index_list) {
+  r <- raster::brick(rasterfile)
+  out <- lapply(index_list, FUN = function(x) {
+    raster::extract(r, x) %>%
+      colMeans(na.rm = TRUE)
+  })
+  lapply(out, FUN = function(x) {
+    as.data.frame(x) %>%
+      rownames_to_column
+    }) %>%
+    bind_rows(.id = 'NA_L3NAME') %>%
+    spread(rowname, x) %>%
+    as_tibble
+}
 
-library(tidyverse)
 
-# push to S3
-write_rds(extractions, 'extractions.rds')
-system('aws s3 cp extractions.rds s3://earthlab-mjoseph/demo_evt/extractions.rds')
 
-# convert to a data frame
-extraction_df <- extractions %>%
+
+# Extract climate data ---------------------------------------
+system.time({
+  sfInit(parallel = TRUE, cpus = parallel::detectCores())
+  sfLibrary(tidyverse)
+  extractions <- sfLapply(tifs,
+                          fun = fast_extract,
+                          index_list = ecoregion_raster_idx)
+  sfStop()
+})
+
+
+
+# Process extracted values into a usable data frame -----------------------
+ecoregion_summaries <- extractions %>%
   bind_cols %>%
-  as_tibble %>%
-  mutate(index = ID) %>%
-  select(-starts_with("ID")) %>%
-  rename(ID = index) %>%
-  mutate(NA_L3NAME = data.frame(ecoregion_shp)$NA_L3NAME,
-         Shape_Area = data.frame(ecoregion_shp)$Shape_Area) %>%
-  dplyr::select(-starts_with('X')) %>%
-  gather(variable, value, -NA_L3NAME, -Shape_Area, -ID) %>%
-  filter(!is.na(value)) %>%
-  mutate(NA_L3NAME = as.character(NA_L3NAME),
-         NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
-                            'Chihuahuan Deserts',
-                            NA_L3NAME))
-
-ecoregion_summaries <- extraction_df %>%
+  gather(variable, value, -NA_L3NAME) %>%
+  filter(!grepl(pattern = 'NA_L3NAME', x = variable)) %>%
   separate(variable,
            into = c("interval", "variable", "timestep"),
            sep = "_") %>%
   separate(timestep, into = c("year", "month"), sep = "\\.") %>%
-  select(-interval) %>%
-  mutate(NA_L3NAME = as.character(NA_L3NAME),
-         NA_L3NAME = ifelse(NA_L3NAME == 'Chihuahuan Desert',
-                            'Chihuahuan Deserts',
-                            NA_L3NAME)) %>%
-  group_by(NA_L3NAME, variable, year, month) %>%
-  summarize(wmean = weighted.mean(value, Shape_Area)) %>%
-  ungroup %>%
+  dplyr::select(-interval) %>%
   mutate(year = parse_number(year),
          month = parse_number(month)) %>%
   arrange(year, month, variable, NA_L3NAME)

@@ -2,6 +2,7 @@ library(raster)
 library(lubridate)
 library(rgdal)
 library(tidyverse)
+library(parallel)
 
 if (!dir.exists("data/raw/cb_2016_us_nation_20m/")) {
   download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_nation_20m.zip",
@@ -16,20 +17,27 @@ usa_shp <- readOGR(dsn = "data/raw/cb_2016_us_nation_20m",
 usa_shp <- spTransform(usa_shp,
                        CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs +towgs84=0,0,0"))
 
-summarize_by_month <- function(file, mask_shp) {
-  # generate monthly summaries from daily climate data
-  file_split <- file %>%
-    basename %>%
-    strsplit(split = "_") %>%
-    unlist
+summarize_by_month <- function(url, mask_shp) {
+  # takes a climate data url and a masking spatial polygon as input
+  # and makes a monthly summary of the climate data, masked by the polygon
+
+
+  # pull the raw climate data file down locally
+  file <- basename(url)
+
+  # generate an output filename
+  nc_name <- gsub(file,
+                  pattern = basename(file),
+                  replacement = paste0("monthly_",
+                                       basename(file)))
+  out_name <- gsub(x = nc_name, pattern = ".nc", replacement = ".tif")
+
+  # determine which climate variable, and which year we have
+  file_split <- unlist(strsplit(basename(file), split = "_"))
   var <- file_split[1]
   year <- substr(file_split[2], start = 1, stop = 4)
 
-  out_name <- gsub(file,
-                   pattern = basename(file),
-                   replacement = paste0("monthly_",
-                                        basename(file))) %>%
-    gsub(pattern = ".nc", replacement = ".tif")
+  # pass over file if necessary
   if (basename(out_name) %in% list.files(pattern = basename(out_name),
                                          recursive = TRUE)) {
     return(paste("File", out_name, "already exists"))
@@ -38,45 +46,46 @@ summarize_by_month <- function(file, mask_shp) {
     return("Year outside range of consideration")
   }
 
-  # determine which function to use
+  # if we haven't already exited, download the original data file
+  download.file(url = url, destfile = file)
+
+  # determine which function to use to aggregate
   if (var == "pr") {
     fun <- sum
   } else {
     fun <- mean
   }
 
-  # otherwise, generate monthly summary
-  raster <- stack(file)
+  # generate monthly summary
+  raster <- raster::stack(file)
   start_date <- as.Date(paste(year, "01", "01", sep = "-"))
   end_date <- as.Date(paste(year, "12", "31", sep = "-"))
   date_seq <- seq(start_date, end_date, by = "1 day")
-  date_seq <- date_seq[1:nlayers(raster)]
-  month_seq <- month(date_seq)
+  date_seq <- date_seq[1:raster::nlayers(raster)]
+  month_seq <- lubridate::month(date_seq)
 
-  res <- stackApply(raster, month_seq, fun = fun)
-  corrected_res <- flip(t(res), direction = "x")
+  res <- raster::stackApply(raster, month_seq, fun = fun)
+  corrected_res <- raster::flip(raster::t(res), direction = "x")
   names(corrected_res) <- paste(var, year,
-                                unique(month(date_seq, label = TRUE)),
+                                unique(lubridate::month(date_seq, label = TRUE)),
                                 sep = "_")
   p4string <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
-  projection(corrected_res) <- CRS(p4string)
-  masked_res <- mask(corrected_res, mask_shp)
-  writeRaster(masked_res, out_name, format = "GTiff")
+  raster::projection(corrected_res) <- sp::CRS(p4string)
+  masked_res <- raster::mask(corrected_res, mask_shp)
+  raster::writeRaster(masked_res, out_name, format = "GTiff")
   unlink(file)
   return(paste("File", out_name, "written"))
 }
 
-# identify which files need to be processed
-daily_files <- list.files(".", pattern = "nc",
-                          recursive = TRUE, full.names = TRUE)
+climate_data_urls <- read.csv('data/raw/climate-data.csv',
+                              stringsAsFactors = FALSE, nrows = 16)
 
-pb <- txtProgressBar(min = 1, max = length(daily_files), style = 3)
-for (i in seq_along(daily_files)) {
-  summarize_by_month(daily_files[i], usa_shp)
-  setTxtProgressBar(pb, i)
-}
-close(pb)
-
+cl <- makeCluster(getOption("cl.cores", detectCores() / 2))
+clusterApplyLB(cl,
+               x = climate_data_urls$url,
+               fun = summarize_by_month,
+               mask_shp = usa_shp)
+stopCluster(cl)
 
 ## move files to proper directories -------------------------------------------
 tifs_in_home_dir <- list.files(pattern = ".tif") %>%

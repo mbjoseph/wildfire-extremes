@@ -4,13 +4,14 @@ library(raster)
 library(snowfall)
 library(rgdal)
 library(purrr)
+library(tidyverse)
 
 source('R/helpers.R')
 
 ecoregion_shp <- load_ecoregions()
 
 tifs <- list.files("data/processed",
-                   pattern = "*.tif",
+                   pattern = "den.*.tif$",
                    full.names = TRUE)
 
 extract_one <- function(filename, ecoregion_shp) {
@@ -20,25 +21,21 @@ extract_one <- function(filename, ecoregion_shp) {
     raster::values(r)[raster::values(r) == -999] <- NA
     res <- raster::extract(r, ecoregion_shp,
                            na.rm = TRUE, fun = mean, df = TRUE)
-    write.csv(res, file = out_name)
+    write.csv(res, file = out_name, row.names = FALSE)
   } else {
     res <- read.csv(out_name)
   }
   res
 }
 
-
 sfInit(parallel = TRUE, cpus = parallel::detectCores())
 sfExport(list = c("ecoregion_shp"))
-
 extractions <- sfLapply(as.list(tifs),
                         fun = extract_one,
                         ecoregion_shp = ecoregion_shp)
 sfStop()
 
 stopifnot(all(lapply(extractions, nrow) == nrow(ecoregion_shp)))
-
-library(tidyverse)
 
 extraction_df <- extractions %>%
   bind_cols %>%
@@ -55,7 +52,6 @@ extraction_df <- extractions %>%
     .$variable == 'den00' ~ 2000,
     .$variable == 'den10' ~ 2010,
     .$variable == 'den20' ~ 2020,
-    .$variable == 'den30' ~ 2030,
     .$variable == 'den80' ~ 1980,
     .$variable == 'den90' ~ 1990
   ),
@@ -103,7 +99,11 @@ extraction_df %>%
   facet_wrap(~ NA_L3NAME)
 
 
-res %>%
-  write_csv('data/processed/housing_density.csv')
+out_file <- 'data/processed/housing_density.csv'
 
-# system('aws s3 cp data/processed/housing_density.csv s3://earthlab-mjoseph/demo_evt/housing_density.csv --acl public-read')
+res %>%
+  write_csv(out_file)
+
+if (file.exists(out_file)) {
+  print(paste(out_file, 'successfully written'))
+}

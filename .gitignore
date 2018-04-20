@@ -1,7 +1,6 @@
 gif
 *.mpeg
 *.png
-*.csv
 
 # History files
 .Rhistory
