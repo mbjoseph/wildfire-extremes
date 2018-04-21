@@ -78,7 +78,11 @@ summarize_by_month <- function(url, mask_shp) {
 }
 
 climate_data_urls <- read.csv('data/raw/climate-data.csv',
-                              stringsAsFactors = FALSE, nrows = 16)
+                              stringsAsFactors = FALSE)
+
+# for demo purposes, subset to precip only
+climate_data_urls <- climate_data_urls %>%
+  filter(grepl(pattern = 'pr_', x = url))
 
 cl <- makeCluster(getOption("cl.cores", detectCores() / 2))
 clusterApplyLB(cl,
@@ -105,3 +109,5 @@ tifs_in_home_dir %>%
   mutate(dest_dir = file.path("data", "processed", variable),
          dest_file = file.path(dest_dir, current_name)) %>%
   do(file.rename(.$current_name, .$dest_file) %>% tibble)
+
+print('Daily climate data aggregated to monthly summaries.')

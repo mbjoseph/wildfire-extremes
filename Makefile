@@ -3,10 +3,9 @@ S3BUCKET=earthlab-mjoseph
 data-dir=data/processed
 gdb=data/raw/us_pbg00_2007.gdb
 
-data: $(data-dir)/ecoregion_summaries.csv $(data-dir)/housing_density.csv
+all: data
 
-data/raw/us_eco_l3: R/fetch-fire-data.R
-	Rscript --vanilla R/fetch-fire-data.R
+data: $(data-dir)/ecoregion_summaries.csv $(data-dir)/housing_density.csv
 
 data/processed/ecoregion_summaries.csv: R/aggregate-climate-data.R R/get-ecoregion-summaries.R data/raw/us_eco_l3
 	Rscript --vanilla R/aggregate-climate-data.R
@@ -23,6 +22,9 @@ data/processed/housing_density.csv: R/summarize-housing-density.R data/raw/us_ec
 	gdal_rasterize -a HDEN10 -of GTiff -tr 4000 4000 $(gdb) data/processed/den10.tif
 	gdal_rasterize -a HDEN20 -of GTiff -tr 4000 4000 $(gdb) data/processed/den20.tif
 	Rscript --vanilla R/summarize-housing-density.R
+
+data/raw/us_eco_l3: R/fetch-fire-data.R
+	Rscript --vanilla R/fetch-fire-data.R
 
 s3data: $(processed-data)
 	aws s3 cp $(data-dir)/ecoregion_summaries.csv s3://$(S3BUCKET)/ecoregion_summaries.csv --acl public-read

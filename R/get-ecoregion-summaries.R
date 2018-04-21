@@ -96,4 +96,7 @@ ecoregion_summaries <- extractions %>%
          month = parse_number(month)) %>%
   arrange(year, month, variable, NA_L3NAME)
 
-write_csv(ecoregion_summaries, "data/processed/ecoregion_summaries.csv")
+destfile <- "data/processed/ecoregion_summaries.csv"
+write_csv(ecoregion_summaries, destfile)
+
+print(paste('Ecoregion climate summaries written to', destfile))

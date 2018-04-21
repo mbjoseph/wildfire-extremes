@@ -1,14 +1,48 @@
 # Spatiotemporal modeling of wildfire extremes
 
-## Getting the data
+This repository contains code to build spatiotemporal models of wildfire extremes in the contiguous United States. 
 
-1. `bash/generate-monthly-summaries.sh` downloads climate data from MET, aggregates to a monthly timestep, and pushes the resulting GeoTIFF files to Amazon S3. This step requires a fair bit of memory (64 GB).
+## Hardware requirements
 
-2. `bash/generate-ecoregion-summaries.sh` downloads monthly summaries from S3, computes US EPA level 3 ecoregion summaries, and pushes the resulting tidy csv file back to S3. This step requires 40 CPU cores. 
+We recommend at least 4 physical CPUs and 30 GB of RAM. 
 
-3. `R/fetch-fire-data.R` downloads EPA level 3 ecoregion and Monitoring Trends in Burn Severity (MTBS) fire shapefiles. 
+## Reproducing the analysis
 
-## Cleaning data
+### Spinning up the computational environment
 
-4. `R/01-clean_data.R` will load the fire data and merge it with the ecoregion and climate data.
+We have provided a Docker container that bundles up the software dependencies for this project, and provides an RStudio server instance that can be used in a web browser. 
+To launch the container, run the following:
 
+```bash
+docker run -d -p 8787:8787 mbjoseph/wildfire-extremes
+```
+
+Then, navigate to port 8787 and log in with username `rstudio`, password `rstudio`. 
+
+### Running the analysis
+
+To run everything, you can type the following command from a terminal: 
+
+```
+make all
+```
+
+## Overview of workflow
+
+We split the workflow into three steps: 
+
+### 1. Data processing 
+
+Climate, housing, and wildfire data are acquired and cleaned via:
+
+```bash
+make data
+```
+
+### 2. Model training and evaluation
+
+TODO
+
+### 3. Manuscript generation
+
+TODO
