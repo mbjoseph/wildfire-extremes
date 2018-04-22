@@ -1,7 +1,7 @@
 
 # Summarizing housing density at the ecoregion level ----------------------
 library(raster)
-library(snowfall)
+library(parallel)
 library(rgdal)
 library(purrr)
 library(tidyverse)
@@ -28,12 +28,13 @@ extract_one <- function(filename, ecoregion_shp) {
   res
 }
 
-sfInit(parallel = TRUE, cpus = parallel::detectCores())
-sfExport(list = c("ecoregion_shp"))
-extractions <- sfLapply(as.list(tifs),
-                        fun = extract_one,
-                        ecoregion_shp = ecoregion_shp)
-sfStop()
+print('Aggregating housing data to ecoregion means. May take a while...')
+cl <- makeCluster(getOption("cl.cores", detectCores()))
+extractions <- clusterApplyLB(cl,
+                              x = as.list(tifs),
+                              fun = extract_one,
+                              ecoregion_shp = ecoregion_shp)
+stopCluster(cl)
 
 stopifnot(all(lapply(extractions, nrow) == nrow(ecoregion_shp)))
 

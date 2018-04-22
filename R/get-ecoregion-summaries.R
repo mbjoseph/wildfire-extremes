@@ -1,6 +1,6 @@
 library(tidyverse)
 library(raster)
-library(snowfall)
+library(parallel)
 library(rgdal)
 library(assertthat)
 source('R/helpers.R')
@@ -54,31 +54,31 @@ assert_that(ecoregion_raster_idx %>%
 # define an efficient extraction function to get mean values by polygon
 fast_extract <- function(rasterfile, index_list) {
   r <- raster::brick(rasterfile)
-  out <- lapply(index_list, FUN = function(x) {
-    raster::extract(r, x) %>%
-      colMeans(na.rm = TRUE)
-  })
-  lapply(out, FUN = function(x) {
-    as.data.frame(x) %>%
-      rownames_to_column
-    }) %>%
-    bind_rows(.id = 'NA_L3NAME') %>%
-    spread(rowname, x) %>%
-    as_tibble
+
+  polygon_means <- lapply(index_list, FUN = function(x) {
+    extracts <- raster::extract(r, x)
+    colMeans(extracts, na.rm = TRUE)})
+
+  list_of_dfs <- lapply(polygon_means, FUN = function(x) {
+    df <- as.data.frame(x)
+    tibble::rownames_to_column(df)})
+
+  merged_dfs <- dplyr::bind_rows(list_of_dfs, .id = 'NA_L3NAME')
+  wide_df <- tidyr::spread(merged_dfs, rowname, x)
+  return(tibble::as_tibble(wide_df))
 }
 
 
 
 
 # Extract climate data ---------------------------------------
-system.time({
-  sfInit(parallel = TRUE, cpus = parallel::detectCores())
-  sfLibrary(tidyverse)
-  extractions <- sfLapply(tifs,
-                          fun = fast_extract,
-                          index_list = ecoregion_raster_idx)
-  sfStop()
-})
+print('Aggregating monthly climate data to ecoregion means. May take a while...')
+cl <- makeCluster(getOption("cl.cores", detectCores()))
+extractions <- clusterApplyLB(cl,
+               x = tifs,
+               fun = fast_extract,
+               index_list = ecoregion_raster_idx)
+stopCluster(cl)
 
 
 

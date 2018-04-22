@@ -84,6 +84,9 @@ climate_data_urls <- read.csv('data/raw/climate-data.csv',
 climate_data_urls <- climate_data_urls %>%
   filter(grepl(pattern = 'pr_', x = url))
 
+
+# Summarize daily climate data by month ---------------------------
+print('Aggregating daily climate data to monthly means. May take a while...')
 cl <- makeCluster(getOption("cl.cores", detectCores() / 2))
 clusterApplyLB(cl,
                x = climate_data_urls$url,
@@ -91,7 +94,7 @@ clusterApplyLB(cl,
                mask_shp = usa_shp)
 stopCluster(cl)
 
-## move files to proper directories -------------------------------------------
+# Move files to proper directories -------------------------------------------
 tifs_in_home_dir <- list.files(pattern = ".tif") %>%
   tibble(filename = .) %>%
   separate(filename, into = c("time_interval", "variable", "year"), sep = "_") %>%
