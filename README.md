@@ -23,6 +23,12 @@ docker run -d -p 8787:8787 mbjoseph/wildfire-extremes
 
 Then, navigate to port 8787 on a web browser (e.g., localhost:8787) and log in with username `rstudio`, password `rstudio`. 
 
+### Optional: creating an RStudio project
+
+If you plan to interact much with the code, you may want to create an RStudio project. 
+To do so, after connecting to your RStudio server, choose File > New Project..., then select "Existing Directory" > Browse..., and choose wildfire-extremes, and finally click Create Project. 
+This will create and then open a project associated with this repository.
+
 ### Running the analysis
 
 To run everything, you can type the following command from a terminal: 
