@@ -3,6 +3,7 @@ library(lubridate)
 library(rgdal)
 library(tidyverse)
 library(parallel)
+library(pbapply)
 
 if (!dir.exists("data/raw/cb_2016_us_nation_20m/")) {
   download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_nation_20m.zip",
@@ -87,11 +88,12 @@ climate_data_urls <- climate_data_urls %>%
 
 # Summarize daily climate data by month ---------------------------
 print('Aggregating daily climate data to monthly means. May take a while...')
+pboptions(type = 'txt', use_lb = TRUE)
 cl <- makeCluster(getOption("cl.cores", detectCores() / 2))
-clusterApplyLB(cl,
-               x = climate_data_urls$url,
-               fun = summarize_by_month,
-               mask_shp = usa_shp)
+pblapply(X = climate_data_urls$url, 
+         FUN = summarize_by_month, 
+         mask_shp = usa_shp, 
+         cl = cl)
 stopCluster(cl)
 
 # Move files to proper directories -------------------------------------------
@@ -104,12 +106,12 @@ variables <- distinct(tifs_in_home_dir, variable) %>%
   unlist()
 
 # create dirs for each variable
-dirs_to_make <- file.path("data", "processed", variables)
-sapply(dirs_to_make, dir.create)
+dirs_to_make <- file.path("data", "processed", "climate-data", variables)
+sapply(dirs_to_make, dir.create, recursive = TRUE)
 
 # move each tif file to the proper location
 tifs_in_home_dir %>%
-  mutate(dest_dir = file.path("data", "processed", variable),
+  mutate(dest_dir = file.path("data", "processed", 'climate-data', variable),
          dest_file = file.path(dest_dir, current_name)) %>%
   do(file.rename(.$current_name, .$dest_file) %>% tibble)
 

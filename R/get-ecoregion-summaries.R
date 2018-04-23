@@ -1,6 +1,7 @@
 library(tidyverse)
 library(raster)
 library(parallel)
+library(pbapply)
 library(rgdal)
 library(assertthat)
 source('R/helpers.R')
@@ -16,7 +17,7 @@ ecoregion_shp$NA_L3NAME <- ifelse(ecoregion_shp$NA_L3NAME == 'Chihuahuan Desert'
                                   'Chihuahuan Deserts',
                                   ecoregion_shp$NA_L3NAME)
 
-tifs <- list.files("data/processed",
+tifs <- list.files("data/processed/climate-data",
                    pattern = ".tif",
                    recursive = TRUE,
                    full.names = TRUE)
@@ -73,11 +74,12 @@ fast_extract <- function(rasterfile, index_list) {
 
 # Extract climate data ---------------------------------------
 print('Aggregating monthly climate data to ecoregion means. May take a while...')
+pboptions(type = 'txt', use_lb = TRUE)
 cl <- makeCluster(getOption("cl.cores", detectCores()))
-extractions <- clusterApplyLB(cl,
-               x = tifs,
-               fun = fast_extract,
-               index_list = ecoregion_raster_idx)
+extractions <- pblapply(tifs, 
+                        fast_extract, 
+                        index_list = ecoregion_raster_idx, 
+                        cl = cl)
 stopCluster(cl)
 
 

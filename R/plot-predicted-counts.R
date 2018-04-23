@@ -1,7 +1,5 @@
 
-# Model comparisons for counts --------------------------------------------
 library(tidyverse)
-library(cowplot)
 library(ggridges)
 library(patchwork)
 

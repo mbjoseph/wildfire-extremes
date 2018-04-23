@@ -2,6 +2,7 @@
 # Summarizing housing density at the ecoregion level ----------------------
 library(raster)
 library(parallel)
+library(pbapply)
 library(rgdal)
 library(purrr)
 library(tidyverse)
@@ -29,11 +30,12 @@ extract_one <- function(filename, ecoregion_shp) {
 }
 
 print('Aggregating housing data to ecoregion means. May take a while...')
+pboptions(type = 'txt', use_lb = TRUE)
 cl <- makeCluster(getOption("cl.cores", detectCores()))
-extractions <- clusterApplyLB(cl,
-                              x = as.list(tifs),
-                              fun = extract_one,
-                              ecoregion_shp = ecoregion_shp)
+extractions <- pblapply(X = tifs, 
+                        FUN = extract_one, 
+                        ecoregion_shp = ecoregion_shp, 
+                        cl = cl)
 stopCluster(cl)
 
 stopifnot(all(lapply(extractions, nrow) == nrow(ecoregion_shp)))
