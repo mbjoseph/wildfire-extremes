@@ -1,5 +1,7 @@
 # Spatiotemporal modeling of wildfire extremes
 
+[![Docker Automated build](https://img.shields.io/docker/automated/mbjoseph/wildfire-extremes.svg)](https://hub.docker.com/r/mbjoseph/wildfire-extremes/)
+
 This repository contains code to build spatiotemporal models of wildfire extremes in the contiguous United States. 
 
 ## Hardware requirements
@@ -17,14 +19,14 @@ To launch the container, run the following:
 docker run -d -p 8787:8787 mbjoseph/wildfire-extremes
 ```
 
-Then, navigate to port 8787 and log in with username `rstudio`, password `rstudio`. 
+Then, navigate to port 8787 on a web browser (e.g., localhost:8787) and log in with username `rstudio`, password `rstudio`. 
 
 ### Running the analysis
 
 To run everything, you can type the following command from a terminal: 
 
 ```
-make all
+make
 ```
 
 ## Overview of workflow
@@ -41,8 +43,8 @@ make data
 
 ### 2. Model training and evaluation
 
-TODO
+TODO: describe
 
 ### 3. Manuscript generation
 
-TODO
+TODO: describe
