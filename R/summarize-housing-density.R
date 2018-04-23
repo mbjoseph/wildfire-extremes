@@ -91,17 +91,6 @@ res <- extraction_df %>%
   bind_rows %>%
   rename(housing_density = wmean)
 
-
-# evaluate the linear interpolation
-extraction_df %>%
-  ggplot(aes(year, wmean)) +
-  geom_point() +
-  geom_point(aes(t, housing_density),
-             data = res, color = 'blue',
-             size = .1, alpha = .1) +
-  facet_wrap(~ NA_L3NAME)
-
-
 out_file <- 'data/processed/housing_density.csv'
 
 res %>%
