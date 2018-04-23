@@ -43,10 +43,11 @@ We split the workflow into three steps:
 
 ### 1. Data processing 
 
-Climate, housing, and wildfire data are acquired and cleaned via:
+Climate and housing data are acquired and summarized at the EPA L3 ecoregion level for each month from 1984 - 2015 via:
 
 ```bash
-make data
+make data/processed/ecoregion_summaries.csv
+make data/processed/housing_density.csv
 ```
 
 ### 2. Model training and evaluation
