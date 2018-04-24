@@ -21,7 +21,7 @@ data/processed/housing_density.csv: R/summarize-housing-density.R \
 		Rscript --vanilla R/summarize-housing-density.R
 
 data/raw/us_pbg00_2007.gdb:
-		wget -nc -O data/raw/us_pbg00.zip http://silvis.forest.wisc.edu/sites/default/files/maps/pbg00_old/gis/us_pbg00.zip
+		wget -q -nc -O data/raw/us_pbg00.zip http://silvis.forest.wisc.edu/sites/default/files/maps/pbg00_old/gis/us_pbg00.zip
 		unzip data/raw/us_pbg00.zip -d data/raw/
 		rm data/raw/us_pbg00.zip
 
