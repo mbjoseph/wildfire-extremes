@@ -6,8 +6,8 @@ library(purrr)
 library(sf)
 library(zoo)
 library(RCurl)
+library(assertthat)
 
-source("R/fetch-fire-data.R")
 
 aea_proj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
 
@@ -73,20 +73,13 @@ assert_that(sum(count_df$n_fire) == nrow(mtbs))
 assert_that(all(ecoregions$NA_L3NAME %in% count_df$NA_L3NAME))
 
 # load covariate data and link to count data frame
-ecoregion_summaries <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-gridmet/ecoregion_summaries.csv',
-                                col_types = cols(
-                                  NA_L3NAME = col_character(),
-                                  variable = col_character(),
-                                  year = col_number(),
-                                  month = col_number(),
-                                  wmean = col_number())
-                                ) %>%
-  mutate(year = ifelse(year == 2, 2000, year),
+ecoregion_summaries <- read_csv('data/processed/ecoregion_summaries.csv') %>%
+  mutate(year = ifelse(is.na(year), 2000, year),
          year = parse_number(year),
          ym = as.yearmon(paste(year,
                  sprintf("%02d", month),
                  sep = "-"))) %>%
-  spread(variable, wmean)
+  spread(variable, value)
 
 # Compute previous 12 months total precip
 if (!file.exists('lagged_precip.rds')) {
@@ -112,13 +105,7 @@ if (!file.exists('lagged_precip.rds')) {
     write_rds('lagged_precip.rds')
 }
 
-# the following lines process the files
-if (!RCurl::url.exists('https://s3-us-west-2.amazonaws.com/earthlab-mjoseph/demo_evt/housing_density.csv')) {
-  system('bash bash/fetch-density.sh')
-  source('R/summarize-housing-density.R')
-}
-
-housing_df <- read_csv('https://s3-us-west-2.amazonaws.com/earthlab-mjoseph/demo_evt/housing_density.csv') %>%
+housing_df <- read_csv('data/processed/housing_density.csv') %>%
   mutate(ym = as.yearmon(paste(year, sprintf("%02d", month), sep = "-"))) %>%
   arrange(NA_L3NAME, year, month)
 
@@ -131,3 +118,6 @@ ecoregion_summaries <- ecoregion_summaries %>%
 count_df <- left_join(count_df, ecoregion_summaries) %>%
   mutate(er_ym = paste(NA_L3NAME, ym, sep = "_"))
 
+write_csv(count_df, path = 'data/processed/count_df.csv')
+
+print('Count, climate, and housing data integrated and saved in count_df.csv')

@@ -1,6 +1,9 @@
-source('R/02-explore.R')
-source('R/make-stan-d.R')
+library(tidyverse)
+library(rstan)
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
 
+stan_d <- read_rds('data/processed/stan_d.rds')
 count_pars <- c('beta', 'tau', 'alpha', 'c', 'mu_full', 'Rho_beta',
                 'count_pred',
                 'lambda_tilde',
@@ -28,7 +31,7 @@ zi_d$M <- 2
 pois_init <- stan_model('stan/counts-pois.stan')
 pois_fit <- vb(pois_init,
                data = stan_d,
-               eta = .3,
+               eta = .4,
                init = 0,
                pars = count_pars,
                tol_rel_obj = 0.008,
@@ -39,7 +42,7 @@ write_rds(pois_fit, path = 'pois_fit.rds')
 zip_init <- stan_model('stan/counts-zip.stan')
 zip_fit <- vb(zip_init,
               data = zi_d,
-              eta = .3,
+              eta = .4,
               pars = count_pars,
               tol_rel_obj = 0.008,
               init = 0,
@@ -50,7 +53,7 @@ nb_init <- stan_model('stan/counts-nb.stan')
 nb_fit <- vb(
   nb_init,
   data = stan_d,
-  eta = .4,
+  eta = .5,
   pars = c(count_pars, 'nb_prec'),
   tol_rel_obj = 0.008,
   init = 0,
@@ -60,7 +63,7 @@ write_rds(nb_fit, path = 'nb_fit.rds')
 zinb_init <- stan_model('stan/counts-zinb.stan')
 zinb_fit <- vb(zinb_init,
               data = zi_d,
-              eta = .3,
+              eta = .5,
               pars = c(count_pars, 'nb_prec'),
               tol_rel_obj = 0.008,
               init = 0,
@@ -73,7 +76,7 @@ zinb_full_fit <- sampling(zinb_init,
                           init_r = 0.01,
                           pars = c(count_pars, 'nb_prec'),
                           iter = n_iter,
-                          control = control_list,
+#                          control = control_list,
                           refresh = ref_rate,
                           cores = 4)
 write_rds(zinb_full_fit, path = 'zinb_full_fit.rds')

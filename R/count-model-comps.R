@@ -1,16 +1,13 @@
 
 # Model comparisons for counts --------------------------------------------
 # using the variational approximation
+library(cowplot)
 library(tidyverse)
 library(ggridges)
 library(patchwork)
 library(ggrepel)
 
-source('R/02-explore.R')
 source('R/make-stan-d.R')
-
-# possibly fetch from Amazon
-#system("aws s3 cp s3://earthlab-mjoseph .. --recursive --exclude '*' --include '*.rds'")
 
 model_fits <- list.files(pattern = '*.fit.*\\.rds')
 count_fits <- grep(model_fits, pattern = 'ba_', value = TRUE, invert = TRUE)
@@ -247,5 +244,5 @@ sum_plot <- ppc_counts %>%
         strip.text.x = element_blank(),
         panel.grid.minor = element_blank())
 
-plot_grid(den_plot, zero_plot, max_plot, sum_plot, ncol = 1)
+cowplot::plot_grid(den_plot, zero_plot, max_plot, sum_plot, ncol = 1)
 ggsave('fig/ppc-counts.png', width = 9, height = 7)

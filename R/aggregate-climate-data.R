@@ -81,10 +81,6 @@ summarize_by_month <- function(url, mask_shp) {
 climate_data_urls <- read.csv('data/raw/climate-data.csv',
                               stringsAsFactors = FALSE)
 
-# for demo purposes, subset to precip only
-climate_data_urls <- climate_data_urls %>%
-  filter(grepl(pattern = 'pr_', x = url))
-
 
 # Summarize daily climate data by month ---------------------------
 print('Aggregating daily climate data to monthly means. May take a while...')
