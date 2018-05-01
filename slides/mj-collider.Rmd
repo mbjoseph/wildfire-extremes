@@ -1,0 +1,204 @@
+---
+title: "Predicting extremes under novel conditions"
+output:
+  revealjs::revealjs_presentation:
+    css: style.css
+    transition: fade
+    self_contained: true
+    fig_width: 6
+    fig_height: 3
+    center: true
+author: Max Joseph, Earth Lab Analytics Hub
+---
+
+##
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE, results='hide'}
+library(sf)
+library(splines)
+library(tidyverse)
+library(zoo)
+library(rstan)
+library(plotly)
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank()))
+```
+
+
+```{r, echo = FALSE, results='hide', dpi=300}
+mtbs <- read_sf('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_20170501.shp')
+mtbs %>%
+  filter(R_ACRES > 1000) %>%
+  ggplot(aes(R_ACRES)) +
+  geom_histogram(bins = 100, fill = 'dodgerblue') + 
+  scale_x_log10(labels = scales::comma, 
+                breaks = c(1000, 10000, 100000, 1000000)) + 
+  xlab('Wildfire size (acres)') + 
+  ylab('Count')
+```
+
+## 
+
+```{r, echo = FALSE, results='hide', dpi=300}
+mtbs %>%
+  filter(R_ACRES > 1000) %>%
+  ggplot(aes(R_ACRES, fill = R_ACRES > 30000)) +
+  geom_histogram(bins = 100) + 
+  scale_x_log10(labels = scales::comma, 
+                breaks = c(1000, 10000, 100000, 1000000)) + 
+  xlab('Wildfire size (acres)') + 
+  ylab('Count') + 
+  scale_fill_manual(values = c('dodgerblue', 'red')) + 
+  theme(legend.position = 'none')
+```
+
+## Challenge: novel conditions & heat waves
+
+
+```{r, warning=FALSE, echo = FALSE, message=FALSE, results='hide'}
+source('R/make-stan-d.R')
+```
+
+```{r, echo = FALSE, message = FALSE, warning=FALSE, dpi=300}
+climate_data <- read_csv('data/processed/ecoregion_summaries.csv') %>%
+ mutate(year = ifelse(is.na(year), 2000, year),
+         year = parse_number(year),
+         ym = as.yearmon(paste(year,
+                 sprintf("%02d", month),
+                 sep = "-"))) %>%
+  spread(variable, value) %>%
+  mutate(tmmx = tmmx - 273.15)
+
+training_envelope <- climate_data %>%
+  filter(NA_L3NAME == 'Ozark Highlands', year < 2010) %>%
+  mutate(min = min(tmmx), max = max(tmmx))
+
+climate_data %>%
+  filter(NA_L3NAME == 'Ozark Highlands') %>%
+  ggplot(aes(ym, y = tmmx)) +
+  geom_line(alpha = .7) + 
+  geom_point(data = climate_data %>% filter(NA_L3NAME == 'Ozark Highlands', 
+                                            year > 2010, 
+                                            tmmx > max(training_envelope$max)), 
+             color = 'red') +
+  xlab('Time') +  
+  ylab('Average temperature (C)') + 
+  theme(legend.position = 'none') + 
+  geom_vline(xintercept = 2010, linetype = 'dashed')
+```
+
+## What to predict here?
+
+```{r, warning=FALSE, echo = FALSE, message=FALSE, results='hide', dpi=300}
+post <- rstan::extract(read_rds(path = 'zinb_full_fit.rds'), 
+                       pars = c('beta', 'lp__'))
+
+if (!file.exists('slides/partial_effs.rds')) {
+  vars <- 'tmmx'
+  partial_effs <- list()
+  n_iter <- length(post$lp__)
+  unique_ers <- unique(st_covs$NA_L3NAME)
+  pb <- txtProgressBar(max = length(unique_ers), style = 3)
+  for (v in seq_along(vars)) {
+    print(paste('Processing', vars[v]))
+    for (i in seq_along(unique_ers)) {
+      setTxtProgressBar(pb, i)
+      subdf <- st_covs %>%
+        filter(NA_L3NAME == unique_ers[i]) %>%
+        mutate(row_id = 1:n())
+      X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
+      cols <- grepl(vars[v], colnames(X_sub))
+      if (vars[v] == 'pr') {
+        cols <- grepl(vars[v], colnames(X_sub)) &
+          !grepl('12mo', colnames(X_sub))
+      }
+  
+      effects <- array(dim = c(nrow(X_sub), 2, 3)) # 2 responses, 3: med, lo, hi
+      for (j in 1:nrow(X_sub)) {  # month j
+        for (k in 1:2) {          # response k
+          vals <- X_sub[j, cols] %*% t(post$beta[, k, cols])
+          effects[j, k, 1] <- quantile(vals, .025)
+          effects[j, k, 2] <- median(vals)
+          effects[j, k, 3] <- quantile(vals, .975)
+        }
+      }
+      partial_effs[[length(partial_effs) + 1]] <- effects %>%
+        reshape2::melt(varnames = c('row_id', 'response', 'quantity')) %>%
+        as_tibble %>%
+        mutate(response = ifelse(response == 1, 'negbinom', 'zeroinfl'),
+               quantity = case_when(.$quantity == 1 ~ 'lo',
+                                    .$quantity == 2 ~ 'med',
+                                    .$quantity == 3 ~ 'hi'),
+               var = vars[v]) %>%
+        spread(quantity, value) %>%
+        left_join(select(subdf, row_id, NA_L3NAME, ym))
+    }
+  }
+  close(pb)
+  write_rds(partial_effs, path = 'slides/partial_effs.rds')
+} else {
+  partial_effs <- read_rds(path = 'slides/partial_effs.rds')
+}
+
+plot_d <- partial_effs %>%
+    bind_rows %>%
+    left_join(climate_data) %>%
+    filter(response == 'negbinom') 
+
+case_d <- filter(plot_d, NA_L3NAME == 'Ozark Highlands')
+
+plot_d %>%
+  filter(ym < 2010) %>%
+  ggplot(aes(tmmx, med, group = NA_L3NAME)) + 
+  geom_line(alpha = 0) + 
+  geom_line(data = case_d %>% filter(ym < 2010), size = 2) + 
+  xlab('Average Temperature') + 
+  ylab('Fire risk') + 
+  geom_vline(xintercept = max(filter(case_d, ym < 2010)$tmmx), 
+             linetype = 'dashed') + 
+  geom_vline(xintercept = max(filter(case_d, ym >= 2010)$tmmx), 
+             linetype = 'dashed') + 
+  annotate('text', 
+           x = mean(c(max(filter(case_d, ym < 2010)$tmmx), 
+                      max(filter(case_d, ym >= 2010)$tmmx))), 
+            y = 1.5, label = '?', size = 9)
+```
+
+## Borrowing information from other regions
+
+```{r, warning=FALSE, echo = FALSE, message=FALSE, dpi=300}
+plot_d %>%
+  filter(ym < 2010) %>%
+  ggplot(aes(tmmx, med, group = NA_L3NAME)) + 
+  geom_line(alpha = 0.4, color = 'dodgerblue') + 
+  geom_line(data = case_d %>% filter(ym < 2010), size = 2) + 
+  xlab('Average Temperature') + 
+  ylab('Fire risk') + 
+  geom_vline(xintercept = max(filter(case_d, ym < 2010)$tmmx), 
+             linetype = 'dashed') + 
+  geom_vline(xintercept = max(filter(case_d, ym >= 2010)$tmmx), 
+             linetype = 'dashed')
+```
+
+## Making an informed prediction
+
+```{r, warning=FALSE, echo = FALSE, message=FALSE, dpi=300}
+plot_d %>%
+  filter(ym < 2010) %>%
+  ggplot(aes(tmmx, med, group = NA_L3NAME)) + 
+  geom_line(alpha = 0.4, color = 'dodgerblue') + 
+  geom_line(data = case_d %>% filter(ym < 2010), size = 2) + 
+  geom_line(data = case_d %>% 
+              filter(tmmx > max(filter(case_d, ym < 2010)$tmmx)), 
+            size = 1.5, color = 'red') + 
+  xlab('Average Temperature') + 
+  ylab('Fire risk') 
+```
+
+## Novel conditions will continue to arise
+
+![](http://assets.climatecentral.org/images/made/2_3_16_Andrea_CC_5yeartemps_600_382_s_c1_c_c.jpg)
+
+## Thank you
+
+https://github.com/mbjoseph/wildfire-extremes

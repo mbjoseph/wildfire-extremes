@@ -1,0 +1,9 @@
+.reveal section img {
+  background:none;
+  border:none;
+  box-shadow:none;
+}
+
+.reveal * {
+  font-family: Helvetica, "Helvetica Neue", sans-serif;
+}
