@@ -5,9 +5,22 @@ library(ggridges)
 library(ggrepel)
 library(hrbrthemes)
 library(patchwork)
-source('R/02-explore.R')
-source('R/make-stan-d.R')
+library(assertthat)
+library(sf)
 
+st_covs <- read_rds('data/processed/st_covs.rds')
+cutoff_year <- read_rds('data/processed/cutoff_year.rds')
+stan_d <- read_rds('data/processed/stan_d.rds')
+min_size <- stan_d$min_size
+holdout_burns <- read_rds('data/processed/holdout_burns.rds')
+mtbs <- read_rds('data/processed/mtbs.rds')
+
+area_df <- read_rds('data/processed/ecoregions.rds') %>%
+  as('Spatial') %>%
+  as.data.frame %>%
+  tbl_df %>%
+  group_by(NA_L3NAME) %>%
+  summarize(area = sum(Shape_Area))
 
 # Simulate from the joint predictive distribution -------------------------
 # to demonstrate predictions over extremes
@@ -285,36 +298,6 @@ interval_df %>%
         axis.text.x = element_text(angle = 90, size = 8),
         axis.text.y = element_text(size = 8))
 ggsave('fig/max-preds-l3-all.png', width = 10, height = 10)
-
-# plot just one l3 ecoregion (e.g., for presentation purposes)
-interval_df %>%
-  filter(NA_L3NAME == 'Southern Rockies') %>%
-  ggplot(aes(x = ym, group = NA_L3NAME)) +
-  geom_ribbon(aes(ymin = m_qlo + 1e3, ymax = m_qhi + 1e3),
-              color = NA,
-              fill = 'dodgerblue',
-              alpha = .6) +
-  scale_y_log10() +
-  theme_minimal() +
-  facet_wrap(~ NA_L3NAME) +
-  geom_point(aes(y = empirical_max + 1e3)) +
-  xlab('') +
-  ylab('Maximum wildfire size (acres)') +
-  theme(panel.grid.minor = element_blank(),
-        axis.text.x = element_text(size = 7)) +
-  xlab('Time')
-ggsave('fig/max-preds-s-rockies.png', width = 5, height = 3)
-
-# highlight southern rockies ecoregion on map
-names(ecoregions)
-ecoregions$is_so_rockies <- ecoregions$NA_L3NAME == 'Southern Rockies'
-ecoregions %>%
-  ggplot(aes(fill = is_so_rockies)) +
-  geom_sf(color = 'darkgrey', size = .5, alpha = .6) +
-  theme_ipsum() +
-  theme(legend.position = 'none') +
-  scale_fill_manual(values = c('white', 'dodgerblue'))
-ggsave('fig/map-s-rockies.png', width = 9, height = 5)
 
 # get overall interval coverage stats for block maxima
 interval_df %>%

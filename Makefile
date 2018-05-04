@@ -1,7 +1,14 @@
 data-dir = data/processed
 gdb = data/raw/us_pbg00_2007.gdb
+figs = fig/ppc-density-funs.png fig/loglik-burns.png \
+	fig/burn-area-effs.png fig/loglik-counts.png fig/ppc-counts.png \
+	fig/all-coefs.png fig/bivar-effs.png fig/fire-effs.pdf \
+	fig/count-partial-effs.png fig/attribution-plot.png \
+	fig/count-preds.png fig/test-set-burn-area.png \
+	fig/number-vs-exceedance.png fig/max-preds-l2-minimal.png \
+	fig/max-preds-l3-all.png
 
-all: $(data-dir)/stan_d.rds
+all: $(figs)
 
 data/processed/stan_d.rds: R/make-stan-d.R \
 	$(data-dir)/ecoregion_summaries.csv \
@@ -40,3 +47,72 @@ data/raw/mtbs_fod_pts_data/mtbs_fod_pts_20170501.shp:
 		wget -q -nc -O data/raw/mtbs_fod_pts_data.zip https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/MTBS_Fire/data/composite_data/fod_pt_shapefile/mtbs_fod_pts_data.zip
 		unzip -o data/raw/mtbs_fod_pts_data.zip -d data/raw/mtbs_fod_pts_data
 		rm data/raw/mtbs_fod_pts_data.zip
+
+pois_fit.rds: R/fit-count-poisson.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-count-poisson.R
+
+nb_fit.rds: R/fit-count-negbinom.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-count-negbinom.R
+
+zip_fit.rds: R/fit-count-zip.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-count-zip.R
+
+zinb_fit.rds: R/fit-count-zinb.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-count-zinb.R
+
+zinb_full_fit.rds: R/fit-count-zinb-nuts.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-count-zinb-nuts.R
+
+ba_gamma_fit.rds: R/fit-burn-area-gamma.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-burn-area-gamma.R
+
+ba_lognormal_fit.rds: R/fit-burn-area-lognormal.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-burn-area-lognormal.R
+
+ba_pareto_fit.rds: R/fit-burn-area-pareto.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-burn-area-pareto.R
+
+ba_tpareto_fit.rds: R/fit-burn-area-tpareto.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-burn-area-tpareto.R
+
+ba_weibull_fit.rds: R/fit-burn-area-weibull.R data/processed/stan_d.rds
+		Rscript --vanilla R/fit-burn-area-weibull.R
+
+fig/ppc-density-funs.png fig/loglik-burns.png: R/burn-area-model-comps.R \
+	ba_gamma_fit.rds ba_lognormal_fit.rds ba_pareto_fit.rds \
+	ba_tpareto_fit.rds ba_weibull_fit.rds
+		Rscript --vanilla R/burn-area-model-comps.R
+
+fig/burn-area-effs.png: ba_lognormal_fit.rds R/burn-area-plots.R
+		Rscript --vanilla R/burn-area-plots.R
+
+fig/loglik-counts.png fig/ppc-counts.png: R/count-model-comps.R \
+	pois_fit.rds nb_fit.rds zip_fit.rds zinb_fit.rds
+		Rscript --vanilla R/count-model-comps.R
+
+fig/all-coefs.png fig/bivar-effs.png fig/fire-effs.pdf fig/count-partial-effs.png: R/count-effplots.R \
+	zinb_full_fit.rds
+		Rscript --vanilla R/count-effplots.R
+
+fig/attribution-plot.png: R/interaction-plots.R zinb_full_fit.rds test_preds.rds
+		Rscript --vanilla R/interaction-plots.R
+
+count-preds.rds fig/count-preds.png: R/plot-predicted-counts.R zinb_full_fit.rds
+		Rscript --vanilla R/plot-predicted-counts.R
+
+fig/test-set-burn-area.png fig/number-vs-exceedance.png fig/max-preds-l2-minimal.png fig/max-preds-l3-all.png test_preds.rds: count-preds.rds \
+	ba_lognormal_fit.rds R/mev-plots.R
+		Rscript --vanilla R/mev-plots.R
+
+clean: 
+		find . -type f -name '*.png' -delete
+		find . -type f -name '*.pdf' -delete
+		find . -type f -name '*.rds' -delete
+		find . -type f -name '*.zip' -delete
+		find . -type f -name '*.tif' -delete
+		rm -r data/raw/cb_2016_us_nation_20m
+		rm -r data/raw/mtbs_fod_pts_data
+		rm -r data/raw/us_eco_l3
+		rm -r us_pbg00_2007.gdb
+		rm -r data/processed/climate-data
+	

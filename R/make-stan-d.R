@@ -62,9 +62,22 @@ st_covs <- ecoregion_summaries %>%
   arrange(ym, NA_L3NAME)
 
 
+#################################################
+# REMOVE LATER: This is just to increase efficiency
+# when building workflow
+min_year <- 2008
+count_df <- filter(count_df, FIRE_YEAR >= min_year)
+st_covs <- filter(st_covs, year >= min_year)
+mtbs <- filter(mtbs, FIRE_YEAR >= min_year)
+
+# END REMOVE LATER
+#################################################
+
+
 assert_that(length(setdiff(st_covs$NA_L3NAME, count_df$NA_L3NAME)) == 0)
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)
+
 
 # Create training sets, including years from 1984 to cutoff_year - 1
 cutoff_year <- 2010
@@ -245,11 +258,29 @@ stan_d <- list(
   n_edges = length(B@i),
   node1 = B@i + 1, # add one to offset zero-based index
   node2 = B@j + 1,
-  tb_idx = tb_idx
+  tb_idx = tb_idx, 
+  cutoff_year = cutoff_year
 )
 
 # assert that there are no missing values in stan_d
 assert_that(!any(lapply(stan_d, function(x) any(is.na(x))) %>% unlist))
 
+zi_d <- stan_d
+zi_d$M <- 2
+write_rds(zi_d, 'data/processed/zi_d.rds')
+
 write_rds(stan_d, path = 'data/processed/stan_d.rds')
 print('stan_d.rds written!')
+
+
+write_rds(st_covs, 'data/processed/st_covs.rds')
+write_rds(cutoff_year, 'data/processed/cutoff_year.rds')
+write_rds(train_counts, 'data/processed/train_counts.rds')
+write_rds(holdout_counts, 'data/processed/holdout_counts.rds')
+write_rds(train_burns, 'data/processed/train_burns.rds')
+write_rds(holdout_burns, 'data/processed/holdout_burns.rds')
+write_rds(colnamesX, 'data/processed/colnamesX.rds')
+write_rds(X, 'data/processed/X.rds')
+write_rds(ecoregions, 'data/processed/ecoregions.rds')
+write_rds(vars, 'data/processed/vars.rds')
+write_rds(mtbs, 'data/processed/mtbs.rds')

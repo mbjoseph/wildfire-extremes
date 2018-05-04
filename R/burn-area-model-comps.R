@@ -1,15 +1,12 @@
-
-# Create tables for LOO-IC for each fit -----------------------------------
-library(loo)
 library(tidyverse)
-library(ggthemes)
 library(ggrepel)
 
-source('R/02-explore.R')
-source('R/make-stan-d.R')
+st_covs <- read_rds('data/processed/st_covs.rds')
+cutoff_year <- read_rds('data/processed/cutoff_year.rds')
+train_burns <- read_rds('data/processed/train_burns.rds')
+holdout_burns <- read_rds('data/processed/holdout_burns.rds')
+stan_d <- read_rds('data/processed/stan_d.rds')
 
-# possibly fetch from Amazon
-#system("aws s3 cp s3://earthlab-mjoseph .. --recursive --exclude '*' --include '*.rds'")
 
 model_fits <- list.files(pattern = '*.fit.*\\.rds')
 
@@ -275,7 +272,7 @@ sum_plot <- train_max %>%
   theme(strip.background = element_blank(),
     strip.text.x = element_blank())
 
-plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4)
+cowplot::plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4)
 ggsave(filename = 'fig/ppc-density-funs.png', width = 9, height = 7)
 
 

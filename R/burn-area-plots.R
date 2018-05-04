@@ -1,17 +1,17 @@
-source('R/02-explore.R')
-source('R/make-stan-d.R')
+library(tidyverse)
+library(rstan)
 library(ggridges)
-library(ggthemes)
 library(viridis)
 library(ggrepel)
 library(patchwork)
+library(ggthemes)
 
 fit <- read_rds('ba_lognormal_fit.rds')
-
-# Evaluate convergence ----------------------------------------------------
-traceplot(fit, inc_warmup = TRUE)
-
-traceplot(fit, pars = c('tau', 'c', 'alpha'))
+colnamesX <- read_rds('data/processed/colnamesX.rds')
+X <- read_rds('data/processed/X.rds')
+st_covs <- read_rds('data/processed/st_covs.rds')
+ecoregions <- read_rds('data/processed/ecoregions.rds')
+stan_d <- read_rds('data/processed/stan_d.rds')
 
 # Extract posterior draws and visualize results ---------------------------
 post <- rstan::extract(fit)
@@ -102,10 +102,7 @@ beta_summary %>%
   filter(p_neg > .9 | p_pos > .9)
 gc()
 
-
-
 # Partial effect plots ----------------------------------------------------
-
 which_var <- 'crmin'
 
 partial_effs <- list()
@@ -183,15 +180,15 @@ loc_ts <- mu_df %>%
          NA_L1NAME = fct_reorder(NA_L1NAME, rmin))
 
 location_ts_plot <- loc_ts %>%
-#  filter(year < cutoff_year) %>%
+#  filter(year < stan_d$cutoff_year) %>%
   group_by(NA_L1NAME) %>%
   mutate(alpha_val = .5 / length(unique(NA_L3NAME))) %>%
-  ggplot(aes(ym, exp(median) + min_size,
+  ggplot(aes(ym, exp(median) + stan_d$min_size,
              fill = NA_L1NAME,
              group = NA_L3NAME)) +
   theme_minimal() +
-  geom_ribbon(aes(ymin = exp(lo) + min_size,
-                  ymax = exp(hi) + min_size,
+  geom_ribbon(aes(ymin = exp(lo) + stan_d$min_size,
+                  ymax = exp(hi) + stan_d$min_size,
                   alpha = alpha_val),
               color = NA) +
   geom_line(size = .2, aes(alpha = alpha_val)) +
@@ -214,12 +211,12 @@ cmap <- c(viridis(6, option = 'C'),
 
 humidity_scatter <- st_covs %>%
   full_join(mu_df) %>%
-  filter(year < cutoff_year) %>%
+  filter(year < stan_d$cutoff_year) %>%
   mutate(l2_er = tools::toTitleCase(tolower(as.character(NA_L2NAME))),
          l2_er = gsub(' and ', ' & ', l2_er),
          l2_er = gsub('Usa ', '', l2_er)) %>%
   ggplot(aes(x = rmin,
-             y = exp(median) + min_size,
+             y = exp(median) + stan_d$min_size,
              color = month)) +
   geom_point(alpha = .6) +
   theme_minimal() +
@@ -234,4 +231,3 @@ humidity_scatter
 q <- (coefplot + p) / location_ts_plot + plot_layout(heights = c(.6, 1), ncol = 1)
 q
 ggsave('fig/burn-area-effs.png', plot = q, width = 8.5, height = 5)
-ggsave('fig/burn-area-effs.pdf', plot = q, width = 8.5, height = 5)

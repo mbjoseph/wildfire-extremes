@@ -7,7 +7,10 @@ library(ggridges)
 library(patchwork)
 library(ggrepel)
 
-source('R/make-stan-d.R')
+st_covs <- read_rds('data/processed/st_covs.rds')
+cutoff_year <- read_rds('data/processed/cutoff_year.rds')
+train_counts <- read_rds('data/processed/train_counts.rds')
+stan_d <- read_rds('data/processed/stan_d.rds')
 
 model_fits <- list.files(pattern = '*.fit.*\\.rds')
 count_fits <- grep(model_fits, pattern = 'ba_', value = TRUE, invert = TRUE)

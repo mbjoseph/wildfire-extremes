@@ -186,10 +186,10 @@ generated quantities {
     if (holdout_c[i] == 0) {
       holdout_loglik_c[i] = log_sum_exp(bernoulli_logit_lpmf(0 | mu_full[2][holdout_c_idx[i]]),
                             bernoulli_logit_lpmf(1 | mu_full[2][holdout_c_idx[i]])
-                            + neg_binomial_2_log_lpmf(counts[i] | mu_full[1][holdout_c_idx[i]], nb_prec));
+                            + neg_binomial_2_log_lpmf(holdout_c[i] | mu_full[1][holdout_c_idx[i]], nb_prec));
     } else {
       holdout_loglik_c[i] = bernoulli_logit_lpmf(1 | mu_full[2][holdout_c_idx[i]])
-                + neg_binomial_2_log_lpmf(counts[i] | mu_full[1][holdout_c_idx[i]], nb_prec);
+                + neg_binomial_2_log_lpmf(holdout_c[i] | mu_full[1][holdout_c_idx[i]], nb_prec);
     }
   }
 }

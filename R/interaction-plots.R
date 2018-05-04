@@ -5,8 +5,14 @@ library(tidyverse)
 library(ggthemes)
 library(patchwork)
 
-source('R/02-explore.R')
-source('R/make-stan-d.R')
+st_covs <- read_rds('data/processed/st_covs.rds')
+holdout_burns <- read_rds('data/processed/holdout_burns.rds')
+cutoff_year <- read_rds('data/processed/cutoff_year.rds')
+X <- read_rds('data/processed/X.rds')
+mtbs <- read_rds('data/processed/mtbs.rds')
+stan_d <- read_rds('data/processed/stan_d.rds')
+min_size <- stan_d$min_size
+
 m_fit <- read_rds('zinb_full_fit.rds')
 post <- rstan::extract(m_fit)
 ba_post <- rstan::extract(read_rds('ba_lognormal_fit.rds'))
@@ -27,12 +33,9 @@ mu_df <- post$mu_full %>%
 unique_ecoregions <- unique(st_covs$NA_L3NAME)
 
 
-write_attribution_plot <- function(which_ecoregion,
-                                   max_iter = 2000) {
+write_attribution_plot <- function(which_ecoregion) {
 
   which_ecoregion <- max_d$NA_L3NAME
-  max_iter <- 2000
-
 
   plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
@@ -51,7 +54,7 @@ write_attribution_plot <- function(which_ecoregion,
   X_sub <- X_sub[, nonzero_columns]
 
   # for each response, variable, and ym, multiply covariate and coefficient
-  n_iter <- min(max_iter, length(post$lp__))
+  n_iter <- length(post$lp__)
   # 3 dims, one for each response (2 for count, one for burn area)
   elementwise_effs <- array(0, dim = c(nrow(X_sub), ncol(X_sub), n_iter, 3))
   colnames(elementwise_effs) <- colnames(X_sub)
@@ -64,11 +67,11 @@ write_attribution_plot <- function(which_ecoregion,
           if (response == 1) {
             # burn area mean
             elementwise_effs[i, j, , response] <- X_sub[i, j] *
-              ba_post$beta[1:max_iter, response, nonzero_columns[j]]
+              ba_post$beta[, response, nonzero_columns[j]]
           } else {
             # count params
             elementwise_effs[i, j, , response] <- X_sub[i, j] *
-              post$beta[1:max_iter, response - 1, nonzero_columns[j]]
+              post$beta[, response - 1, nonzero_columns[j]]
           }
         }
       }
@@ -136,6 +139,7 @@ write_attribution_plot <- function(which_ecoregion,
                                                   'pink',
                                                   'orange',
                                                   'lightblue'), .7)))
+  dir.create(file.path('fig', 'effs'))
   med_plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
                                 '-', 'med',
@@ -161,29 +165,6 @@ p1
 ggsave(filename = 'fig/attribution-plot.png', plot = p1,
        width = 7, height = 4)
 
-# predictions for southern rockies
-max_d <- filter(holdout_burns, NA_L3NAME == 'Southern Rockies') %>%
-  arrange(-R_ACRES) %>%
-  top_n(n = 1)
-southern_rockies_plot <- write_attribution_plot(max_d$NA_L3NAME)
-
-southern_rockies_plot$plot_data %>%
-  filter(response == 1) %>%
-  ggplot(aes(ym, y = median_eff, color = variable)) +
-  geom_line() +
-  theme_minimal() +
-  theme(panel.grid.minor = element_blank()) +
-  xlab('') +
-  ylab('Contribution to extreme fire risk') +
-  scale_color_manual('', values = c('dodgerblue',
-                                    'red',
-                                    scales::alpha(
-                                      c('green4',
-                                        'pink',
-                                        'orange',
-                                        'lightblue'), .7))) +
-  xlab('Time')
-ggsave('fig/southern-rockies-risk.png', width = 8, height = 3)
 
 # now, look at analytical results for posterior over maxima vs. actual
 nmax_q <- function(p, n, mu, sigma) {

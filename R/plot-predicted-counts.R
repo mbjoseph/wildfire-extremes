@@ -2,13 +2,19 @@
 library(tidyverse)
 library(ggridges)
 library(patchwork)
+library(sf)
 
-source('R/02-explore.R')
-source('R/make-stan-d.R')
+st_covs <- read_rds('data/processed/st_covs.rds')
+holdout_counts <- read_rds('data/processed/holdout_counts.rds')
 
+# get areas for each L3 ecoregion
+area_df <- read_rds('data/processed/ecoregions.rds') %>%
+  as('Spatial') %>%
+  as.data.frame %>%
+  tbl_df %>%
+  group_by(NA_L3NAME) %>%
+  summarize(area = sum(Shape_Area))
 
-# load posterior predictions for counts
-fit <- read_rds(path = 'zinb_full_fit.rds')
 
 # Extract posterior draws and visualize results ---------------------------
 post <- rstan::extract(read_rds(path = 'zinb_full_fit.rds'),

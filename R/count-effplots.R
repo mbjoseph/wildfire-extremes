@@ -1,24 +1,26 @@
 
 # Count plots -------------------------------------------------------------
 
-source('R/02-explore.R')
-source('R/make-stan-d.R')
+#source('R/make-stan-d.R')
+library(tidyverse)
+library(rstan)
 library(ggridges)
 library(viridis)
 library(ggthemes)
 library(ggrepel)
+library(sf)
 
-fit <- read_rds(path = 'zinb_full_fit.rds')
-
-# Evaluate convergence ----------------------------------------------------
-traceplot(fit, inc_warmup = TRUE)
-
-traceplot(fit, pars = c('tau', 'c', 'alpha', 'Rho_beta'))
+colnamesX <- read_rds('data/processed/colnamesX.rds')
+st_covs <- read_rds('data/processed/st_covs.rds')
+vars <- read_rds('data/processed/vars.rds')
+X <- read_rds('data/processed/X.rds')
+ecoregion_df <- read_rds('data/processed/ecoregions.rds') %>%
+  as("Spatial") %>%
+  data.frame
 
 # Extract posterior draws and visualize results ---------------------------
-post <- rstan::extract(fit)
+post <- rstan::extract(read_rds(path = 'zinb_full_fit.rds'))
 str(post)
-rm(fit)
 gc()
 
 # get 95% credible interval for Rho_beta
@@ -156,9 +158,9 @@ for (v in seq_along(vars)) {
       mutate(row_id = 1:n())
     X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
     cols <- grepl(vars[v], colnames(X_sub))
-    if (vars[v] == 'log_pr') {
+    if (vars[v] == 'pr') {
       cols <- grepl(vars[v], colnames(X_sub)) &
-        !grepl('log_pr12', colnames(X_sub))
+        !grepl('12mo', colnames(X_sub))
     }
 
     effects <- array(dim = c(nrow(X_sub), 2, 3)) # 2 responses, 3: med, lo, hi
@@ -188,8 +190,8 @@ close(pb)
 name_df <- tibble(covariate = vars,
                   fancy_name = c('Housing density (units per km^2)',
                                  'Wind speed (m/s)',
-                                 'log precipitation: same month (mm)',
-                                 'log precipitation: 12 month (mm)',
+                                 'Precipitation: same month (mm)',
+                                 'Precipitation: 12 month (mm)',
                                  'Air temperature (C)',
                                  'Relative humidity (%)'))
 
@@ -214,20 +216,23 @@ better_name <- distinct(ecoregion_df, NA_L1NAME) %>%
                 'Southern Semi-arid Highlands',
                 l1_er))
 
-p <- effect_plot_df %>%
+plot_data <- effect_plot_df %>%
   bind_rows %>%
   mutate(covariate_value = case_when(
     .$covariate == 'tmmx' ~ covariate_value - 273.15,
     .$covariate == 'rmin' ~ covariate_value / 100,
     TRUE ~ covariate_value)) %>%
-  left_join(better_name) %>%
+  left_join(better_name)
+
+p <- plot_data %>%
   ggplot(aes(covariate_value, y = med)) +
   theme_minimal() +
   # geom_ribbon(aes(ymin = lo, ymax = hi, group = NA_L3NAME),
   #             color = NA, alpha = .04) +
   geom_line(alpha = .5, aes(group = NA_L3NAME, color = l1_er)) +
   ylab('Partial effect') +
-  facet_wrap(~fancy_name, scales = 'free_x', ncol = 2) +
+  facet_wrap(~fancy_name, scales = 'free', ncol = 2, 
+             strip.position = 'bottom') +
   scale_color_gdocs('') +
   xlab('') +
   theme(panel.grid.minor = element_blank(),
