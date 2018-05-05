@@ -62,18 +62,6 @@ st_covs <- ecoregion_summaries %>%
   arrange(ym, NA_L3NAME)
 
 
-#################################################
-# REMOVE LATER: This is just to increase efficiency
-# when building workflow
-min_year <- 2008
-count_df <- filter(count_df, FIRE_YEAR >= min_year)
-st_covs <- filter(st_covs, year >= min_year)
-mtbs <- filter(mtbs, FIRE_YEAR >= min_year)
-
-# END REMOVE LATER
-#################################################
-
-
 assert_that(length(setdiff(st_covs$NA_L3NAME, count_df$NA_L3NAME)) == 0)
 assert_that(!any(duplicated(st_covs)))
 st_covs$id <- 1:nrow(st_covs)

@@ -8,5 +8,5 @@ ba_weibull_fit <- sampling(
   data = stan_d,
   cores = 4,
   init_r = .01,
-  iter = 100)
+  iter = 1500)
 write_rds(ba_weibull_fit, 'ba_weibull_fit.rds')
