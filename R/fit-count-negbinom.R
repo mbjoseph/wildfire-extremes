@@ -6,7 +6,7 @@ nb_init <- stan_model('stan/counts-nb.stan')
 nb_fit <- vb(
   nb_init,
   data = stan_d,
-  eta = .4,
+  eta = .3,
   tol_rel_obj = 0.008,
   init = 0,
   adapt_engaged = FALSE)

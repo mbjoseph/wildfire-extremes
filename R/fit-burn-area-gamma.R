@@ -8,5 +8,5 @@ ba_gamma_fit <- sampling(
   data = stan_d,
   cores = 4,
   init_r = .01,
-  iter = 1500)
+  iter = 1000)
 write_rds(ba_gamma_fit, 'ba_gamma_fit.rds')
