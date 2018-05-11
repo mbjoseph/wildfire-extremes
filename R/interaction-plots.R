@@ -4,6 +4,7 @@ library(sf)
 library(tidyverse)
 library(ggthemes)
 library(patchwork)
+library(assertthat)
 
 st_covs <- read_rds('data/processed/st_covs.rds')
 holdout_burns <- read_rds('data/processed/holdout_burns.rds')
@@ -13,10 +14,10 @@ mtbs <- read_rds('data/processed/mtbs.rds')
 stan_d <- read_rds('data/processed/stan_d.rds')
 min_size <- stan_d$min_size
 
-m_fit <- read_rds('zinb_full_fit.rds')
-post <- rstan::extract(m_fit)
-ba_post <- rstan::extract(read_rds('ba_lognormal_fit.rds'))
-rm(m_fit)
+post <- rstan::extract(read_rds('zinb_full_fit.rds'), 
+                       pars = c('mu_full', 'lp__', 'beta'))
+ba_post <- rstan::extract(read_rds('ba_lognormal_fit.rds'), 
+                          pars = 'beta')
 gc()
 
 # plot the contribution of each explanatory variable on a response
@@ -34,9 +35,6 @@ unique_ecoregions <- unique(st_covs$NA_L3NAME)
 
 
 write_attribution_plot <- function(which_ecoregion) {
-
-  which_ecoregion <- max_d$NA_L3NAME
-
   plot_name <- file.path('fig', 'effs',
                          paste0(tolower(gsub(' |/', '-', which_ecoregion)),
                                 '.png'))
@@ -83,8 +81,8 @@ write_attribution_plot <- function(which_ecoregion) {
              variable = case_when(grepl('tri', .$col) ~ 'Terrain ruggedness',
                                   grepl('log_housing_density', .$col) ~ 'Housing density',
                                   grepl('vs', .$col) ~ 'Wind speed',
-                                  grepl('log_pr_', .$col) ~ 'Monthly precip.',
-                                  grepl('log_pr12_', .$col) ~ '12 month precip.',
+                                  grepl('pr_', .$col) ~ 'Monthly precip.',
+                                  grepl('prev_12mo_precip', .$col) ~ '12 month precip.',
                                   grepl('tmmx', .$col) ~ 'Temperature',
                                   grepl('rmin', .$col) ~ 'Humidity'),
              variable = ifelse(is.na(variable), col, variable),
@@ -94,6 +92,7 @@ write_attribution_plot <- function(which_ecoregion) {
              row_index = i) %>%
       group_by(row_index, variable, iter, response) %>%
       summarize(total_effect = sum(value))
+    assert_that(!any(is.na(effects_to_plot[[i]]$variable)))
     setTxtProgressBar(pb, i)
   }
 
@@ -139,14 +138,6 @@ write_attribution_plot <- function(which_ecoregion) {
                                                   'pink',
                                                   'orange',
                                                   'lightblue'), .7)))
-  dir.create(file.path('fig', 'effs'))
-  med_plot_name <- file.path('fig', 'effs',
-                         paste0(tolower(gsub(' |/', '-', which_ecoregion)),
-                                '-', 'med',
-                                '.png'))
-  ggsave(filename = med_plot_name,
-         plot = p_med + ggtitle(which_ecoregion),
-         width = 8, height = 3.5)
   return(list(plot = p_med,
               effects = effects_to_plot %>%
                 bind_rows %>%
