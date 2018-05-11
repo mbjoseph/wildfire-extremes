@@ -12,7 +12,10 @@ fontsize: 12pt
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(knitr)
-library(kable)
+```
+
+```{r load-count-test-intervals}
+count_test_intervals <- read_csv('data/processed/count_test_intervals.csv')
 ```
 
 \begin{abstract}

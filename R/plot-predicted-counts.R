@@ -33,8 +33,8 @@ write_rds(preds, 'count-preds.rds')
 pred_summary <- preds %>%
   group_by(ym, NA_L3NAME) %>%
   summarize(med = median(value),
-            hi = quantile(value, 0.95),
-            lo = quantile(value, .05))
+            hi = quantile(value, 0.975),
+            lo = quantile(value, .025))
 
 
 # overall posterior interval coverage
@@ -42,26 +42,11 @@ test_interval_d <- holdout_counts %>%
   left_join(pred_summary) %>%
   mutate(in_interval = n_fire >= lo & n_fire <= hi)
 
-test_interval_d %>%
-  summarize(mean(in_interval))
 
-# worst performance: lowest interval coverage by L3 ecoregion
-test_interval_d %>%
-  group_by(NA_L3NAME) %>%
-  summarize(interval_coverage = mean(in_interval)) %>%
-  arrange(interval_coverage)
+write_csv(test_interval_d, 'data/processed/count_test_intervals.csv')
 
-# what fraction of ecoregions had 100% interval coverage?
-test_interval_d %>%
-  group_by(NA_L3NAME) %>%
-  summarize(interval_coverage = mean(in_interval)) %>%
-  left_join(area_df) %>%
-  ungroup %>%
-  summarize(p_100_pct = mean(interval_coverage == 1),
-            n_100_pct = sum(interval_coverage == 1),
-            pct_area_100_pct = sum(area[interval_coverage == 1]) / sum(area))
 
-# zoom in on problematic ecoregions
+# Plot for all ecoregions -------------------------------------------------
 test_interval_d %>%
   mutate(in_interval = n_fire >= lo & n_fire <= hi,
          l3_er = gsub(' and ', ' & ', NA_L3NAME),
@@ -93,3 +78,22 @@ test_interval_d %>%
 ggsave('fig/count-preds.png', width = 10, height = 10)
 
 
+#################################################################
+test_interval_d %>%
+  summarize(mean(in_interval))
+
+# worst performance: lowest interval coverage by L3 ecoregion
+test_interval_d %>%
+  group_by(NA_L3NAME) %>%
+  summarize(interval_coverage = mean(in_interval)) %>%
+  arrange(interval_coverage)
+
+# what fraction of ecoregions had 100% interval coverage?
+test_interval_d %>%
+  group_by(NA_L3NAME) %>%
+  summarize(interval_coverage = mean(in_interval)) %>%
+  left_join(area_df) %>%
+  ungroup %>%
+  summarize(p_100_pct = mean(interval_coverage == 1),
+            n_100_pct = sum(interval_coverage == 1),
+            pct_area_100_pct = sum(area[interval_coverage == 1]) / sum(area))

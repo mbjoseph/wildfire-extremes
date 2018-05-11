@@ -8,7 +8,10 @@ figs = fig/ppc-density-funs.png fig/loglik-burns.png \
 	fig/number-vs-exceedance.png fig/max-preds-l2-minimal.png \
 	fig/max-preds-l3-all.png
 
-all: $(figs)
+all: main.pdf
+
+main.pdf: $(figs) main.Rmd library.bib header.sty
+		Rscript -e "rmarkdown::render('main.Rmd')"
 
 data/processed/stan_d.rds: R/make-stan-d.R \
 	$(data-dir)/ecoregion_summaries.csv \
@@ -94,7 +97,7 @@ fig/all-coefs.png fig/bivar-effs.png fig/fire-effs.pdf fig/count-partial-effs.pn
 	zinb_full_fit.rds
 		Rscript --vanilla R/count-effplots.R
 
-fig/attribution-plot.png: R/interaction-plots.R zinb_full_fit.rds test_preds.rds
+fig/attribution-plot.png data/processed/count_test_intervals.csv: R/interaction-plots.R zinb_full_fit.rds test_preds.rds
 		Rscript --vanilla R/interaction-plots.R
 
 count-preds.rds fig/count-preds.png: R/plot-predicted-counts.R zinb_full_fit.rds

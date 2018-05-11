@@ -2,7 +2,6 @@
 gif
 *.mpeg
 *.png
-
 # History files
 .Rhistory
 .Rapp.history
@@ -36,3 +35,4 @@ vignettes/*.pdf
 *.tif
 *.nc
 ecoregion_tri.csv
+main.tex
