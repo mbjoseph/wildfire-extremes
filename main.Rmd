@@ -1,0 +1,790 @@
+---
+title: "Understanding and predicting extreme wildfires in the contiguous United States"
+bibliography: library.bib
+output:
+    pdf_document:
+        includes:
+            in_header: header.sty
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+library(kable)
+```
+
+\begin{abstract}
+Extreme wildfires are becoming more frequent and getting larger in many parts of the globe, but predicting where and when extreme events might occur remains difficult. 
+Here we integrate a 30 year wildfire occurrence record with meteorological and housing data to explain and predict wildfire extremes across the contiguous United States. 
+We find that extreme wildfire events can be explained primarily by increased fire frequency, rather than dramatic changes in expected wildfire burn area.
+Dryness, air temperature, precipitation, and human housing density regulate wildfire risk, but these effects strongly depend on location and ecological context. 
+We construct a predictive model by exploiting spatiotemporal dependence and allowing drivers of fire risk to have nonlinear spatially varying effects, with 98.9\% interval coverage for the number of fires over 1000 acres in a withheld data set over a five-year prediction time horizon. 
+We demonstrate that observed extreme wildfires can be anticipated at a spatiotemporal resolution that is useful for wildfire management and disaster planning. 
+We conclude that recent wildfire extremes need not be surprising, and that the chance of much larger million-acre wildfires is alarmingly high.
+\end{abstract}
+
+\linenumbers
+
+
+\section*{Introduction}
+
+Wildfire frequency and burned area has increased over the past couple decades in the United States [@dennison2014large; @westerling2016increasing], and other areas globally [@krawchuk2009global; @pechony2010driving]. 
+In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] given the hazards they pose in some ecosystems as well as to human lives and infrastructure [@kochi2010economic; @diaz2012economic].
+But, predicting the occurrence and risk of exceptionally large wildfires at a management-relevant scale remains an open challenge that is critical for hazard planning and mitigation. 
+Here, we explore statistical prediction of extreme wildfires - e.g., fires with the largest burn area over some spatiotemporal domain - as a function of meteorological and social drivers, to build a deeper understanding of changes in fire dynamics that can inform human decisions. 
+
+Statistical models of wildfire extremes require distributional specifications for burn area.
+For example, both the generalized extreme value (GEV) distribution [@moritz1997analyzing] and generalized Pareto distribution (GPD) have been used to model wildfire extremes, typically with models being developed separately for different spatial regions [@bermudez2009spatial; @jiang2011extreme]. 
+More recent efforts have developed temporal or spatial models of fire sizes [@mendes2010spatial], and spatial models with year as a covariate [@diaz2016modeling].
+Spatiotemporal models have been described with linear, spatially constant covariate effects [@serra2014spatio; @serra2014spatioB], but this assumption is unappealing in large spatial domains, and in the context of nonlinear drivers of wildfire occurrence and size [@preisler2004probability; @preisler2007statistical; @balshi2009assessing; @krawchuk2009global; @vilar2010model; @woolford2011spatio; @woolford2014lightning].
+
+Nonlinear divers of wildfire dynamics have been repeatedly demonstrated.
+Globally, wildfire probability shows a hump-shaped relationship with temperature and moisture [@moritz2012climate]. 
+In hot dry climates, fuels are typically too sparse to support fire; in cold wet climates, fires are energy limited [@Krawchuk2011]. 
+Humans also  affect wildfire risk, and ignite most of the wildfires in U.S. [@balch2017human], while also suppressing most fires.
+As human density increases from zero, ignition pressure increases, but eventually landscapes become so urbanized, fragmented, and/or fire-suppressed that wildfire risk decreases [@Syphard2007; @bowman2011human; @Bistinas2013; @Knorr2013; @Mcwethy2013; @Syphard2017].
+At intermediate density, wildfire dynamics respond to human ignition and altered fuel distributions [@Guyette2002], but these responses depend on environmental context and characteristics of the human population [@Marlon2008; @Li2009]. 
+Further complicating matters, the drivers of large wildfires are known to be spatially variable in addition to being nonlinear [@barbero2014modeling].
+
+Useful medium to long term predictions for wildfire extremes might contain information on their occurrence (where and when), and magnitude (burn area) over a monthly time scale. 
+Such information could help prioritize reactive fire suppression resources, or inform proactive planning to mitigate wildfire risk.
+Point-process models for occurrence with generalized Pareto models for burn area have been used [@davison1990models], but require a threshold that delineates extreme vs. not extreme events, discarding information about non-extremes. 
+A metastatistical extreme value ($MEV$) approach does not require such a threshold and retains information on all events [@marani2015metastatistical; @zorzetto2016emergence]. 
+This approach has roots in compound distributions [@dubey1970compound; @wiitala1999assessing], doubly stochastic processes [@cox1980point], superstatistics [@beck2003superstatistics], and the Bayesian posterior predictive distribution [@gelman2013bayesian].
+In the MEV framework, the occurrence and size of future events, and the parameters of their distributions are treated as random variables. 
+Here, we exploit and extend this deeply Bayesian notion to account for non-linear, spatially varying wildfire dynamics with the goal of predicting and explaining extreme wildfire events across the contiguous United States.
+
+\section*{Methods}
+
+\subsection*{Data description}
+
+We acquired fire occurrence data from the Monitoring Trends in Burn Severity (MTBS, www.mtbs.gov) program [@eidenshink20071145801], which includes spatial and temporal information on the occurrence of wildfires in the United States from 1984 to 2015. 
+The MTBS data contain fires greater than 1000 acres in the western US and greater than 500 acres in the eastern US. 
+For consistency across the US, we discarded all records in the MTBS data less than 1000 acres. 
+We also excluded data from Alaska, Hawaii, and Puerto Rico, so that our study area is a continuous swath of land, comprising the lower 48 states, resulting in 16,307 fire events under consideration. 
+
+To explain fire size and occurrence, we used a combination of meteorological variables including humidity, air temperature, precipitation, and wind speed. 
+These variables were selected on the basis of previous work, and also with an aim to capture directly the effects of easily interpretable meteorological quantities (as compared to an index of fire weather, for example). 
+Meteorological layers were acquired from the gridMET data[@abatzoglou2013development] that blends monthly high-spatial resolution (~4-km) climate data from the Parameter-elevation Relationships on Independent Slopes Model [@daly2008physiographically] with high-temporal resolution (hourly) data from the National Land Data Assimilation System (NLDAS2) using climatologically aided interpolation. 
+The resultant products are a suite of surface meteorological variables summarized at the daily time step and at a 4-km spatial grain. 
+Daily values of total precipitation, minimum relative humidity, mean wind speed, and maximum air temperature were averaged at a monthly time step for each of 84 Environmental Protection Agency level 3 ecoregions for each month from 1984 to 2015 \cite{omernik1987ecoregions,omernik2014ecoregions}.
+For each month, we computed the mean amount of precipitation over the past 12 months to get an indicator of long term water availability, which might relate to fuel biomass availability for some ecoregions. 
+
+We also used publicly available housing density estimates that were generated based on the US 2000 decennial census as explanatory variables [@radeloff2010housing]. 
+These are provided at decadal time steps, and spatially at the level of census partial block groups. 
+To generate approximate measures of housing density at monthly time intervals, we used a simple linear interpolation over time, and aggregated spatially across block groups to compute mean housing density for each ecoregion in each month. 
+
+\subsection*{Model development}
+
+We built two types of models: one describing the occurrence of fires within an ecoregion over time (e.g., the total number of fires occurring in each ecoregion for each month from 1984 - 2015), and another describing the size of each wildfire in each ecoregion and month.
+For the occurrence models, the response variable was a count (number of fires), and for the burn area models, the response was a continuous positive quantity (burn area of each fire event). 
+Modeling the size of each fire, rather than the mean or total burn area of all fires within a spatiotemporal unit allows us to explore spatiotemporal variation in the distribution of fire sizes. 
+We used the period from 1984 - 2009 for training, and the period from 2010-2015 was withheld to evaluate predictive performance. 
+As we will demonstrate, this event-level modeling approach is still conducive to making inference on total burn areas over spatiotemporal domains via posterior predictive simulation.
+
+\subsubsection*{Fire occurrence}
+
+We constructed four models for fire occurrence and compared their predictive performance based on test-set log likelihood, and posterior predictive checks for the proportion of zeros, maximum count, and total count. 
+The models differed in the distributions used in the likelihood, with each model representing counts in each month as a Poisson, negative binomial, zero-inflated Poisson, or zero-inflated negative binomial random variable (Table \ref{tab:count-likelihoods}). 
+
+\begin{table}
+	\bgroup\footnotesize
+    \begin{tabular}{l l l}
+        Distribution   & Probability mass function &  Parameters: $\theta_f$ \\ \hline
+        Poisson & $\dfrac{\mu^ne^{-\mu}}{n!}$      &  $\begin{array} {l} \mu: \textnormal{mean} \end{array}$ \\
+        ~ & ~ & ~\\
+        Neg. binom.       & $\binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$          & $\begin{array}{l} \mu: \textnormal{mean} \\ \delta: \textnormal{dispersion} \end{array}$ \\
+        ~ & ~ & ~\\
+        ZIP & $I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{-\mu}}{n!}$  & $\begin{array} {l} \mu: \textnormal{Poisson mean} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$ \\
+        ~ & ~ & ~\\
+        ZINB & $I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \big)^\delta) + I_{n > 0} \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$ & $\begin{array} {l} \mu: \textnormal{NB mean} \\ \delta: \textnormal{NB dispersion} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$ 
+    \end{tabular}
+    \egroup
+    \caption{\label{tab:count-likelihoods}Count model distributions (ZIP: zero-inflated Poisson, ZINB: zero-inflated negative binomial, NB: negative binomial), probability mass functions, and parameters for each distribution. $I_{n=0}$ is an indicator function that takes on the value of 1 if the condition in the subscript ($n=0$) is satisfied, and is zero otherwise. $I_{n>0}$ is equal to one if $n>0$, and is zero otherwise.}
+\end{table}
+
+For spatial units (ecoregions) $s=1, ..., S$ and time steps (months) $t = 1, ..., T$ each model defines a probability mass function $[n_{s, t} \mid \theta_f]$, where $n_{s, t}$ is the number of fires over 1000 acres in ecoregion $s$ and time step $t$, and $\theta_f$ represents the parameters of the probability mass function. 
+We assumed that count values across ecoregions and time steps were conditionally independent, so that the joint probability of all counts was given by: 
+
+$$[\matr{N} | \theta_f] = \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \theta_f],$$
+
+where $\matr{N}$ is an $S \times T$ array of integers and $n_{s, t}$ is the element in row $s$, column $t$.
+The distributional mean parameters ($\mu_{s, t}$) and (for zero-inflated models) structural zero inflation parameters $\pi_{s, t}$, were allowed to vary spatially (indexed by $s$) and in time (indexed by $t$).
+We used a log link function to ensure that $\mu_{s, t} > 0 \, \forall s, t$, and a logit link function to ensure that $\pi_{s, t} \in (0, 1) \, \forall s, t$.
+Concatenating over spatial and temporal units, so that $\bm{\mu} = (\mu_{s=1, t=1}, \mu_{s=2, t=1}, ..., \mu_{s=S, t=1}, \mu_{s=S, t=2}, ..., \mu_{s=S, t=T})$, and similarly for $\bm{\pi}$, we modeled distributional mean and zero inflation parameters as: 
+
+$$\log(\bm{\mu}) = \alpha^{(\mu)} + \matr{X} \bm{\beta}^{(\mu)} + \bm \phi^{(\mu)} + \log (\bm a),$$
+
+$$\textnormal{logit}(\bm{\pi}) = \alpha^{(\pi)} + \matr{X} \bm{\beta}^{(\pi)}  + \bm \phi^{(\pi)},$$
+
+where $\alpha^{(\mu)}$ and $\alpha^{(\pi)}$ are scalar intercept parameters, $\matr{X}$ is a known $(S \times T) \times p$ design matrix, $\bm{\beta}^{(\mu)}$ and $\bm{\beta}^{(\pi)}$ are column vector parameters of length $p$, $\bm \phi^{(\mu)}$  and $\bm \phi^{(\pi)}$ are column vector parameters of length $(S \times T)$ containing spatiotemporal adjustments, and $\bm a$ is a known offset vector of areas for spatial unit $s = 1, 2, ..., S$, repeated $T$ times.
+
+\subsubsection*{Burn area}
+
+We developed multiple candidate models for burn area, each of which specified a different distribution for burn areas [@reed2002power; @hernandez2015statistical], including the generalized Pareto [@hosking1987parameter], tapered Pareto [@schoenberg2003distribution], lognormal, gamma, and Weibull distributions (Table \ref{tab:area-likelihoods}). 
+We evaluated each model in terms of test set log likelihood, and posterior predictive checks for burn area extremes. 
+As the MTBS data excludes fires < 1000 acres, we defined our response $y_{i}$ to be the number of acres burned over 1000 for the $i^{th}$ fire event, which occurred in spatial unit $s_i$ and time step $t_i$.
+Fire events were assumed to be conditionally independent, so that the joint probability density of all fire events $i = 1, ..., n_{\textnormal{tot}}$, where $n_{\textnormal{tot}} = \sum_{s}\sum_{t} n_{s, t}$,  was defined as the product of event-wise burn area likelihoods $[y_i | \theta_g]$:
+
+$$[\bm y | \theta_g] = \prod_{i = 1} ^ {n_{\textnormal{tot}}} [y_i | \theta_g].$$
+
+\begin{table}
+	\bgroup\footnotesize
+    \begin{tabular}{l l l}
+        Distribution   & Probability density function &  Parameters: $\theta_g$ \\ \hline
+        Generalized Pareto & $\dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big) ^ {- (\kappa + 1)\kappa^{-1}}$      &  $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
+        ~ & ~ & ~\\
+        Tapered Pareto       & $\Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{exp} (-x / \nu)$          & $\begin{array}{l} \kappa: \textnormal{shape} \\ \nu: \textnormal{taper} \end{array}$ \\
+        ~ & ~ & ~\\
+        Lognormal & $\dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{exp}\Big( -\dfrac{(\log (y) - \mu)^2}{2 \sigma^2} \Big)$  & $\begin{array} {l} \mu: \textnormal{location} \\ \sigma: \textnormal{scale} \end{array}$ \\
+        ~ & ~ & ~\\
+        Gamma & $\dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} \textnormal{exp}(-y / \sigma)$ & $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
+        ~ & ~ & ~ \\
+        Weibull & $\dfrac{\kappa}{\sigma} \Big( \dfrac{y}{\sigma} \Big)^{\kappa - 1} \textnormal{exp} \Big( - \Big(\dfrac{y}{\sigma} \Big)^\alpha \Big)$  & $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
+    \end{tabular}
+    \egroup
+    \caption{\label{tab:area-likelihoods}Burn area exceedance distributions, along with probability density functions and parameters for each distribution. Note that we are assuming a lower bound and location parameter of 0 for the generalized and tapered Pareto distributions.}
+\end{table}
+
+Because each burn area distribution has a different parameterization, we included covariate effects in a distribution-specific way. 
+For the generalized Pareto distribution (GPD), we assumed \textit{a priori} that shape parameter was positive [@bermudez2009spatial], which when combined with a lower bound of zero allows a more stable parameterization as a Pareto type 2 distribution with a location parameter of 0, also known as a Lomax distribution. 
+The GPD shape parameter is the inverse of the Lomax shape parameter ($\kappa^{(GPD)}=1 / \kappa^{(L)}$), and the GPD scale parameter is the Lomax scale parameter divided by the Lomax shape parameter ($\sigma^{(GPD)} = \sigma^{(L)} / \kappa^{(L)}$). 
+We introduced covariate dependence via the scale parameter, using a log link function to ensure positivity, where for event $i$ the scale parameter was modeled as $\log(\sigma^{(L)}_{i}) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$, where $\alpha$ is an intercept parameter, $\bm{\beta}$ is a length $p$ vector of coefficients,  $\bm{X}_{(s_i, t_i)}$ is a row vector extracted from $\matr{X}$ corresponding to spatial unit $s_i$ and time step $t_i$, and $\phi_{s_i, t_i}$ is a spatiotemporal adjustment for $s_i$ and $t_i$. 
+For the tapered Pareto distribution, we included covariate dependence on the shape parameter such that $\log(\kappa_i) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$. 
+The lognormal distribution included covariate dependence via the location parameter: $\mu_i = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$. 
+With the gamma model, we included covariate dependence via a log link on the expected value, as is common in gamma generalized linear models: $\log (E(y_i)) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$, where $E(y_i)$ represents the expected value of burn area exceedance $i$. 
+Finally, covariate dependence was introduced in the Weibull distribution via the scale parameter: $\log(\sigma_i) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$.
+
+
+\subsubsection*{Accounting for nonlinear forcing}
+
+The design matrix $\matr{X}$ was constructed to allow for spatially varying nonlinear effects of housing density and meteorological drivers. 
+We used B-splines to account for nonlinearity and allowed the coefficients for each basis vector to vary spatially [@wood2017}. 
+We constructed our basis expansion by first centering and scaling all meteorological variables so that each had a sample mean of zero and unit standard deviation. 
+Housing density was log transformed, then centered and scaled. 
+Then, we constructed univariate B-splines for housing density, wind speed, same month precipitation, previous 12 month precipitation, air temperature, and humidity, with five degrees of freedom (including an intercept) for each.
+Boundary knots for each basis expansion were set to the range of the transformed values of each variable. 
+This step generated 30 basis vectors (five for each of six variables). 
+
+To allow for spatial variation in these nonlinear effects, we added interaction effects between each of the basis vectors and ecoregions [@brezger2006generalized; @kneib2009variable].
+The hierarchical nature of ecoregion designations lends itself to such interactions. 
+Conceptually, what happens in a level 3 ecoregion may be related to what happens in the level 2 ecoregion containing the level 3 region, the level 1 ecoregion containing the level 2 region, and a global effect. 
+For every univariate basis vector, we included an interaction effect with ecoregion at each of the three ecoregion levels, which allows the effect of every climate variable and housing density to differ spatially.
+This is appealing because the ecoregion designation allows borrowing of information across space (level 3 ecoregions in a level 2 ecoregion are often adjacent), and for regions that are ecologically similar. 
+We also included adjustments on the global intercept for each level 1, 2, and 3 ecoregion. 
+This specification induces sparsity in $\matr{X}$ that we exploit to increase the efficiency of computing $\bm \mu$ and $\bm \pi$. 
+In total $\matr{X}$ has $p=3474$ columns.  
+<!-- TODO: update p here now that the tensor product smooths are removed -->
+
+\subsection*{Prior specification}
+
+\subsubsection*{Wildfire occurrence} 
+
+Prior distributions were chosen to regularize covariate coefficients on the distribution specific means $\beta^{(\mu)}$ and structural zero parameters $\beta^{(\pi)}$. 
+We used a regularized horseshoe prior on these coefficients, which shrinks irrelevant coefficients towards zero, while regularizing nonzero coefficients [@piironen2017sparsity]. 
+For zero-inflated models, we used a multivariate version of the regularized horseshoe that allows for information sharing among the two responses for each of the coefficients [@peltola2014hierarchical]:
+
+$$\begin{pmatrix}
+           \beta^{(\mu)}_j \\
+           \beta^{(\pi)}_j
+         \end{pmatrix} 
+\sim 
+\textnormal{N}
+\Bigg(
+\bm 0, 
+\begin{pmatrix} 
+  \tau^2_1 \tilde{\lambda}^2_{1, j} & 
+    \rho \tau_1 \tau_2 \tilde{\lambda}_{1, j} \tilde{\lambda}_{2, j} \\
+  \rho \tau_1 \tau_2 \tilde{\lambda}_{1, j} \tilde{\lambda}_{2, j} & 
+    \tau^2_2 \tilde{\lambda}^2_{2, j}
+\end{pmatrix}
+\Bigg),$$
+
+$$\tilde{\lambda}^2_{m, j} = \dfrac{c_m^2 \lambda_{j}^2}{c_m^2 + \tau_m^2 \lambda_{j}^2},$$
+
+$$\lambda_{j} \sim \textnormal{Cauchy}^+(0, 1), \quad c_m^2 \sim \textnormal{Inv-Gamma}(2.5, 10), \quad \tau_m \sim \textnormal{N}^+(0, 5^2)$$
+
+for each response dimension $m= 1, 2$ and coefficient $j = 1, ..., p$.
+Here $\rho$ is a correlation parameter, $\tau_1$ and $\tau_2$ are global variance hyperparameters, $c_1$ and $c_2$ are hyperparameters that determine the amount of shrinkage on the largest coefficients, and $\lambda_{j}$ is a local scale parameter drawn from a half-Cauchy distribution that control the amount of shrinkage applied to coefficient $j$.
+Parameters for the inverse gamma prior in $c_1^2$ and $c_2^2$ correspond to placing a $\textnormal{Student-t}_{\text{df} = 5}(0, 2)$ prior on the largest coefficients [@piironen2017sparsity]. 
+With this prior specification, information can be shared across the two response dimensions through the correlation parameter $\rho$, and/or through the local scale parameters $\lambda_j$. 
+For count models without structural zeros (the Poisson and negative binomial models), this multivariate prior collapses to a univariate regularized horseshoe prior. 
+
+Spatiotemporal random effects were constructed using a temporally autoregressive, spatially intrinsically autoregressive (IAR) formulation [@besag1995conditional; @banerjee2014hierarchical]. 
+Temporarily suppressing the superscript that indicates whether the effects are on $\mu$ or $\pi$, and denoting column $t$ from $\matr{\Phi}$ as $\bm{\phi}_t$ we have:
+
+$$\bm{\phi}_{t=1} \sim \textnormal{N}(\bm{0}, (\tau^{(\phi)}(\matr{D} - \matr{W}))^{-1})$$
+
+$$\bm{\phi}_{t} \sim \textnormal{N}(\eta \bm{\phi}_{t - 1}, (\tau^{(\phi)}(\matr{D} - \matr{W}))^{-1}), \quad t = 2, ..., T$$
+
+where $\bm \phi_{t}$ is a column vector of length $S$, $\matr D$ is an $S \times S$ diagonal matrix with entries corresponding to the number of spatial neighbors for each spatial unit, and $\matr W$ is an $S \times S$ spatial adjacency matrix with zeros along the diagonal ($w_{i, i} = 0 \, \forall i$), and nonzero elements only when spatial unit $i$ is a neighbor of spatial unit $j$ ($w_{i, j} = 1$ if $i$ is a neighbor of $j$, and $w_{i, j} = 0$ otherwise). 
+$\tau^{(\phi)}$ is a precision parameter. 
+We impose the identifiability constraint that $\sum_{s = 1}^S \phi^*_{t, s} = 0$ for all $t$.
+Temporal dependence is controlled by the parameter $\eta$, which received a Beta(8, 2) prior, as we expected some level of temporal smoothness to the evolution of the spatial random field. 
+The variability associated with the spatiotemporal effects is determined by the precision $\tau^{(\phi)}$. 
+We placed a half unit normal prior on the scale parameter $\sigma^{(\phi)} = \sqrt{1 / \tau^{(\phi)}}$: $[\sigma^{(\phi)}] = \textnormal{N}^+(\sigma^{(\phi)} | 0,1)$.
+
+Intercept parameters for the count models received independent normal priors: $[\alpha^{(\mu)}, \alpha^{(\pi)}] = \textnormal{N}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{N}(\alpha^{(\pi)} | 0, 5^2)$.
+Negative binomial dispersion parameters were assigned half-normal priors: $[\delta] = \textnormal{N}^+(\delta | 0, 5^2)$.
+Last, we placed an $\textnormal{LKJ}(3)$ prior distribution on the $2 \times 2$ correlation matrix, with off-diagonal parameter $\rho$ [@lewandowski2009generating].
+For each model, we provide unnormalized posterior density specifications in \nameref{joint-distributions}. 
+
+
+\subsubsection*{Burned area}
+
+We applied a univariate regularized horseshoe prior to all $\beta$ coefficients in burn area models [@piironen2017sparsity]:
+
+$$ \beta_j
+\sim 
+\textnormal{N}
+\big(
+0, 
+\tau^2 \tilde{\lambda}^2_{j}
+\big), 
+\quad
+\tilde{\lambda}^2_{j} = \dfrac{c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2},$$
+
+$$\lambda_{j} \sim \textnormal{Cauchy}^+(0, 1), \quad c^2 \sim \textnormal{Inv-Gamma}(2.5, 10), \quad \tau \sim \textnormal{N}^+(0, 5^2).$$
+
+Spatiotemporal random effects were constructed in the same way as for the count models.
+Burn area model intercept parameters were given normal priors: $[\alpha] = \textnormal{Normal}(\alpha | 0, 5^2)$. 
+For the GPD, Weibull, and gamma burn area exceedance models, we placed a half-normal prior on the shape parameters: $[\kappa] = \textnormal{Normal}^+(\kappa | 0, 5^2)$. 
+The tapering parameter of the tapered Pareto distribution was given a heavy-tailed half-Cauchy prior based on prior predictive simulations: $[\nu] = \textnormal{Cauchy}^+(\nu | 0, 1)$.
+Last, the lognormal scale parameter also received a half-normal prior $[\sigma] = \textnormal{Normal}^+(\sigma | 0, 5^2)$.
+Unnormalized posterior densities for burn area models are provided in  \nameref{joint-distributions}.
+
+\subsection*{Posterior predictive inference and extremes}
+
+We used the posterior predictive distribution to check each model and make inference on extremes. 
+The posterior predictive distribution provides a distribution for replications of observed data ($y^{\textnormal{rep}}$), and predictions of future data ($\tilde{y}$) [@gelman2013bayesian]. 
+Conceptually, for a "good" model, $y^{\textnormal{rep}}$ should be similar to observed training data $y$, and future predictions $\tilde{y}$ should be similar to future data. 
+Distributions over both quantities can be obtained by conditioning $y$ and marginalizing over model parameters $\theta$, e.g., $[y^{\textnormal{rep}} | y] = \int [y^{\textnormal{rep}} | \theta] [\theta | y] d\theta$.
+
+Posterior predictive distributions facilitate model checks that compare predicted and observed test statistics[@gelman1996posterior].
+To evaluate whether a model captures tail behavior, one can compare an empirical maximum ($T(y) = \textnormal{max}(y)$) to the predicted distribution of maxima $T(y^{\textnormal{rep}})$. 
+We also include predictive checks for the proportion of zero counts, and totals for count and burn area models.
+Posterior predictive inference for maxima is similar in spirit to the MEV approach. 
+Both obtain a distribution over maxima by marginalizing over unknown parameters, including the number of events, size of each event, and parameters of their generative [@marani2015metastatistical].
+However, a Bayesian approach explicitly conditions on the observed data.
+Seeing this connection is useful in the context of including priors and propagating uncertainty in derived parameters such as total burn areas, and probabilities of million acre wildfires.
+
+\subsection*{Parameter estimation}
+
+We used a combination of variational approximations and Markov chain Monte Carlo (MCMC) methods to sample from the posterior distributions of count and burn area models. 
+Count models were fit using automatic differentiation variational inference [@kucukelbir2015automatic] in the Stan probabilistic programming language using the \code{rstan} package [@carpenter2016stan]. 
+A variational approximation was used to quickly identify the best count model and avoid excessive multi-day model runs. 
+The best performing count model and all burn area models were fit using the No-U-Turn Sampler, with a maximum treedepth of 11 and a delta adaptation rate of 0.99 [@hoffman2014no].
+We ran four chains for 1000 iterations each, and discarded the first 500 iterations as warmup. 
+Convergence was assessed using visual inspection of trace plots, with $\hat{R} \geq 1.1$ as an indicator convergence failure [@brooks1998general].
+
+
+\section*{Results}
+
+\subsection*{Wildfire occurrence}
+
+The zero-inflated negative binomial distribution performed best on the held-out test set (Figure \ref{loglik-counts}), and was able to recover the proportion of zeros, count maxima, and count totals in posterior predictive checks for both the training and test data (Figure \ref{ppc-counts}). 
+All of the other count models that we considered exhibited lack of fit to at least one of these statistics in posterior predictive checks. 
+Hereafter we report results from the zero-inflated negative binomial model.
+
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-03T01:09:43.131Z: -->
+<!-- %  -->
+<!-- % Seems like a map that shows the regions of interest is needed. I don't understand why some of these say the region name and others just variables. It looks like most of the data points are these very light grey circles that are not visible unless the figure is very large. You might consider better emphasizing these, having them a different color than the grid as well. -->
+<!-- %  -->
+<!-- % ^. -->
+\begin{figure}[ht]
+\includegraphics[width=\textwidth]{fig/bivar-effs.png}
+\caption{\color{Gray} Posterior median fire count coefficients. The x-axis represents the effect on the logit complementary probability of a structural zero, and the y-axis shows the effect on the negative binomial log mean. Effects with an 85\% or greater posterior probability of being positive or negative are labeled. B-spline vectors are indicated by colons. Humidity:1 indicates the first basis vector corresponding to very low humidity. Interactions are labeled with a \code{x} between variables. Ecoregions are labeled by numeric level and name. Note the cluster of points close to zero resulting from the shrinkage prior.} 
+\label{bivar-effs}
+\end{figure}
+
+Humidity and air temperature had the strongest effects in the count model (Figure \ref{bivar-effs}). 
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-03T01:12:57.971Z: -->
+<!-- %  -->
+<!-- % Is this minimum RH? The x-axis should go from 0-100, rather than expressed as a fraction -->
+<!-- %  -->
+<!-- % ^. -->
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-03T00:59:08.250Z: -->
+<!-- %  -->
+<!-- % Very likely, this is catching the seasonal cycle of fires, they burn when temperatures and high and RH is low; the question is how well this accounts for some of the year-to-year variability; I'm also confused whether you build one model per ecoreion and/or how that is being visualized here -->
+<!-- %  -->
+<!-- % ^. -->
+When a covariate increased the mean of the negative binomial component, it was likely to decrease the probability of a structural zero (posterior median for $\rho$: 0.686, 95\% CI: 0.381, 0.897). 
+Temperature, housing density, wind speed, and long term precipitation were also important, and the model uncovered unique effects of these variables at level 1, 2, and 3 ecoregions (Figure \ref{bivar-effs}, \ref{fire-effs}).
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-03T01:14:26.048Z: -->
+<!-- %  -->
+<!-- % RH looks to be the strongest variable for partial effects; I would think that some measure of fuel moisture might be even better -->
+<!-- %  -->
+<!-- % ^. -->
+Nonlinear effects on the negative binomial mean can be visualized in Figure \ref{count-partial-effs}, and results for the zero-inflation component are similar. 
+
+\begin{figure}[ht]
+\includegraphics[width=\textwidth]{fig/count-partial-effs.png}
+\caption{\color{Gray} Partial effects on the log-transformed negative binomial mean for each level 3 ecoregion, colored by level 1 ecoregion. Lines are posterior medians and ribbons are 95\% credible intervals. Note the y-axis scales - relative humidity and air temperature span a wider range of effect magnitudes.}
+\label{count-partial-effs}
+\end{figure}
+
+Dry conditions increased fire risk, and humid conditions decreased risk, with the strongest reduction occurring between 60\% and 70\% humidity (Figure \ref{count-partial-effs}).
+The positive interaction effect between the first humidity basis vector and the L1 Great Plains ecoregions indicates that dry conditions lead to additional increases in the expected counts in the plains. 
+Similarly, the interaction between the third basis vector and the L1 Great Plains ecoregion indicates that the expected wildfire counts in the plains are relatively low at moderate humidity values. 
+
+Overall, temperature increased expected counts.
+In the L1 Great Plains, the reduction in expected count from cold temperatures was relatively weak (Figure \ref{bivar-effs}).
+The L2 Ozark/Ouachita-Appalachian Forests and L3 Ozark Highlands ecoregions also had unique temperature effects, corresponding to relatively high counts at moderate temperatures in the L2 region, and low counts in hot conditions in the L3 region. 
+Last, very hot conditions in the L3 Sonoran Desert had weaker effects on expected counts, relative to the rest of the contiguous US (Figure \ref{bivar-effs}). 
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-04T04:50:07.488Z: -->
+<!-- %  -->
+<!-- % No vegetation here, so this is no surprise -->
+<!-- %  -->
+<!-- % ^. -->
+
+Low long-term precipitation was weakly associated with higher expected counts. 
+This effect was different in the L3 Sonoran Desert (Figure \ref{bivar-effs}), where very dry conditions were actually associated with a reduction in expected count. 
+High winds were also associated with higher expected counts (Figure \ref{bivar-effs}).
+Housing density showed a unimodal relationship to expected count (Figure \ref{count-partial-effs}), with lower expected counts in unpopulated and heavily populated ecoregions, and higher expected counts with moderately populated ecoregions. 
+
+Posterior 95\% credible interval coverage for the number of fires over 1000 acres in the test set was 98\%. 
+The lowest interval coverage (87.5\%) occurring for the Cross Timbers  L3 ecoregion.
+When observed counts fell outside the 95\% prediction interval, counts were larger than predicted (Figure \ref{count-preds}).
+For nearly half of the level 3 ecoregions (35 of 85), accounting for 34\% of the land area of the contiguous U.S., the zero-inflated negative binomial model had 100\% test set prediction interval coverage.
+
+\subsection*{Wildfire burned areas}
+
+The log normal distribution performed best on the test set (Figure \ref{loglik-burns}), and captured tail-behaviour (Figure \ref{ppc-density-funs}).
+The GPD was too heavy-tailed to adequately capture the pattern in the empirical data (Figure \ref{ppc-density-funs}). 
+The tapered Pareto distribution was too light-tailed (Figure \ref{ppc-density-funs}).
+The gamma and Weibull models performed very poorly on the test set, apparently due to a lack of congruence between the shapes of these distributions and the actual burn area distribution (Figures \ref{loglik-burns} and \ref{ppc-density-funs}).
+Hereafter we present results for the log normal model.
+
+Relative humidity was primary driver of expected burn area for a fire event (Figure \ref{burn-area-effs}A). 
+The first basis vector for mean daily minimum humidity was the only coefficient with a 95\% credible interval that did not include zero (posterior median: 1.67, 95\% CI: (0.025, 2.316)). 
+This nonlinear effect can be observed in Figure \ref{burn-area-effs}B as a marked increase in the expected burn area below 20\% mean daily minimum humidity. 
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-04T16:09:40.701Z: -->
+<!-- %  -->
+<!-- % This is just the seasonal cycle in humidity, correct? In the eastern US, this would likely be much smaller thus contributing to your features here -->
+<!-- %  -->
+<!-- % ^. -->
+This leads to a periodicity gradient among ecoregions in the seasonality of expected fire sizes, with little or no periodic signal in humid ecoregions (Figure \ref{burn-area-effs}C).
+In the test set, 95\% posterior predictive interval coverage for burn areas was 92.6\%.
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/burn-area-effs.png}
+\caption{\color{Gray} \textbf{A}. Estimated posterior medians and 95\% credible intervals for each of the 3,473 coefficients associated with expected burn area. Only one coefficient - the first basis vector for humidity - had a 95\% credible interval that excluded zero, shown in red. This effect is visualized in \textbf{B}. Partial effects of mean daily minimum humidity for each level 3 ecoregion, with posterior medians drawn as lines, and the 95\% credible intervals as ribbons. \textbf{C}. Monthly time series of expected fire sizes for every level 3 ecoregion, faceted and colored by level 1 ecoregions sorted by mean humidity. Lines are posterior medians and ribbons are 95\% credible intervals. The year 2010 marks the boundary between the training and test set.}
+\label{burn-area-effs} 
+\end{figure}
+
+\subsection*{Inference on extremes}
+
+By combining the output of the event count and burn area models, we derived posterior prediction intervals for block maxima (the size of the largest fire in a month for each region).
+In the holdout period from 2010 to 2015, a 99\% prediction interval achieved 90.3\% interval coverage, with 4.6\% of the block maxima (37 fire events) being larger than predicted (Figure \ref{max-preds-l2-minimal}). 
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-04T16:16:59.148Z: -->
+<!-- %  -->
+<!-- % In this figure, I am confused by the overlapping shading; also the black dots represent actual fire sizes??  If that is the case, everything should be >1e3, right for 1000 acres? I don't totally see how this figure is showing skill. -->
+<!-- %  -->
+<!-- % ^. -->
+The model predicted the total area burned over the entire test period from 2010-2015 to be 28,569,818 (95\% CI: (18,389,910 - 48,700,433) and the actual value was 26,639,835. 
+While fires over a million acres in size have happened historically, all fires in the training and test sets were below one million acres. 
+If we extrapolate, the probability that at least one fire exceeded one million acres in the period from 2010-2015 was estimated to be between 0.171 and 0.656 (95\% CI), with a posterior median of 0.324.
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-04T16:19:36.450Z: -->
+<!-- %  -->
+<!-- % OK, but where would this fire occur exactly? Surely the probabilities will differ geographically/ecoregion.  Can you also possibly say something about the probability of a fire > 100,000, 300,000, and 500,000 as a function of year/decade in the ecoregions?  In other words, can your model say something about the interannual variability, or odds of very large fires changing through the 30-yr record? -->
+<!-- %  -->
+<!-- % ^. -->
+
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/max-preds-l2-minimal.png}
+\caption{\color{Gray} Posterior 99\% prediction intervals for the burn area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with the largest number of fire events. Empirical maxima are shown as black dots.}
+\label{max-preds-l2-minimal}
+\end{figure}
+
+\subsection*{Error analysis case study: the 2011 Wallow Fire}
+
+To better understand how well the model could or could not anticipate notable extreme events, and why, we used the largest fire in the test set as a case study. 
+The Wallow Fire was accidentally ignited on May 29, 2011 by two campers in the L3 Arizona/New Mexico Mountains ecoregion.
+It burned through the month of June and into early July. 
+The model underpredicted the total burn area of the Wallow Fire. 
+The 99\% credible interval for the maximum fire size for May 2011 was (1,370, 318,298) acres, but the Wallow Fire is recorded as 563,655 acres in the MTBS data. 
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-04T16:30:29.800Z: -->
+<!-- %  -->
+<!-- % Since the fire started the 3rd to last day of May, it doesn't seem necessary to talk much about "May" conditions - basically all of the burned area happened in June; I also would wager that June 2011 would include the highest probability of fires of this size in your 30+ year model for this region -->
+<!-- %  -->
+<!-- % ^. -->
+The 99\% credible interval for June 2011 was (4932, 891,301) acres, which contains the true value. 
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-04T16:14:18.735Z: -->
+<!-- %  -->
+<!-- % Still unclear on differences in modeling for individual fire vs. what is stated here for June 2011 -->
+<!-- %  -->
+<!-- % ^. -->
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/attribution-plot.png}
+\caption{\color{Gray} Posterior median contribution of each input variable to the linear predictor function of model components for the Arizona/New Mexico Mountains level 3 ecoregion from 2010-2016. A dotted vertical line marks May 2011, when the Wallow Fire ignited. Vertical positions of colored lines show contributions to the linear predictor function of each model component.}
+\label{attribution-plot} 
+\end{figure}
+
+We evaluated the contribution of each covariate to the linear predictor functions of the three model components (lognormal mean for burn areas, negative binomial mean for counts, and the logit probability of the zero-inflation component) to understand why these predictions differed. 
+We defined the contribution of a variable as the dot product of the elements in the design matrix $\matr{X}$ corresponding to a particular driver variable (e.g., humidity), and the estimated coefficients in $\bm{\beta}$ corresponding to that variable.
+This provides a quantitative measure of how each input variable contributes to the linear predictor for an ecoregion, and incorporates the overall, level 1, level 2, and level 3 ecoregion adjustments on these effects. 
+Figure \ref{attribution-plot} reveals that humidity is the primary driver of variation in the model's predictions, and that the conditions in June - the month after ignition - favored more large fires, with dryer, hotter conditions. 
+Evidently, conditions in May that drove (under)predictions of maximum burn area were not representative of the conditions over most of the Wallow Fire's duration.
+
+\section*{Discussion}
+
+Extreme wildfires are often devastating, but perhaps they need not be surprising. 
+By allowing the non-linear effects of weather and human housing density to vary across space, we were able to achieve good predictive accuracy for fire extremes over a five-year prediction window. 
+We estimate a non-negligible chance of wildfires larger than what has been observed in recent decades, even over one million acres, which might occur under exceptionally hot and dry conditions in moderately populated areas, though the specific drivers would vary depending on location and timing. 
+<!-- % * <jabatzoglouui@gmail.com> 2018-03-04T16:33:35.731Z: -->
+<!-- %  -->
+<!-- % I doubt your biggest fires are going to happen in even moderately populated areas due to land fragmentation + suppression. If you had a static predictor of vegetation "space to roam" it might help clarify that. -->
+<!-- %  -->
+<!-- % ^. -->
+
+The ability to make predict large wildfire occurrence across a large geographic region at a monthly time step is potentially valuable for short to medium term wildfire management and disaster planning. 
+However, we have assumed here that high-quality meteorological forecast data are available. 
+This is convenient for separating the predictive skill of the fire model from that of a climate model, but in practice predictions are likely to be limited by the quality of climate predictions. 
+Weather predictions should be most accurate over relatively short time scales, e.g., upcoming fire seasons, or what will happen next month. 
+But, this model could be used in conjunction with longer term climate projections to explore potential wildfire dynamics on a decadal time horizon.
+
+Driving a model with meteorological features raises challenges related to predictive uncertainty and covariate shift.  Ideally, this uncertainty would be propagated forward in a predictive model, possibly through stacking of predictive distributions that are generated from multiple models of future climate dynamics [@yao2017using]. 
+But, even if one had a perfect forecast, novel conditions present a challenge for predictive modeling [@quionero2009dataset]. 
+For example, the High Plains ecoregion had its highest monthly precipitation, lowest 12 month running precipitation, driest, hottest, and windiest conditions in the held-out data, so that the range of environmental conditions in the training data did not encompass the range of future conditions. 
+Extrapolating beyond the range of training inputs is generally difficult, but the hierarchical spatial effect specification used here allows partial pooling among climatically similar ecoregions that can inform such predictions, unlike models fit separately to disjoint spatial regions. 
+
+Previous research indicates that human-caused climate change is expected to increase fire activity in the western U.S. [@Abatzoglou2016], the Pacific Northwest [@rogers], southeastern Australia [@murdoch], and globally (albeit with high spatial variability that includes some areas of decreased fire activity) [@flannigan]. 
+Meteorological and anthropogenic effects are coupled by human-caused climate change, which alters fuel distribution and dryness along with fire weather. 
+The nonlinear effect of human-density provides an interesting wrinkle in future expectations. 
+While most U.S. ecoregions are increasing in human density over time, some of these ecoregions are in the range of values in which this increases the expected number of large fires, while others are so populated that further increases would reduce the chance of a large fire.
+
+The effect of human density on the expected number of large fires is likely driven by increased ignition pressure [@balch2017human].
+This model indicates that the combination of moderate to high human density and dry conditions would nonlinearly increase the chance of an extreme fire event. 
+Both human density and dryness are expected to increase in the future across large swaths of the US [@lloyd2017high; @stavros2014regional,  @radeloff2010housing]. 
+This result raises questions around how wildfire burn area scales with consequences such as human mortality, health risks from smoke and particulate emission, and the financial burden of wildfire management and disaster recovery. 
+The approach described in this paper could be extended to explore these scaling properties spatially, to understand where extremes might have the greatest impact on humans in the future. 
+
+This work points to promising directions for future quantitative efforts.
+Default distribution specifications such as Poisson and a GPD distributions should be checked against alternatives. 
+Further, the predictive performance of this approach seems to suggest that ordinary events inform the extremes, which would not be the case if the generative distribution of extremes was completely unique. 
+Enhancing the spatiotemporal resolution of predictive models could better represent climatic and social drivers of fire dynamics and provide localized insights into fire dynamics to inform decision-making. 
+This raises computational challenges, but recent advances in distributed probabilistic computing [@tran2017deep], efficient construction of spatiotemporal point processes [@shirota2018scalable], and compact representations of nonlinear spatial interactions [@lee2011p] may provide solutions. 
+
+The Wallow Fire case study reveals at least one pitfall of increasing the spatiotemporal resolution with this approach. 
+When the model predictions are driven by covariates that are summarized in space and time (e.g. a mean across an ecoregion in a month), summary values may not represent conditions that are most relevant to an event. 
+With a discrete space-time segmentation, events can occur at the boundary of a spatiotemporal unit, e.g., if a fire spreads into an adjacent ecoregion or ignites on the first day of the month. 
+Long-burning large wildfires can span months, and a model that only uses conditions upon ignition to predict total burn area can fail to account for conditions that change over the course of the event.  
+Modeling ignitions as a point process in continuous space and time [@brillinger2003risk], and explicitly modeling subsequent spatial dynamics might provide a way separate conditions that ignite fires from those that affect spread.
+
+This paper presents a statistical approach to explain and predict extreme wildfires that incorporates spatially varying non-linear dynamics. 
+The model reveals considerable differences in fire dynamics among ecoregions spanning the mountain west to the great plains, deserts, and eastern forests, and suggests a decent chance of very large fires exceeding one million acres in the contiguous US. 
+Our hope is that such an approach can be operationalized to inform decision-making, provide deeper insights into wildfire ecology, and address the modeling challenges that we have identified. 
+There is work to be done to link extreme wildfire dynamics with human consequences to better understand when and where wildfires are likely to result in catastrophic natural disasters. 
+In all but the most populated ecoregions, future increases in human density will increase wildfire risk, adding urgency to predictive modeling efforts with potential to mitigate loss of life, property damage, and health impacts from extreme wildfires. 
+
+\section*{Acknowledgments}
+
+We thank Mitzi Morris, Kyle Foreman, Daniel Simpson, Bob Carpenter, and Andrew Gelman for contributing to the implementation of an intrinsic autoregressive spatial prior in Stan.
+
+\nolinenumbers
+
+\section*{References}
+
+<div id="refs"></div>
+
+\clearpage
+
+
+
+\section*{Supporting Information}
+
+
+\setcounter{figure}{0}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+
+\subsection*{Joint distributions}
+\label{joint-distributions}
+
+Here we provide the unnormalized posterior densities for each model.
+Square brackets represent a probability mass or density function. 
+Normal distributions are parameterized with mean and variance parameters.
+ZIP and ZINB are probability mass functions in Table \ref{tab:count-likelihoods}.
+
+###Poisson wildfire count model
+
+\begin{flalign*}
+&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau \mid \matr{N}] \propto \\
+&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \phi_{s, t}] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j^{(\mu)} | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\sigma^{(\phi)}] [\eta] [c] [\tau] [\alpha^{(\mu)}] \\
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{Poisson}(n_{s, t} | \textnormal{exp}(\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi_{s, t})) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j^{(\mu)} | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \\ 
+&& \textnormal{Normal}^+(\tau | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2).
+\end{flalign*}
+
+\newpage
+
+###Negative binomial wildfire count model
+
+\begin{flalign*}
+&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau, \delta \mid \matr{N}] \propto \\
+&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \phi_{s, t}, \delta] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j^{(\mu)} | \lambda_j, c, \tau] [\lambda_j] \times \\ 
+&& [\sigma^{(\phi)}] [\eta] [c][\tau] [\alpha^{(\mu)}] [\delta] \\
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{Negative Binomial}(n_{s, t} | \textnormal{exp}(\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi_{s, t}), \delta) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j^{(\mu)} | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \\ 
+&& \textnormal{Normal}^+(\tau | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}^+(\delta | 0, 5^2).
+\end{flalign*}
+
+\newpage
+
+###Zero-inflated Poisson wildfire count model
+
+\begin{flalign*}
+&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
+ \bm{\phi}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}, 
+ \bm{\phi}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}, 
+ \bm{\lambda}, c, \tau, \rho \mid \matr{N}] \propto \\
+&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, \phi_{s, t}^{(\mu)}, \phi_{s, t}^{(\pi)}] \times \\
+&& [\bm{\phi}_1^{(\mu)} | \sigma^{(\phi, \mu)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\mu)} | \bm{\phi}_{t - 1}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}] \times \\
+&& [\bm{\phi}_1^{(\pi)} | \sigma^{(\phi, \pi)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\pi)} | \bm{\phi}_{t - 1}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}] \times \\
+&& \prod_{j = 1}^p [\beta_j^{(\mu)}, \beta_j^{(\pi)} | \lambda_j, c, \tau, \rho] [\lambda_j] \times \\
+&& [\sigma^{(\phi, \mu)}] [\sigma^{(\phi, \pi)}] [\eta^{(\mu)}] [\eta^{(\pi)}]
+[\alpha^{(\mu)}] [\alpha^{(\pi)}] [\rho] \prod_{m = 1}^2 [c_m] [\tau_m] \\
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{ZIP}(n_{s, t} | e^{\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi^{(\mu)}_{s, t}}, \textnormal{logit}^{-1}(\alpha^{(\pi)} + \matr{X}_{(s, t)} \bm{\beta}^{(\pi)} + \phi^{(\pi)}_{s, t})) \times \\
+&& \textnormal{Normal}(\bm{\phi}^{(\mu)}_1 | \bm{0}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\mu)}_{t} | \eta^{(\mu)} \bm{\phi}^{(\mu)}_{t - 1}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \textnormal{Normal}(\bm{\phi}^{(\pi)}_1 | \bm{0}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\pi)}_{t} | \eta^{(\pi)} \bm{\phi}^{(\pi)}_{t - 1}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{N}
+\Bigg(\begin{pmatrix}
+           \beta^{(\mu)}_j \\
+           \beta^{(\pi)}_j
+         \end{pmatrix} \Big{|} \,
+\bm 0, 
+\begin{pmatrix} 
+  \tau^2_1 \frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2} & 
+    \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} \\
+  \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} & 
+    \tau^2_2 \frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}
+\end{pmatrix}
+\Bigg) \times \\
+&& \prod_{j = 1}^p \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&&\textnormal{Normal}^+(\sigma^{(\phi, \mu)} | 0, 1^2) \times \textnormal{Normal}^+(\sigma^{(\phi, \pi)} | 0, 1^2) \times \\
+&& \textnormal{Beta}(\eta^{(\mu)} | 1, 1) \times \textnormal{Beta}(\eta^{(\pi)} | 1, 1) \times \\
+&& \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\pi)} | 0, 5^2) \times \textnormal{LKJ}(\rho | 3) \times \\
+&& \prod_{m = 1}^2 \textnormal{Inv-Gamma}(c_m^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau_m | 0, 5^2).
+\end{flalign*}
+
+\newpage 
+
+###Zero-inflated negative binomial wildfire count model
+
+\begin{flalign*}
+&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
+ \bm{\phi}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}, 
+ \bm{\phi}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}, 
+ \bm{\lambda}, c, \tau, \rho, \delta \mid \matr{N}] \propto \\
+&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, \phi_{s, t}^{(\mu)}, \phi_{s, t}^{(\pi)}, \delta] \times \\
+&& [\bm{\phi}_1^{(\mu)} | \sigma^{(\phi, \mu)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\mu)} | \bm{\phi}_{t - 1}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}] \times \\
+&& [\bm{\phi}_1^{(\pi)} | \sigma^{(\phi, \pi)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\pi)} | \bm{\phi}_{t - 1}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}] \times \\
+&& \prod_{j = 1}^p [\beta_j^{(\mu)}, \beta_j^{(\pi)} | \lambda_j, c, \tau, \rho] [\lambda_j] \times \\
+&& [\sigma^{(\phi, \mu)}] [\sigma^{(\phi, \pi)}] [\eta^{(\mu)}] [\eta^{(\pi)}]
+[\alpha^{(\mu)}] [\alpha^{(\pi)}] [\rho] [\delta] \prod_{m = 1}^2 [c_m] [\tau_m].
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{ZINB}(n_{s, t} | e^{\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi^{(\mu)}_{s, t}}, \delta, \textnormal{logit}^{-1}(\alpha^{(\pi)} + \matr{X}_{(s, t)} \bm{\beta}^{(\pi)} + \phi^{(\pi)}_{s, t})) \times \\
+&& \textnormal{Normal}(\bm{\phi}^{(\mu)}_1 | \bm{0}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\mu)}_{t} | \eta^{(\mu)} \bm{\phi}^{(\mu)}_{t - 1}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \textnormal{Normal}(\bm{\phi}^{(\pi)}_1 | \bm{0}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\pi)}_{t} | \eta^{(\pi)} \bm{\phi}^{(\pi)}_{t - 1}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{N}
+\Bigg(\begin{pmatrix}
+           \beta^{(\mu)}_j \\
+           \beta^{(\pi)}_j
+         \end{pmatrix} \Big{|} \,
+\bm 0, 
+\begin{pmatrix} 
+  \tau^2_1 \frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2} & 
+    \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} \\
+  \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} & 
+    \tau^2_2 \frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}
+\end{pmatrix}
+\Bigg) \times \\
+&& \prod_{j = 1}^p \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&&\textnormal{Normal}^+(\sigma^{(\phi, \mu)} | 0, 1^2) \times \textnormal{Normal}^+(\sigma^{(\phi, \pi)} | 0, 1^2) \times \\
+&& \textnormal{Beta}(\eta^{(\mu)} | 1, 1) \times \textnormal{Beta}(\eta^{(\pi)} | 1, 1) \times \\
+&& \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\pi)} | 0, 5^2) \times \textnormal{LKJ}(\rho | 3)  \times \textnormal{Normal}^+(\delta | 0, 5^2) \times \\
+&& \prod_{m = 1}^2 \textnormal{Inv-Gamma}(c_m^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau_m | 0, 5^2).
+\end{flalign*}
+
+\newpage 
+
+###Generalized Pareto/Lomax burn area model
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa^{(L)}, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \bm{\beta}, \alpha, \phi_{s_i, t_i}, \kappa^{(L)}]  \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\ 
+&& [\alpha] [c] [\tau] [\kappa^{(L)}] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Lomax}(y_i | \kappa^{(L)}, e^{\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}}) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \\
+&& \textnormal{Normal}^+(\kappa^{(L)} | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+###Tapered Pareto burn area model
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \nu, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \bm{\beta}, \alpha, \phi_{s_i, t_i}, \nu] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\alpha] [c] [\tau] [\nu] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Tapered Pareto}(y_i | e^{\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}}, \nu) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
+&& \textnormal{Cauchy}^+(\nu | 0, 1) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+
+###Lognormal burn area model
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \sigma, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \sigma] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\alpha] [c] [\tau] [\sigma] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Lognormal}(y_i | \alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}, \sigma) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
+&& \textnormal{Normal}^+(\sigma | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+###Gamma burn area model (shape, rate parameterization)
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \kappa] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\alpha] [c] [\tau] [\kappa] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Gamma}(y_i | \kappa, \kappa / \textnormal{exp}(\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i})) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
+&& \textnormal{Normal}^+(\kappa | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+###Weibull burn area model
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \lambda, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \kappa] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\alpha] [c] [\tau] [\kappa] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Weibull}(y_i | \kappa, \textnormal{exp}(\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i})) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
+&& \textnormal{Normal}^+(\kappa | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+\subsection*{Supplemental figures}
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/loglik-counts.png}
+\caption{\color{Gray} Posterior performance comparisons for wildfire count models. Log likelihood on the training set is shown on the x-axis, with higher values indicating higher model performance, and the log likelihood of the withheld test set is shown on the y-axis. Each point represents a draw from the approximate posterior distribution.}
+\label{loglik-counts} 
+\end{figure}
+
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/ppc-counts.png}
+\caption{\color{Gray} Posterior predictive checks for wildfire count models. The first row of plots show the predicted probability mass functions colored by distribution and empirical frequencies of counts as black points, with each line representing a draw from the approximate posterior distribution. The second row shows the predicted proportion of zero counts in the training and test data on the x and y axis, respectively, with a point for each draw from the posterior and empirical proportions of zeros shown as dashed lines. The third row shows the predicted. The third and fourth row show predicted and empirical maximum and total counts, with training set values on the x-axis and test set data on the y-axis.}
+\label{ppc-counts} 
+\end{figure}
+
+
+\begin{figure}[ht] 
+\includegraphics[width=.9\textwidth]{fig/fire-effs.pdf}
+\caption{\color{Gray} Ridgeplots of coefficients with a 95\% posterior probability of being negative or positive for the negative binomial log mean (top), and the logit probability of drawing a count from the negative binomial distribution (bottom). B-spline vectors are indicated by colons, such that \code{Humidity:1} indicates the first basis vector corresponding to humidity. Interactions between variables \code{a} and \code{b} are represented as \code{Intxn(a x b)}. Level 1 ecoregions are represented by \code{L1 ecoregion name}, and \code{L2} and \code{L3} indicate level 2 and 3 ecoregions.}
+\label{fire-effs} 
+\end{figure}
+
+
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/count-preds.png}
+\caption{\color{Gray} Performance of the zero-inflated negative binomial count model on the held-out test set. Here, each level 3 ecoregion is shown on a panel, arranged in increasing order of 95\% credible interval coverage. The 95\% credible intervals are shown as shaded grey regions, and observed counts are shown as points, with small black points falling within the 95\% credible interval, and red points falling outside of the credible interval. Note the log y axis scale.}
+\label{count-preds} 
+\end{figure}
+
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/loglik-burns.png}
+\caption{\color{Gray} Posterior performance comparisons for burn area models. Log likelihood on the training set is shown on the x-axis, with higher values indicating higher model performance, and the log likelihood of the withheld test set is shown on the y-axis. Each point represents a draw from the posterior distribution. The gamma and Weibull models performed so poorly on the test set that they are not included on this plot.}
+\label{loglik-burns} 
+\end{figure}
+
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/ppc-density-funs.png}
+\caption{\color{Gray} Posterior predictive comparisons for burn area models. The first row of plots shows the bulk of the burn area distribution, with posterior draws for the predicted density shown in color, and the empirical density for the training data shown as a black line. The second row of plots shows the fit to the extreme tail of the distribution, with predicted values shown in color. The widest interval is a 95\% credible interval, the narrow interval is the posterior interquartile range, and the colored point represents the posterior median. Empirical values are shown as black dots. The third row represents the posterior predictive distribution for the largest fire size from Feb. 1984 - Dec. 2009 on the x-axis, and from Jan. 2010 - Dec. 2015 on the y-axis, with each posterior draw shown as a point and true values shown as dashed lines. The last row shows the predicted burn area totals over the same time intervals, with true values as dashed lines, and the total area of the contiguous U.S. as a dotted line. }
+\label{ppc-density-funs} 
+\end{figure}
+

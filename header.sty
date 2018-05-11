@@ -1,0 +1,79 @@
+
+% clean citations
+\usepackage{natbib}
+\bibliographystyle{abbrvnat}
+\setcitestyle{authoryear,open={(},close={)}}
+
+% hyperref makes references clicky. use \url{www.example.com} or \href{www.example.com}{description} to add a clicky url
+\usepackage{nameref,hyperref}
+
+% line numbers
+\usepackage[left]{lineno}
+
+% improves typesetting in LaTeX
+\usepackage{microtype}
+\DisableLigatures[f]{encoding = *, family = * }
+
+% adjust caption style
+\usepackage[aboveskip=1pt,labelfont=bf,labelsep=period,singlelinecheck=off]{caption}
+
+% remove brackets from references
+\makeatletter
+\renewcommand{\@biblabel}[1]{\quad#1.}
+\makeatother
+
+% headrule, footrule and page numbers
+\usepackage{lastpage,fancyhdr,graphicx}
+\usepackage{epstopdf}
+\pagestyle{myheadings}
+\pagestyle{fancy}
+\fancyhf{}
+\rfoot{\thepage/\pageref{LastPage}}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrule}{\hrule height 0pt \vspace{2mm}}
+\fancyheadoffset[L]{2.25in}
+\fancyfootoffset[L]{2.25in}
+
+% use \textcolor{color}{text} for colored text (e.g. highlight to-do areas)
+\usepackage{color}
+
+% define custom colors (this one is for figure captions)
+\definecolor{Gray}{gray}{.25}
+
+% this is required to include graphics
+\usepackage{graphicx}
+
+% bold math for matrices
+% https://tex.stackexchange.com/questions/199789/which-bold-style-is-recommended-for-matrix-notation
+\newcommand{\matr}[1]{\mathbf{#1}}
+
+% block arrays for matrices with labeled rows and columns
+\usepackage{blkarray}
+
+% monospace font for inline code
+\def\code#1{\texttt{#1}}
+
+% multiline equations with \multilined{} https://tex.stackexchange.com/questions/194236/why-does-not-go-to-new-line-in-equation
+\usepackage{mathtools}
+
+% easy equation alignment
+\usepackage{amsmath} 
+
+% pretty bold vectors
+\usepackage{bm}
+
+
+\usepackage{authblk}
+
+\author[1]{Maxwell B. Joseph\thanks{maxwell.b.joseph@colorado.edu}}
+\author[1]{Matthew W. Rossi}
+\author[1]{Nathan P. Mietkiewicz}
+\author[1]{Adam L. Mahood}
+\author[1]{Megan E. Cattau}
+\author[1]{Lise Ann St. Denis}
+\author[1]{R. Chelsea Nagy}
+\author[1]{Virginia Iglesias} 
+\author[2]{John T. Abatzoglou}
+\author[1]{Jennifer K. Balch}
+\affil[1]{Earth Lab, University of Colorado Boulder}
+\affil[2]{Department of Geography, University of Idaho}
