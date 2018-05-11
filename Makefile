@@ -106,6 +106,13 @@ count-preds.rds fig/count-preds.png: R/plot-predicted-counts.R zinb_full_fit.rds
 fig/test-set-burn-area.png fig/number-vs-exceedance.png fig/max-preds-l2-minimal.png fig/max-preds-l3-all.png test_preds.rds: count-preds.rds \
 	ba_lognormal_fit.rds R/mev-plots.R
 		Rscript --vanilla R/mev-plots.R
+		
+push_fits_to_s3: 
+	aws s3 cp . s3://earthlab-mjoseph/ --recursive --exclude "*" --include "*_fit.rds"
+
+pull_fits_from_s3:
+	aws s3 cp s3://earthlab-mjoseph/ . --recursive --exclude "*" --include "*_fit.rds"
+
 
 clean: 
 		find . -type f -name '*.png' -delete
