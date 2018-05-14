@@ -32,8 +32,10 @@ RUN install2.r --error --deps TRUE rstan
 RUN apt-get update && apt-get install -y --no-install-recommends \
   gdal-bin \ 
   libgdal-dev \
+  libhdf4-alt-dev \
   libhdf5-dev \
   liblwgeom-dev \
+  libnetcdf-dev \
   libsqlite3-dev \
   libssh2-1-dev \
   libssl-dev \
@@ -52,6 +54,7 @@ RUN install2.r --error \
   hrbrthemes \
   lubridate \
   maptools \
+  ncdf4 \
   pbapply \
   raster \
   RCurl \
@@ -61,6 +64,9 @@ RUN install2.r --error \
   snowfall \
   viridis \
   zoo \
+  ## from bioconductor
+  && R -e "source('https://bioconductor.org/biocLite.R'); biocLite('BiocInstaller')" \
+  && R -e "BiocInstaller::biocLite('rhdf5')" \
   ## from GitHub
   && R -e "devtools::install_github('thomasp85/patchwork')"
 
