@@ -107,10 +107,10 @@ fig/test-set-burn-area.png fig/number-vs-exceedance.png fig/max-preds-l2-minimal
 	ba_lognormal_fit.rds R/mev-plots.R
 		Rscript --vanilla R/mev-plots.R
 		
-push_fits_to_s3: 
+push_fits: 
 	aws s3 cp . s3://earthlab-mjoseph/ --recursive --exclude "*" --include "*_fit.rds"
 
-pull_fits_from_s3:
+pull_fits:
 	aws s3 cp s3://earthlab-mjoseph/ . --recursive --exclude "*" --include "*_fit.rds"
 
 
