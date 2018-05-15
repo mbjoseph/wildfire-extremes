@@ -41,8 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libssl-dev \
   libudunits2-dev \
   python-pip \
-  texlive-fonts-extra \
-  texlive-latex-extra 
+  texlive-full
 
 RUN install2.r --error \
   assertthat \
