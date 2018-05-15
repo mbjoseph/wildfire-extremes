@@ -36,3 +36,4 @@ vignettes/*.pdf
 *.nc
 ecoregion_tri.csv
 main.tex
+main.log
