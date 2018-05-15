@@ -6,7 +6,6 @@ library(ggrepel)
 library(patchwork)
 library(ggthemes)
 
-fit <- read_rds('ba_lognormal_fit.rds')
 colnamesX <- read_rds('data/processed/colnamesX.rds')
 X <- read_rds('data/processed/X.rds')
 st_covs <- read_rds('data/processed/st_covs.rds')
@@ -14,9 +13,9 @@ ecoregions <- read_rds('data/processed/ecoregions.rds')
 stan_d <- read_rds('data/processed/stan_d.rds')
 
 # Extract posterior draws and visualize results ---------------------------
-post <- rstan::extract(fit)
+post <- rstan::extract(read_rds('ba_lognormal_fit.rds'), 
+                       pars = c('beta', 'lp__', 'mu_full'))
 str(post)
-rm(fit)
 gc()
 
 
@@ -97,13 +96,8 @@ beta_summary %>%
   ylab('') +
   xlab('')
 
-
-beta_summary %>%
-  filter(p_neg > .9 | p_pos > .9)
-gc()
-
 # Partial effect plots ----------------------------------------------------
-which_var <- 'crmin'
+which_var <- 'rmin'
 
 partial_effs <- list()
 n_iter <- length(post$lp__)
