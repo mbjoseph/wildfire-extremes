@@ -45,12 +45,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN install2.r --error \
   assertthat \
+  bookdown \
   cowplot \
   foreign \
   ggrepel \
   ggridges \
   ggthemes \
   hrbrthemes \
+  kableExtra \
   lubridate \
   maptools \
   ncdf4 \
