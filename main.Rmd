@@ -2,19 +2,22 @@
 title: "Understanding and predicting extreme wildfires in the contiguous United States"
 bibliography: library.bib
 output:
-    pdf_document:
-        includes:
-            in_header: header.sty
+    bookdown::pdf_document2:
+      keep_tex: true
+      toc: no
+      includes:
+          in_header: header.sty
 fontsize: 12pt
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(knitr)
+library(kableExtra)
 ```
 
-```{r load-count-test-intervals}
+```{r load-count-test-intervals, message=FALSE, warning=FALSE}
 count_test_intervals <- read_csv('data/processed/count_test_intervals.csv')
 ```
 
@@ -23,7 +26,7 @@ Extreme wildfires are becoming more frequent and getting larger in many parts of
 Here we integrate a 30 year wildfire occurrence record with meteorological and housing data to explain and predict wildfire extremes across the contiguous United States. 
 We find that extreme wildfire events can be explained primarily by increased fire frequency, rather than dramatic changes in expected wildfire burn area.
 Dryness, air temperature, precipitation, and human housing density regulate wildfire risk, but these effects strongly depend on location and ecological context. 
-We construct a predictive model by exploiting spatiotemporal dependence and allowing drivers of fire risk to have nonlinear spatially varying effects, with 98.9\% interval coverage for the number of fires over 1000 acres in a withheld data set over a five-year prediction time horizon. 
+We construct a predictive model by exploiting spatiotemporal dependence and allowing drivers of fire risk to have nonlinear spatially varying effects, with `r 100 * round(mean(count_test_intervals$in_interval), 3)`\% interval coverage for the number of fires over 1000 acres in a withheld data set over a five-year prediction time horizon. 
 We demonstrate that observed extreme wildfires can be anticipated at a spatiotemporal resolution that is useful for wildfire management and disaster planning. 
 We conclude that recent wildfire extremes need not be surprising, and that the chance of much larger million-acre wildfires is alarmingly high.
 \end{abstract}
@@ -31,7 +34,7 @@ We conclude that recent wildfire extremes need not be surprising, and that the c
 \linenumbers
 
 
-\section*{Introduction}
+# Introduction
 
 Wildfire frequency and burned area has increased over the past couple decades in the United States [@dennison2014large; @westerling2016increasing], and other areas globally [@krawchuk2009global; @pechony2010driving]. 
 In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] given the hazards they pose in some ecosystems as well as to human lives and infrastructure [@kochi2010economic; @diaz2012economic].
@@ -51,7 +54,7 @@ As human density increases from zero, ignition pressure increases, but eventuall
 At intermediate density, wildfire dynamics respond to human ignition and altered fuel distributions [@Guyette2002], but these responses depend on environmental context and characteristics of the human population [@Marlon2008; @Li2009]. 
 Further complicating matters, the drivers of large wildfires are known to be spatially variable in addition to being nonlinear [@barbero2014modeling].
 
-Useful medium to long term predictions for wildfire extremes might contain information on their occurrence (where and when), and magnitude (burn area) over a monthly time scale. 
+We aim to predict occurrence (where and when), and magnitude (burn area) of large wildfires over a monthly time scale. 
 Such information could help prioritize reactive fire suppression resources, or inform proactive planning to mitigate wildfire risk.
 Point-process models for occurrence with generalized Pareto models for burn area have been used [@davison1990models], but require a threshold that delineates extreme vs. not extreme events, discarding information about non-extremes. 
 A metastatistical extreme value ($MEV$) approach does not require such a threshold and retains information on all events [@marani2015metastatistical; @zorzetto2016emergence]. 
@@ -59,14 +62,28 @@ This approach has roots in compound distributions [@dubey1970compound; @wiitala1
 In the MEV framework, the occurrence and size of future events, and the parameters of their distributions are treated as random variables. 
 Here, we exploit and extend this deeply Bayesian notion to account for non-linear, spatially varying wildfire dynamics with the goal of predicting and explaining extreme wildfire events across the contiguous United States.
 
-\section*{Methods}
+# Methods
 
-\subsection*{Data description}
+## Data description
+
+```{r read-count-data, message=FALSE, warning=FALSE}
+train_counts <- read_rds('data/processed/train_counts.rds')
+holdout_counts <- read_rds('data/processed/holdout_counts.rds')
+count_df <- full_join(train_counts, holdout_counts)
+n_fires_total <- sum(count_df$n_fire)
+```
 
 We acquired fire occurrence data from the Monitoring Trends in Burn Severity (MTBS, www.mtbs.gov) program [@eidenshink20071145801], which includes spatial and temporal information on the occurrence of wildfires in the United States from 1984 to 2015. 
 The MTBS data contain fires greater than 1000 acres in the western US and greater than 500 acres in the eastern US. 
 For consistency across the US, we discarded all records in the MTBS data less than 1000 acres. 
-We also excluded data from Alaska, Hawaii, and Puerto Rico, so that our study area is a continuous swath of land, comprising the lower 48 states, resulting in 16,307 fire events under consideration. 
+We also excluded data from Alaska, Hawaii, and Puerto Rico, so that our study area is a continuous swath of land, comprising the lower 48 states, resulting in `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events under consideration (Figure \ref{study-region}A).
+
+
+\begin{figure}[ht]
+\includegraphics[width=\textwidth]{fig/maps.png}
+\caption{\color{Gray} A. Fire ignition locations are shown as points across the study region. Colors in panels B, C, and D show different level 1, 2, and 3 ecoregions respectively.}
+\label{study-region}
+\end{figure}
 
 To explain fire size and occurrence, we used a combination of meteorological variables including humidity, air temperature, precipitation, and wind speed. 
 These variables were selected on the basis of previous work, and also with an aim to capture directly the effects of easily interpretable meteorological quantities (as compared to an index of fire weather, for example). 
@@ -79,7 +96,7 @@ We also used publicly available housing density estimates that were generated ba
 These are provided at decadal time steps, and spatially at the level of census partial block groups. 
 To generate approximate measures of housing density at monthly time intervals, we used a simple linear interpolation over time, and aggregated spatially across block groups to compute mean housing density for each ecoregion in each month. 
 
-\subsection*{Model development}
+## Model development
 
 We built two types of models: one describing the occurrence of fires within an ecoregion over time (e.g., the total number of fires occurring in each ecoregion for each month from 1984 - 2015), and another describing the size of each wildfire in each ecoregion and month.
 For the occurrence models, the response variable was a count (number of fires), and for the burn area models, the response was a continuous positive quantity (burn area of each fire event). 
@@ -87,36 +104,16 @@ Modeling the size of each fire, rather than the mean or total burn area of all f
 We used the period from 1984 - 2009 for training, and the period from 2010-2015 was withheld to evaluate predictive performance. 
 As we will demonstrate, this event-level modeling approach is still conducive to making inference on total burn areas over spatiotemporal domains via posterior predictive simulation.
 
-\subsubsection*{Fire occurrence}
+### Fire occurrence
 
 We constructed four models for fire occurrence and compared their predictive performance based on test-set log likelihood, and posterior predictive checks for the proportion of zeros, maximum count, and total count. 
-The models differed in the distributions used in the likelihood, with each model representing counts in each month as a Poisson, negative binomial, zero-inflated Poisson, or zero-inflated negative binomial random variable (Table \ref{tab:count-likelihoods}). 
-
-\begin{table}
-	\bgroup\footnotesize
-    \begin{tabular}{l l l}
-        Distribution   & Probability mass function &  Parameters: $\theta_f$ \\ \hline
-        Poisson & $\dfrac{\mu^ne^{-\mu}}{n!}$      &  $\begin{array} {l} \mu: \textnormal{mean} \end{array}$ \\
-        ~ & ~ & ~\\
-        Neg. binom.       & $\binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$          & $\begin{array}{l} \mu: \textnormal{mean} \\ \delta: \textnormal{dispersion} \end{array}$ \\
-        ~ & ~ & ~\\
-        ZIP & $I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{-\mu}}{n!}$  & $\begin{array} {l} \mu: \textnormal{Poisson mean} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$ \\
-        ~ & ~ & ~\\
-        ZINB & $I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \big)^\delta) + I_{n > 0} \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$ & $\begin{array} {l} \mu: \textnormal{NB mean} \\ \delta: \textnormal{NB dispersion} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$ 
-    \end{tabular}
-    \egroup
-    \caption{\label{tab:count-likelihoods}Count model distributions (ZIP: zero-inflated Poisson, ZINB: zero-inflated negative binomial, NB: negative binomial), probability mass functions, and parameters for each distribution. $I_{n=0}$ is an indicator function that takes on the value of 1 if the condition in the subscript ($n=0$) is satisfied, and is zero otherwise. $I_{n>0}$ is equal to one if $n>0$, and is zero otherwise.}
-\end{table}
+The models differed in the distributions used in the likelihood, with each model representing counts in each month as a Poisson, negative binomial, zero-inflated Poisson, or zero-inflated negative binomial random variable. 
 
 For spatial units (ecoregions) $s=1, ..., S$ and time steps (months) $t = 1, ..., T$ each model defines a probability mass function $[n_{s, t} \mid \theta_f]$, where $n_{s, t}$ is the number of fires over 1000 acres in ecoregion $s$ and time step $t$, and $\theta_f$ represents the parameters of the probability mass function. 
-We assumed that count values across ecoregions and time steps were conditionally independent, so that the joint probability of all counts was given by: 
-
-$$[\matr{N} | \theta_f] = \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \theta_f],$$
-
-where $\matr{N}$ is an $S \times T$ array of integers and $n_{s, t}$ is the element in row $s$, column $t$.
+We assumed that count values across ecoregions and time steps were conditionally independent, so that the joint probability of all counts was given by $[\matr{N} | \theta_f] = \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \theta_f]$, where $\matr{N}$ is an $S \times T$ array of integers and $n_{s, t}$ is the element in row $s$, column $t$.
 The distributional mean parameters ($\mu_{s, t}$) and (for zero-inflated models) structural zero inflation parameters $\pi_{s, t}$, were allowed to vary spatially (indexed by $s$) and in time (indexed by $t$).
 We used a log link function to ensure that $\mu_{s, t} > 0 \, \forall s, t$, and a logit link function to ensure that $\pi_{s, t} \in (0, 1) \, \forall s, t$.
-Concatenating over spatial and temporal units, so that $\bm{\mu} = (\mu_{s=1, t=1}, \mu_{s=2, t=1}, ..., \mu_{s=S, t=1}, \mu_{s=S, t=2}, ..., \mu_{s=S, t=T})$, and similarly for $\bm{\pi}$, we modeled distributional mean and zero inflation parameters as: 
+Concatenating over spatial and temporal units, so that $\bm{\mu} = (\mu_{s=1, t=1}, \mu_{s=2, t=1}, ..., \mu_{s=S, t=1}, \mu_{s=S, t=2}, ..., \mu_{s=S, t=T})$, and similarly for $\bm{\pi}$, we modeled distributional mean and (when applicable) zero inflation parameters as: 
 
 $$\log(\bm{\mu}) = \alpha^{(\mu)} + \matr{X} \bm{\beta}^{(\mu)} + \bm \phi^{(\mu)} + \log (\bm a),$$
 
@@ -124,32 +121,12 @@ $$\textnormal{logit}(\bm{\pi}) = \alpha^{(\pi)} + \matr{X} \bm{\beta}^{(\pi)}  +
 
 where $\alpha^{(\mu)}$ and $\alpha^{(\pi)}$ are scalar intercept parameters, $\matr{X}$ is a known $(S \times T) \times p$ design matrix, $\bm{\beta}^{(\mu)}$ and $\bm{\beta}^{(\pi)}$ are column vector parameters of length $p$, $\bm \phi^{(\mu)}$  and $\bm \phi^{(\pi)}$ are column vector parameters of length $(S \times T)$ containing spatiotemporal adjustments, and $\bm a$ is a known offset vector of areas for spatial unit $s = 1, 2, ..., S$, repeated $T$ times.
 
-\subsubsection*{Burn area}
+### Burn area
 
-We developed multiple candidate models for burn area, each of which specified a different distribution for burn areas [@reed2002power; @hernandez2015statistical], including the generalized Pareto [@hosking1987parameter], tapered Pareto [@schoenberg2003distribution], lognormal, gamma, and Weibull distributions (Table \ref{tab:area-likelihoods}). 
+We developed multiple candidate models for burn area, each of which specified a different distribution for burn areas [@reed2002power; @hernandez2015statistical], including the generalized Pareto [@hosking1987parameter], tapered Pareto [@schoenberg2003distribution], lognormal, gamma, and Weibull distributions. 
 We evaluated each model in terms of test set log likelihood, and posterior predictive checks for burn area extremes. 
 As the MTBS data excludes fires < 1000 acres, we defined our response $y_{i}$ to be the number of acres burned over 1000 for the $i^{th}$ fire event, which occurred in spatial unit $s_i$ and time step $t_i$.
-Fire events were assumed to be conditionally independent, so that the joint probability density of all fire events $i = 1, ..., n_{\textnormal{tot}}$, where $n_{\textnormal{tot}} = \sum_{s}\sum_{t} n_{s, t}$,  was defined as the product of event-wise burn area likelihoods $[y_i | \theta_g]$:
-
-$$[\bm y | \theta_g] = \prod_{i = 1} ^ {n_{\textnormal{tot}}} [y_i | \theta_g].$$
-
-\begin{table}
-	\bgroup\footnotesize
-    \begin{tabular}{l l l}
-        Distribution   & Probability density function &  Parameters: $\theta_g$ \\ \hline
-        Generalized Pareto & $\dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big) ^ {- (\kappa + 1)\kappa^{-1}}$      &  $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
-        ~ & ~ & ~\\
-        Tapered Pareto       & $\Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{exp} (-x / \nu)$          & $\begin{array}{l} \kappa: \textnormal{shape} \\ \nu: \textnormal{taper} \end{array}$ \\
-        ~ & ~ & ~\\
-        Lognormal & $\dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{exp}\Big( -\dfrac{(\log (y) - \mu)^2}{2 \sigma^2} \Big)$  & $\begin{array} {l} \mu: \textnormal{location} \\ \sigma: \textnormal{scale} \end{array}$ \\
-        ~ & ~ & ~\\
-        Gamma & $\dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} \textnormal{exp}(-y / \sigma)$ & $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
-        ~ & ~ & ~ \\
-        Weibull & $\dfrac{\kappa}{\sigma} \Big( \dfrac{y}{\sigma} \Big)^{\kappa - 1} \textnormal{exp} \Big( - \Big(\dfrac{y}{\sigma} \Big)^\alpha \Big)$  & $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
-    \end{tabular}
-    \egroup
-    \caption{\label{tab:area-likelihoods}Burn area exceedance distributions, along with probability density functions and parameters for each distribution. Note that we are assuming a lower bound and location parameter of 0 for the generalized and tapered Pareto distributions.}
-\end{table}
+Fire events were assumed to be conditionally independent, so that the joint probability density of all fire events $i = 1, ..., n_{\textnormal{tot}}$, where $n_{\textnormal{tot}} = \sum_{s}\sum_{t} n_{s, t}$,  was defined as the product of event-wise burn area likelihoods $[y_i | \theta_g]$: $[\bm y | \theta_g] = \prod_{i = 1} ^ {n_{\textnormal{tot}}} [y_i | \theta_g].$
 
 Because each burn area distribution has a different parameterization, we included covariate effects in a distribution-specific way. 
 For the generalized Pareto distribution (GPD), we assumed \textit{a priori} that shape parameter was positive [@bermudez2009spatial], which when combined with a lower bound of zero allows a more stable parameterization as a Pareto type 2 distribution with a location parameter of 0, also known as a Lomax distribution. 
@@ -161,7 +138,7 @@ With the gamma model, we included covariate dependence via a log link on the exp
 Finally, covariate dependence was introduced in the Weibull distribution via the scale parameter: $\log(\sigma_i) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$.
 
 
-\subsubsection*{Accounting for nonlinear forcing}
+### Accounting for nonlinear forcing
 
 The design matrix $\matr{X}$ was constructed to allow for spatially varying nonlinear effects of housing density and meteorological drivers. 
 We used B-splines to account for nonlinearity and allowed the coefficients for each basis vector to vary spatially [@wood2017}. 
@@ -171,19 +148,24 @@ Then, we constructed univariate B-splines for housing density, wind speed, same 
 Boundary knots for each basis expansion were set to the range of the transformed values of each variable. 
 This step generated 30 basis vectors (five for each of six variables). 
 
+```{r}
+colnamesX <- read_rds('data/processed/colnamesX.rds')
+X <- read_rds('data/processed/X.rds')
+X_pct_zero <- mean(X == 0)
+```
+
 To allow for spatial variation in these nonlinear effects, we added interaction effects between each of the basis vectors and ecoregions [@brezger2006generalized; @kneib2009variable].
-The hierarchical nature of ecoregion designations lends itself to such interactions. 
+The hierarchical nature of ecoregion designations lends itself to such interactions (Figure \ref{study-region}B-D). 
 Conceptually, what happens in a level 3 ecoregion may be related to what happens in the level 2 ecoregion containing the level 3 region, the level 1 ecoregion containing the level 2 region, and a global effect. 
 For every univariate basis vector, we included an interaction effect with ecoregion at each of the three ecoregion levels, which allows the effect of every climate variable and housing density to differ spatially.
 This is appealing because the ecoregion designation allows borrowing of information across space (level 3 ecoregions in a level 2 ecoregion are often adjacent), and for regions that are ecologically similar. 
 We also included adjustments on the global intercept for each level 1, 2, and 3 ecoregion. 
 This specification induces sparsity in $\matr{X}$ that we exploit to increase the efficiency of computing $\bm \mu$ and $\bm \pi$. 
-In total $\matr{X}$ has $p=3474$ columns.  
-<!-- TODO: update p here now that the tensor product smooths are removed -->
+In total $\matr{X}$ has $p=$ `r format(length(colnamesX), big.mark = ',', scientific = FALSE)` columns, with `r round(100 * X_pct_zero, 0)`\% zero entries.
 
-\subsection*{Prior specification}
+## Prior specification
 
-\subsubsection*{Wildfire occurrence} 
+### Wildfire occurrence
 
 Prior distributions were chosen to regularize covariate coefficients on the distribution specific means $\beta^{(\mu)}$ and structural zero parameters $\beta^{(\pi)}$. 
 We used a regularized horseshoe prior on these coefficients, which shrinks irrelevant coefficients towards zero, while regularizing nonzero coefficients [@piironen2017sparsity]. 
@@ -235,7 +217,7 @@ Last, we placed an $\textnormal{LKJ}(3)$ prior distribution on the $2 \times 2$ 
 For each model, we provide unnormalized posterior density specifications in \nameref{joint-distributions}. 
 
 
-\subsubsection*{Burned area}
+### Burned area
 
 We applied a univariate regularized horseshoe prior to all $\beta$ coefficients in burn area models [@piironen2017sparsity]:
 
@@ -258,7 +240,7 @@ The tapering parameter of the tapered Pareto distribution was given a heavy-tail
 Last, the lognormal scale parameter also received a half-normal prior $[\sigma] = \textnormal{Normal}^+(\sigma | 0, 5^2)$.
 Unnormalized posterior densities for burn area models are provided in  \nameref{joint-distributions}.
 
-\subsection*{Posterior predictive inference and extremes}
+## Posterior predictive inference and extremes
 
 We used the posterior predictive distribution to check each model and make inference on extremes. 
 The posterior predictive distribution provides a distribution for replications of observed data ($y^{\textnormal{rep}}$), and predictions of future data ($\tilde{y}$) [@gelman2013bayesian]. 
@@ -273,53 +255,34 @@ Both obtain a distribution over maxima by marginalizing over unknown parameters,
 However, a Bayesian approach explicitly conditions on the observed data.
 Seeing this connection is useful in the context of including priors and propagating uncertainty in derived parameters such as total burn areas, and probabilities of million acre wildfires.
 
-\subsection*{Parameter estimation}
+## Parameter estimation
 
 We used a combination of variational approximations and Markov chain Monte Carlo (MCMC) methods to sample from the posterior distributions of count and burn area models. 
 Count models were fit using automatic differentiation variational inference [@kucukelbir2015automatic] in the Stan probabilistic programming language using the \code{rstan} package [@carpenter2016stan]. 
 A variational approximation was used to quickly identify the best count model and avoid excessive multi-day model runs. 
-The best performing count model and all burn area models were fit using the No-U-Turn Sampler, with a maximum treedepth of 11 and a delta adaptation rate of 0.99 [@hoffman2014no].
+The best performing count model and all burn area models were fit using the No-U-Turn Sampler [@hoffman2014no].
 We ran four chains for 1000 iterations each, and discarded the first 500 iterations as warmup. 
 Convergence was assessed using visual inspection of trace plots, with $\hat{R} \geq 1.1$ as an indicator convergence failure [@brooks1998general].
 
+# Results
 
-\section*{Results}
+## Wildfire occurrence
 
-\subsection*{Wildfire occurrence}
-
-The zero-inflated negative binomial distribution performed best on the held-out test set (Figure \ref{loglik-counts}), and was able to recover the proportion of zeros, count maxima, and count totals in posterior predictive checks for both the training and test data (Figure \ref{ppc-counts}). 
+The zero-inflated negative binomial distribution performed best on the held-out test set (Table \@ref(tab:count-loglik)), and was able to recover the proportion of zeros, count maxima, and count totals in posterior predictive checks for both the training and test data (Figure \ref{ppc-counts}). 
 All of the other count models that we considered exhibited lack of fit to at least one of these statistics in posterior predictive checks. 
 Hereafter we report results from the zero-inflated negative binomial model.
 
-<!-- % * <jabatzoglouui@gmail.com> 2018-03-03T01:09:43.131Z: -->
-<!-- %  -->
-<!-- % Seems like a map that shows the regions of interest is needed. I don't understand why some of these say the region name and others just variables. It looks like most of the data points are these very light grey circles that are not visible unless the figure is very large. You might consider better emphasizing these, having them a different color than the grid as well. -->
-<!-- %  -->
-<!-- % ^. -->
-\begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/bivar-effs.png}
-\caption{\color{Gray} Posterior median fire count coefficients. The x-axis represents the effect on the logit complementary probability of a structural zero, and the y-axis shows the effect on the negative binomial log mean. Effects with an 85\% or greater posterior probability of being positive or negative are labeled. B-spline vectors are indicated by colons. Humidity:1 indicates the first basis vector corresponding to very low humidity. Interactions are labeled with a \code{x} between variables. Ecoregions are labeled by numeric level and name. Note the cluster of points close to zero resulting from the shrinkage prior.} 
-\label{bivar-effs}
-\end{figure}
+```{r count-loglik, message=FALSE} 
+count_loglik <- read_csv('data/processed/count-loglik.csv')
+kable(count_loglik, 
+      caption = 'Performance of count models on the test set in descending order. Numbers represent posterior means with standard deviations in parentheses for the test set log likelihood.') %>%
+  kable_styling(latex_options = 'striped')
+```
 
-Humidity and air temperature had the strongest effects in the count model (Figure \ref{bivar-effs}). 
-<!-- % * <jabatzoglouui@gmail.com> 2018-03-03T01:12:57.971Z: -->
-<!-- %  -->
-<!-- % Is this minimum RH? The x-axis should go from 0-100, rather than expressed as a fraction -->
-<!-- %  -->
-<!-- % ^. -->
-<!-- % * <jabatzoglouui@gmail.com> 2018-03-03T00:59:08.250Z: -->
-<!-- %  -->
-<!-- % Very likely, this is catching the seasonal cycle of fires, they burn when temperatures and high and RH is low; the question is how well this accounts for some of the year-to-year variability; I'm also confused whether you build one model per ecoreion and/or how that is being visualized here -->
-<!-- %  -->
-<!-- % ^. -->
+
+Minimum relative humidity and maximum air temperature had the strongest effects in the count model (Figure \ref{count-partial-effs}, \ref{fire-effs}). 
 When a covariate increased the mean of the negative binomial component, it was likely to decrease the probability of a structural zero (posterior median for $\rho$: 0.686, 95\% CI: 0.381, 0.897). 
-Temperature, housing density, wind speed, and long term precipitation were also important, and the model uncovered unique effects of these variables at level 1, 2, and 3 ecoregions (Figure \ref{bivar-effs}, \ref{fire-effs}).
-<!-- % * <jabatzoglouui@gmail.com> 2018-03-03T01:14:26.048Z: -->
-<!-- %  -->
-<!-- % RH looks to be the strongest variable for partial effects; I would think that some measure of fuel moisture might be even better -->
-<!-- %  -->
-<!-- % ^. -->
+Temperature, housing density, wind speed, and long term precipitation were also important, and the model uncovered unique effects of these variables at level 1, 2, and 3 ecoregions (Figure \ref{fire-effs}).
 Nonlinear effects on the negative binomial mean can be visualized in Figure \ref{count-partial-effs}, and results for the zero-inflation component are similar. 
 
 \begin{figure}[ht]
@@ -333,9 +296,9 @@ The positive interaction effect between the first humidity basis vector and the 
 Similarly, the interaction between the third basis vector and the L1 Great Plains ecoregion indicates that the expected wildfire counts in the plains are relatively low at moderate humidity values. 
 
 Overall, temperature increased expected counts.
-In the L1 Great Plains, the reduction in expected count from cold temperatures was relatively weak (Figure \ref{bivar-effs}).
+In the L1 Great Plains, the reduction in expected count from cold temperatures was relatively weak (Figure \ref{fire-effs}).
 The L2 Ozark/Ouachita-Appalachian Forests and L3 Ozark Highlands ecoregions also had unique temperature effects, corresponding to relatively high counts at moderate temperatures in the L2 region, and low counts in hot conditions in the L3 region. 
-Last, very hot conditions in the L3 Sonoran Desert had weaker effects on expected counts, relative to the rest of the contiguous US (Figure \ref{bivar-effs}). 
+Last, very hot conditions in the L3 Sonoran Desert had weaker effects on expected counts, relative to the rest of the contiguous US (Figure \ref{fire-effs}). 
 <!-- % * <jabatzoglouui@gmail.com> 2018-03-04T04:50:07.488Z: -->
 <!-- %  -->
 <!-- % No vegetation here, so this is no surprise -->
@@ -343,8 +306,8 @@ Last, very hot conditions in the L3 Sonoran Desert had weaker effects on expecte
 <!-- % ^. -->
 
 Low long-term precipitation was weakly associated with higher expected counts. 
-This effect was different in the L3 Sonoran Desert (Figure \ref{bivar-effs}), where very dry conditions were actually associated with a reduction in expected count. 
-High winds were also associated with higher expected counts (Figure \ref{bivar-effs}).
+This effect was different in the L3 Sonoran Desert (Figure \ref{fire-effs}), where very dry conditions were actually associated with a reduction in expected count. 
+High winds were also associated with higher expected counts (Figure \ref{fire-effs}).
 Housing density showed a unimodal relationship to expected count (Figure \ref{count-partial-effs}), with lower expected counts in unpopulated and heavily populated ecoregions, and higher expected counts with moderately populated ecoregions. 
 
 Posterior 95\% credible interval coverage for the number of fires over 1000 acres in the test set was 98\%. 
@@ -352,13 +315,20 @@ The lowest interval coverage (87.5\%) occurring for the Cross Timbers  L3 ecoreg
 When observed counts fell outside the 95\% prediction interval, counts were larger than predicted (Figure \ref{count-preds}).
 For nearly half of the level 3 ecoregions (35 of 85), accounting for 34\% of the land area of the contiguous U.S., the zero-inflated negative binomial model had 100\% test set prediction interval coverage.
 
-\subsection*{Wildfire burned areas}
+## Wildfire burned areas
 
-The log normal distribution performed best on the test set (Figure \ref{loglik-burns}), and captured tail-behaviour (Figure \ref{ppc-density-funs}).
+```{r ba-loglik, message=FALSE} 
+burn_area_loglik <- read_csv('data/processed/burn-area-loglik.csv')
+kable(burn_area_loglik, 
+      caption = 'Performance of burn area models on the test set in descending order. Numbers represent posterior means with standard deviations in parentheses for the test set log likelihood.') %>%
+  kable_styling(latex_options = 'striped')
+```
+
+The lognormal distribution performed best on the test set (Table \@ref(tab:ba-loglik)), and captured tail-behaviour better than other burn area distributions (Figure \ref{ppc-density-funs}).
 The GPD was too heavy-tailed to adequately capture the pattern in the empirical data (Figure \ref{ppc-density-funs}). 
 The tapered Pareto distribution was too light-tailed (Figure \ref{ppc-density-funs}).
-The gamma and Weibull models performed very poorly on the test set, apparently due to a lack of congruence between the shapes of these distributions and the actual burn area distribution (Figures \ref{loglik-burns} and \ref{ppc-density-funs}).
-Hereafter we present results for the log normal model.
+The gamma and Weibull models performed very poorly on the test set, apparently due to a lack of congruence between the shapes of these distributions and the actual burn area distribution (Figure \ref{ppc-density-funs}).
+Hereafter we present results for the lognormal model.
 
 Relative humidity was primary driver of expected burn area for a fire event (Figure \ref{burn-area-effs}A). 
 The first basis vector for mean daily minimum humidity was the only coefficient with a 95\% credible interval that did not include zero (posterior median: 1.67, 95\% CI: (0.025, 2.316)). 
@@ -377,7 +347,7 @@ In the test set, 95\% posterior predictive interval coverage for burn areas was 
 \label{burn-area-effs} 
 \end{figure}
 
-\subsection*{Inference on extremes}
+## Inference on extremes
 
 By combining the output of the event count and burn area models, we derived posterior prediction intervals for block maxima (the size of the largest fire in a month for each region).
 In the holdout period from 2010 to 2015, a 99\% prediction interval achieved 90.3\% interval coverage, with 4.6\% of the block maxima (37 fire events) being larger than predicted (Figure \ref{max-preds-l2-minimal}). 
@@ -402,7 +372,7 @@ If we extrapolate, the probability that at least one fire exceeded one million a
 \label{max-preds-l2-minimal}
 \end{figure}
 
-\subsection*{Error analysis case study: the 2011 Wallow Fire}
+## Error analysis case study: the 2011 Wallow Fire
 
 To better understand how well the model could or could not anticipate notable extreme events, and why, we used the largest fire in the test set as a case study. 
 The Wallow Fire was accidentally ignited on May 29, 2011 by two campers in the L3 Arizona/New Mexico Mountains ecoregion.
@@ -433,7 +403,7 @@ This provides a quantitative measure of how each input variable contributes to t
 Figure \ref{attribution-plot} reveals that humidity is the primary driver of variation in the model's predictions, and that the conditions in June - the month after ignition - favored more large fires, with dryer, hotter conditions. 
 Evidently, conditions in May that drove (under)predictions of maximum burn area were not representative of the conditions over most of the Wallow Fire's duration.
 
-\section*{Discussion}
+# Discussion
 
 Extreme wildfires are often devastating, but perhaps they need not be surprising. 
 By allowing the non-linear effects of weather and human housing density to vary across space, we were able to achieve good predictive accuracy for fire extremes over a five-year prediction window. 
@@ -484,34 +454,71 @@ Our hope is that such an approach can be operationalized to inform decision-maki
 There is work to be done to link extreme wildfire dynamics with human consequences to better understand when and where wildfires are likely to result in catastrophic natural disasters. 
 In all but the most populated ecoregions, future increases in human density will increase wildfire risk, adding urgency to predictive modeling efforts with potential to mitigate loss of life, property damage, and health impacts from extreme wildfires. 
 
-\section*{Acknowledgments}
+# Acknowledgments
 
 We thank Mitzi Morris, Kyle Foreman, Daniel Simpson, Bob Carpenter, and Andrew Gelman for contributing to the implementation of an intrinsic autoregressive spatial prior in Stan.
 
 \nolinenumbers
 
-\section*{References}
+# References
 
 <div id="refs"></div>
 
-\clearpage
+\newpage
 
 
 
-\section*{Supporting Information}
+# Supporting Information
 
 
 \setcounter{figure}{0}
 \renewcommand{\thefigure}{S\arabic{figure}}
+\setcounter{table}{0}
+\renewcommand{\thetable}{S\arabic{table}}
 
 
-\subsection*{Joint distributions}
+## Joint distributions
 \label{joint-distributions}
 
 Here we provide the unnormalized posterior densities for each model.
 Square brackets represent a probability mass or density function. 
-Normal distributions are parameterized with mean and variance parameters.
-ZIP and ZINB are probability mass functions in Table \ref{tab:count-likelihoods}.
+Parameterizations for count model likelihoods are provided in Table \ref{tab:count-likelihoods}, and burn area likelihood parameterizations are provided in Table \ref{tab:area-likelihoods}.
+
+\begin{table}
+	\bgroup\footnotesize
+    \begin{tabular}{l l l}
+        Distribution   & Probability mass function &  Parameters: $\theta_f$ \\ \hline
+        Poisson & $\dfrac{\mu^ne^{-\mu}}{n!}$      &  $\begin{array} {l} \mu: \textnormal{mean} \end{array}$ \\
+        ~ & ~ & ~\\
+        Neg. binom.       & $\binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$          & $\begin{array}{l} \mu: \textnormal{mean} \\ \delta: \textnormal{dispersion} \end{array}$ \\
+        ~ & ~ & ~\\
+        ZIP & $I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{-\mu}}{n!}$  & $\begin{array} {l} \mu: \textnormal{Poisson mean} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$ \\
+        ~ & ~ & ~\\
+        ZINB & $I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \big)^\delta) + I_{n > 0} \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$ & $\begin{array} {l} \mu: \textnormal{NB mean} \\ \delta: \textnormal{NB dispersion} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$ 
+    \end{tabular}
+    \egroup
+    \caption{\label{tab:count-likelihoods}Count model distributions (ZIP: zero-inflated Poisson, ZINB: zero-inflated negative binomial, NB: negative binomial), probability mass functions, and parameters for each distribution. $I_{n=0}$ is an indicator function that takes on the value of 1 if the condition in the subscript ($n=0$) is satisfied, and is zero otherwise. $I_{n>0}$ is equal to one if $n>0$, and is zero otherwise.}
+\end{table}
+
+\begin{table}
+	\bgroup\footnotesize
+    \begin{tabular}{l l l}
+        Distribution   & Probability density function &  Parameters: $\theta_g$ \\ \hline
+        Generalized Pareto & $\dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big) ^ {- (\kappa + 1)\kappa^{-1}}$      &  $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
+        ~ & ~ & ~\\
+        Tapered Pareto       & $\Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{exp} (-x / \nu)$          & $\begin{array}{l} \kappa: \textnormal{shape} \\ \nu: \textnormal{taper} \end{array}$ \\
+        ~ & ~ & ~\\
+        Lognormal & $\dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{exp}\Big( -\dfrac{(\log (y) - \mu)^2}{2 \sigma^2} \Big)$  & $\begin{array} {l} \mu: \textnormal{location} \\ \sigma: \textnormal{scale} \end{array}$ \\
+        ~ & ~ & ~\\
+        Gamma & $\dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} \textnormal{exp}(-y / \sigma)$ & $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
+        ~ & ~ & ~ \\
+        Weibull & $\dfrac{\kappa}{\sigma} \Big( \dfrac{y}{\sigma} \Big)^{\kappa - 1} \textnormal{exp} \Big( - \Big(\dfrac{y}{\sigma} \Big)^\alpha \Big)$  & $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$ \\
+    \end{tabular}
+    \egroup
+    \caption{\label{tab:area-likelihoods}Burn area exceedance distributions, along with probability density functions and parameters for each distribution. Note that we are assuming a lower bound and location parameter of 0 for the generalized and tapered Pareto distributions.}
+\end{table}
+
+
 
 ###Poisson wildfire count model
 
@@ -747,14 +754,7 @@ ZIP and ZINB are probability mass functions in Table \ref{tab:count-likelihoods}
 
 \newpage
 
-\subsection*{Supplemental figures}
-
-\begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/loglik-counts.png}
-\caption{\color{Gray} Posterior performance comparisons for wildfire count models. Log likelihood on the training set is shown on the x-axis, with higher values indicating higher model performance, and the log likelihood of the withheld test set is shown on the y-axis. Each point represents a draw from the approximate posterior distribution.}
-\label{loglik-counts} 
-\end{figure}
-
+## Supplemental figures
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/ppc-counts.png}
@@ -776,14 +776,6 @@ ZIP and ZINB are probability mass functions in Table \ref{tab:count-likelihoods}
 \caption{\color{Gray} Performance of the zero-inflated negative binomial count model on the held-out test set. Here, each level 3 ecoregion is shown on a panel, arranged in increasing order of 95\% credible interval coverage. The 95\% credible intervals are shown as shaded grey regions, and observed counts are shown as points, with small black points falling within the 95\% credible interval, and red points falling outside of the credible interval. Note the log y axis scale.}
 \label{count-preds} 
 \end{figure}
-
-
-\begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/loglik-burns.png}
-\caption{\color{Gray} Posterior performance comparisons for burn area models. Log likelihood on the training set is shown on the x-axis, with higher values indicating higher model performance, and the log likelihood of the withheld test set is shown on the y-axis. Each point represents a draw from the posterior distribution. The gamma and Weibull models performed so poorly on the test set that they are not included on this plot.}
-\label{loglik-burns} 
-\end{figure}
-
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/ppc-density-funs.png}

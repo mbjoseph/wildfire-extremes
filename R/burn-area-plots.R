@@ -36,11 +36,12 @@ beta_summary <- beta_df %>%
   mutate(variable = colnamesX[col],
          nonzero = p_neg > .8 | p_pos > .8,
          variable = gsub('bs_', '', variable),
-         variable = gsub('crmin', 'humidity', variable),
-         variable = gsub('ctmx', 'temperature', variable),
-         variable = gsub('cvs', 'wind speed', variable),
-         variable = gsub('cpr12', '12 mo. precip.', variable),
-         variable = gsub('cpr', 'precipitation', variable),
+         variable = gsub('rmin', 'humidity', variable),
+         variable = gsub('tmmx', 'temperature', variable),
+         variable = gsub('vs', 'wind speed', variable),
+         variable = gsub('prev_12mo_precip', '12 mo. precip.', variable),
+         variable = gsub('pr', 'precipitation', variable),
+         varirable = gsub('log_housing_density', 'housing density', variable),
          variable = ifelse(grepl(':', x = variable),
                            paste0('Intxn(', variable, ')'),
                            variable),
@@ -215,7 +216,7 @@ humidity_scatter <- st_covs %>%
   geom_point(alpha = .6) +
   theme_minimal() +
   scale_color_gradientn(colors = cmap, 'Month') +
-  xlab('Mean daily minimum humidity') +
+  xlab('Relative humidity (%)') +
   ylab('Expected fire size') +
   theme(panel.grid.minor = element_blank(),
         strip.text.x = element_text(size = 8, color = 'grey30')) +

@@ -188,7 +188,7 @@ close(pb)
 
 
 name_df <- tibble(covariate = vars,
-                  fancy_name = c('Housing density (units per km^2)',
+                  fancy_name = c('Housing density (units/km^2)',
                                  'Wind speed (m/s)',
                                  'Precipitation: same month (mm)',
                                  'Precipitation: 12 month (mm)',
@@ -217,21 +217,21 @@ better_name <- distinct(ecoregion_df, NA_L1NAME) %>%
                 l1_er))
 
 plot_data <- effect_plot_df %>%
-  bind_rows %>%
+  bind_rows %>% 
   mutate(covariate_value = case_when(
     .$covariate == 'tmmx' ~ covariate_value - 273.15,
-    .$covariate == 'rmin' ~ covariate_value / 100,
+    .$covariate == 'log_housing_density' ~ exp(covariate_value),
     TRUE ~ covariate_value)) %>%
   left_join(better_name)
 
 p <- plot_data %>%
   ggplot(aes(covariate_value, y = med)) +
   theme_minimal() +
-  # geom_ribbon(aes(ymin = lo, ymax = hi, group = NA_L3NAME),
-  #             color = NA, alpha = .04) +
+  geom_ribbon(aes(ymin = lo, ymax = hi, group = NA_L3NAME),
+              color = NA, alpha = .02) +
   geom_line(alpha = .5, aes(group = NA_L3NAME, color = l1_er)) +
   ylab('Partial effect') +
-  facet_wrap(~fancy_name, scales = 'free', ncol = 2, 
+  facet_wrap(~fancy_name, scales = 'free_x', ncol = 3, 
              strip.position = 'bottom') +
   scale_color_gdocs('') +
   xlab('') +

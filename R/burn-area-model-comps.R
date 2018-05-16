@@ -79,28 +79,16 @@ label_d <- loglik_d %>%
             med_train = median(train))
 
 loglik_d %>%
-  filter(!(Distribution %in% c('Gamma', 'Weibull'))) %>%
-  ggplot(aes(x = train, y = test, color = Distribution)) +
-  geom_point(alpha = .9) +
-  xlab('Log likelihood: training set') +
-  ylab('Log likelihood: test set') +
-  scale_color_manual('Burn area distribution', values = cols) +
-  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
-  theme_minimal() +
-  # ylim(-26000, -21500) +
-  # xlim(-76400, -75300) +
-  geom_text_repel(aes(x = med_train, y = med_test, label = Distribution),
-             data = filter(label_d, !(Distribution %in% c('Gamma', 'Weibull'))),
-             color = 'black', size = 3, box.padding = .1) +
-  theme(legend.position = 'none')
-ggsave(filename = 'fig/loglik-burns.png', width = 5, height = 3.5)
-
-loglik_d %>%
-  filter((Distribution %in% c('Gamma', 'Weibull'))) %>%
   group_by(Distribution) %>%
-  summarize(min_test = min(test),
-            max_test = max(test))
-
+  summarize(mean_test = median(test),
+            sd_test = sd(test)) %>%
+  arrange(-mean_test) %>%
+  mutate(pretty = paste0(format(mean_test, digits = 0, scientific = FALSE), 
+                         ' (', trimws(format(sd_test, digits = 0, scientific = FALSE)), ')')) %>%
+  rename(`Holdout log likelihood` = pretty, 
+         Model = Distribution) %>%
+  select(-ends_with('test')) %>%
+  write_csv('data/processed/burn-area-loglik.csv')
 
 rm(holdout_ba_loglik)
 rm(train_ba_loglik)

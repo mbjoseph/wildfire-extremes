@@ -1,19 +1,22 @@
 data-dir = data/processed
 gdb = data/raw/us_pbg00_2007.gdb
-figs = fig/ppc-density-funs.png fig/loglik-burns.png \
-	fig/burn-area-effs.png fig/loglik-counts.png fig/ppc-counts.png \
+figs = fig/ppc-density-funs.png \
+	fig/burn-area-effs.png fig/ppc-counts.png \
 	fig/all-coefs.png fig/bivar-effs.png fig/fire-effs.pdf \
 	fig/count-partial-effs.png fig/attribution-plot.png \
 	fig/count-preds.png fig/test-set-burn-area.png \
 	fig/number-vs-exceedance.png fig/max-preds-l2-minimal.png \
-	fig/max-preds-l3-all.png
+	fig/max-preds-l3-all.png \
+	fig/maps.png
+	
+tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv
 
 all: main.pdf
 
-main.pdf: $(figs) main.Rmd library.bib header.sty
+main.pdf: $(figs) $(tables) main.Rmd library.bib header.sty
 		Rscript -e "rmarkdown::render('main.Rmd')"
 
-data/processed/stan_d.rds: R/make-stan-d.R \
+data/processed/stan_d.rds data/processed/mtbs.rds data/processed/ecoregions.rds: R/make-stan-d.R \
 	$(data-dir)/ecoregion_summaries.csv \
 	$(data-dir)/housing_density.csv \
 	data/raw/mtbs_fod_pts_data/mtbs_fod_pts_20170501.shp
@@ -81,7 +84,7 @@ ba_tpareto_fit.rds: R/fit-burn-area-tpareto.R data/processed/stan_d.rds
 ba_weibull_fit.rds: R/fit-burn-area-weibull.R data/processed/stan_d.rds
 		Rscript --vanilla R/fit-burn-area-weibull.R
 
-fig/ppc-density-funs.png fig/loglik-burns.png: R/burn-area-model-comps.R \
+fig/ppc-density-funs.png data/processed/burn-area-loglik.csv: R/burn-area-model-comps.R \
 	ba_gamma_fit.rds ba_lognormal_fit.rds ba_pareto_fit.rds \
 	ba_tpareto_fit.rds ba_weibull_fit.rds
 		Rscript --vanilla R/burn-area-model-comps.R
@@ -89,7 +92,7 @@ fig/ppc-density-funs.png fig/loglik-burns.png: R/burn-area-model-comps.R \
 fig/burn-area-effs.png: ba_lognormal_fit.rds R/burn-area-plots.R
 		Rscript --vanilla R/burn-area-plots.R
 
-fig/loglik-counts.png fig/ppc-counts.png: R/count-model-comps.R \
+data/processed/count-loglik.csv fig/ppc-counts.png: R/count-model-comps.R \
 	pois_fit.rds nb_fit.rds zip_fit.rds zinb_fit.rds
 		Rscript --vanilla R/count-model-comps.R
 
@@ -106,6 +109,8 @@ count-preds.rds fig/count-preds.png: R/plot-predicted-counts.R zinb_full_fit.rds
 fig/test-set-burn-area.png fig/number-vs-exceedance.png fig/max-preds-l2-minimal.png fig/max-preds-l3-all.png test_preds.rds: count-preds.rds \
 	ba_lognormal_fit.rds R/mev-plots.R
 		Rscript --vanilla R/mev-plots.R
+		
+fig/maps.png: data/processed/mtbs.rds data/processed/ecoregions.rds
 		
 push_fits: 
 	aws s3 cp . s3://earthlab-mjoseph/ --recursive --exclude "*" --include "*_fit.rds"
