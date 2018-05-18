@@ -5,12 +5,13 @@ figs = fig/ppc-density-funs.png \
 	fig/all-coefs.png \
 	fig/count-partial-effs.png fig/attribution-plot.png \
 	fig/count-preds.png \
-	fig/max-preds-l2-minimal.png \
+	fig/max-preds-l3.png \
 	fig/maps.png
 	
 tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv \
 	data/processed/rho_beta.csv data/processed/count_test_intervals.csv \
-	data/processed/area_df.csv data/processed/predicted_totals.csv
+	data/processed/area_df.csv data/processed/predicted_totals.csv \
+	data/processed/area_coverage.csv data/processed/mev_intervals.csv
 
 all: main.pdf
 
@@ -85,7 +86,7 @@ ba_tpareto_fit.rds: R/fit-burn-area-tpareto.R data/processed/stan_d.rds
 ba_weibull_fit.rds: R/fit-burn-area-weibull.R data/processed/stan_d.rds
 		Rscript --vanilla R/fit-burn-area-weibull.R
 
-fig/ppc-density-funs.png data/processed/burn-area-loglik.csv: R/burn-area-model-comps.R \
+fig/ppc-density-funs.png data/processed/burn-area-loglik.csv data/processed/area_coverage.csv: R/burn-area-model-comps.R \
 	ba_gamma_fit.rds ba_lognormal_fit.rds ba_pareto_fit.rds \
 	ba_tpareto_fit.rds ba_weibull_fit.rds
 		Rscript --vanilla R/burn-area-model-comps.R
@@ -108,7 +109,7 @@ count-preds.rds fig/count-preds.png data/processed/area_df.csv data/processed/co
 	zinb_full_fit.rds
 		Rscript --vanilla R/plot-predicted-counts.R
 
-fig/max-preds-l2-minimal.png test_preds.rds data/processed/predicted_totals.csv: count-preds.rds \
+fig/max-preds-l3.png test_preds.rds data/processed/predicted_totals.csv data/processed/mev_intervals.csv: count-preds.rds \
 	ba_lognormal_fit.rds R/mev-plots.R
 		Rscript --vanilla R/mev-plots.R
 		

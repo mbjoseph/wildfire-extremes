@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(knitr)
 library(kableExtra)
+library(assertthat)
 ```
 
 ```{r load-count-test-intervals, message=FALSE, warning=FALSE}
@@ -320,7 +321,6 @@ total_count_coverage <- count_test_intervals %>%
   summarize(p_100_pct = mean(interval_coverage == 1),
             n_100_pct = sum(interval_coverage == 1),
             pct_area_100_pct = sum(area[interval_coverage == 1]) / sum(area))
-
 ```
 
 Posterior 95\% credible interval coverage for the number of fires over 1000 acres in the test set was `r round(100 * mean(count_test_intervals$in_interval), 1)`\%. 
@@ -363,22 +363,75 @@ There was not strong evidence that meteorological variables had spatially variab
 \label{burn-area-effs} 
 \end{figure}
 
-Overall, 95\% posterior predictive interval coverage in the test set for burn areas was 92.6\%.
-<!-- lowest test set coverage -->
-<!-- percent over, percent under -->
-<!-- biggest discrepancy -->
-<!-- percent total coverage -->
+```{r, message = FALSE, results='hide'}
+area_coverage <- read_csv('data/processed/area_coverage.csv') %>%
+  filter(model == 'ba_lognormal_fit.rds') %>%
+  arrange(idx)
 
-## Inference on extremes
+holdout_burns <- read_rds('data/processed/holdout_burns.rds') %>%
+  as_tibble()
 
-By combining the output of the event count and burn area models, we derived posterior prediction intervals for block maxima (the size of the largest fire in a month for each region).
-In the holdout period from 2010 to 2015, a 99\% prediction interval achieved 90.3\% interval coverage, with 4.6\% of the block maxima (37 fire events) being larger than predicted (Figure \ref{max-preds-l2-minimal}). 
-<!-- % * <jabatzoglouui@gmail.com> 2018-03-04T16:16:59.148Z: -->
-<!-- %  -->
-<!-- % In this figure, I am confused by the overlapping shading; also the black dots represent actual fire sizes??  If that is the case, everything should be >1e3, right for 1000 acres? I don't totally see how this figure is showing skill. -->
-<!-- %  -->
-<!-- % ^. -->
-The model predicted the total area burned over the entire test period from 2010-2015 to be 28,569,818 (95\% CI: (18,389,910 - 48,700,433) and the actual value was 26,639,835. 
+assert_that(all(area_coverage$NA_L3NAME == holdout_burns$NA_L3NAME))
+
+burn_area_coverage <- holdout_burns %>%
+  mutate(idx = 1:n()) %>%
+  full_join(area_coverage)
+
+worst_area_coverage <- burn_area_coverage %>%
+  group_by(NA_L3NAME) %>%
+  summarize(coverage = mean(true_in_interval), 
+            n = n()) %>%
+  arrange(coverage) %>%
+  data.frame %>%
+  left_join(area_df)
+
+most_worst <- worst_area_coverage %>%
+  filter(coverage == min(coverage))
+assert_that(nrow(most_worst) == 1)
+
+second_worst <- worst_area_coverage %>%
+  anti_join(most_worst) %>%
+  filter(coverage == min(coverage))
+assert_that(nrow(second_worst) == 1)
+
+smaller_larger_df <- filter(burn_area_coverage, !true_in_interval) %>%
+  mutate(real_smaller = true_exceedance < lo, 
+         real_larger = true_exceedance > hi) %>%
+  ungroup %>%
+  summarize(p_smaller = mean(real_smaller), 
+            p_larger = mean(real_larger))
+
+biggest_discrepancy <- burn_area_coverage %>%
+  filter(!true_in_interval) %>%
+  mutate(discrepancy = true_exceedance - hi) %>%
+  select(FIRENAME, lo, hi, true_exceedance, discrepancy, 
+         NA_L3NAME, ym) %>%
+  arrange(-discrepancy) %>%
+  filter(discrepancy == max(discrepancy))
+```
+
+
+Overall, 95\% posterior predictive interval coverage in the test set for burn areas was `r 100 * round(mean(burn_area_coverage$true_in_interval), 3)`\%. 
+The lowest test set coverage was `r 100 * round(most_worst$coverage)`\%, for the `r most_worst$NA_L3NAME` L3 ecoregion, followed by `r 100 * round(second_worst$coverage, 1)`\%, for the `r second_worst$NA_L3NAME` L3 ecoregion, though these ecoregions had just `r most_worst$n` and `r second_worst$n` wildfire events in the test period. 
+Overall, among test set burn areas that were not contained within the 95\% prediction interval, `r 100 * round(smaller_larger_df$p_smaller, 3)`\% of wildfires were smaller than predicted, and `r 100 * round(1 - smaller_larger_df$p_smaller, 3)`\% of wildfires were larger than predicted. 
+The largest discrepancy between the actual size of a wildfire and the predicted 97.5\% posterior quantile was observed with the Wallow Fire in 2011 which burned `r format(round(biggest_discrepancy$true_exceedance) + 1000, big.mark = ',', scientific = FALSE)` acres, but the predicted upper limit for size was just `r format(round(biggest_discrepancy$hi) + 1000, big.mark = ',', scientific = FALSE)`.
+We investigate this discrepancy further in the error analysis case study below.
+The lognormal burn area model achieved 100\% interval coverage in `r sum(worst_area_coverage$coverage == 1)` of `r worst_area_coverage %>% nrow` ecoregions that had wildfire events in the test set, accounting for `r 100 * round(sum(worst_area_coverage$area[worst_area_coverage$coverage == 1]) / sum(area_df$area), 3)`\% of the land area of the contiguous US.
+
+## Inference on extremes\
+
+```{r, message=FALSE}
+mev_intervals <- read_csv('data/processed/mev_intervals.csv') %>%
+  filter(!is.na(empirical_max)) %>%
+  mutate(in_interval = m_qlo <= empirical_max & m_qhi >= empirical_max) %>%
+  ungroup
+
+predicted_totals <- read_csv('data/processed/predicted_totals.csv')
+```
+
+By combining the output of the event count and burn area models, we derived posterior prediction intervals for the size of the largest fire in a month for each region, integrating over uncertainty in the number of fires, as well as the lognormal mean and standard deviation for burn area.
+In the holdout period from 2010 to 2015, a 99\% prediction interval achieved `r 100 * round(mean(mev_intervals$in_interval), 3)`\% interval coverage, with `r 100 * round(mean(mev_intervals$empirical_max > mev_intervals$m_qhi), 3)`\% of the block maxima (`r sum(mev_intervals$empirical_max > mev_intervals$m_qhi)` fire events) being larger than predicted (Figure \ref{max-preds-l3}). 
+The model predicted the total area burned over the entire test period from 2010-2015 to be `r format(median(predicted_totals$predicted_total_area), big.mark = ',', scientific = FALSE)` (95\% CI: (`r format(quantile(predicted_totals$predicted_total_area, .025), big.mark = ',', scientific = FALSE)` - `r format(quantile(predicted_totals$predicted_total_area, .975), big.mark = ',', scientific = FALSE)`) and the actual value was `r format(unique(predicted_totals$actual_total_area), big.mark = ',', scientific = FALSE)`. 
 While fires over a million acres in size have happened historically, all fires in the training and test sets were below one million acres. 
 If we extrapolate, the probability that at least one fire exceeded one million acres in the period from 2010-2015 was estimated to be between 0.171 and 0.656 (95\% CI), with a posterior median of 0.324.
 <!-- % * <jabatzoglouui@gmail.com> 2018-03-04T16:19:36.450Z: -->
@@ -388,10 +441,10 @@ If we extrapolate, the probability that at least one fire exceeded one million a
 <!-- % ^. -->
 
 
-\begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/max-preds-l2-minimal.png}
-\caption{Posterior 99\% prediction intervals for the burn area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with the largest number of fire events. Empirical maxima are shown as black dots.}
-\label{max-preds-l2-minimal}
+\begin{figure}[ht]
+\includegraphics[width=\textwidth]{fig/max-preds-l3.png}
+\caption{Posterior 99\% prediction intervals for the burn area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with wildfires in more than 20 months. Empirical maxima are shown as black dots.}
+\label{max-preds-l3}
 \end{figure}
 
 ## Error analysis case study: the 2011 Wallow Fire

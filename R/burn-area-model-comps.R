@@ -271,7 +271,7 @@ ggsave(filename = 'fig/ppc-density-funs.png', width = 6, height = 4.25)
 
 
 
-  # Evaluate posterior predictive interval coverage in test set -------------
+# Evaluate posterior predictive interval coverage in test set -------------
 test_pred_intervals <- holdout_ba_rep %>%
   bind_rows %>%
   group_by(idx, model) %>%
@@ -282,24 +282,4 @@ test_pred_intervals <- holdout_ba_rep %>%
          true_in_interval = lo <= true_exceedance & hi >= true_exceedance,
          NA_L3NAME = holdout_burns$NA_L3NAME[idx])
 
-# overall coverage for each model
-test_pred_intervals %>%
-  group_by(model) %>%
-  summarize(mean(true_in_interval))
-
-# ecoregion-specific coverage for log normal model
-er_coverage <- test_pred_intervals %>%
-  filter(model == 'ba_lognormal_fit.rds') %>%
-  group_by(NA_L3NAME) %>%
-  summarize(coverage = mean(true_in_interval),
-            n = n()) %>%
-  arrange(coverage)
-
-# low values are for ecoregions with few fires -probably not a good
-# indication of future performance
-er_coverage %>%
-  mutate(label = ifelse(coverage < .8,
-                        paste0(NA_L3NAME, ': n = ', n), '')) %>%
-  ggplot(aes(x = n, coverage)) +
-  geom_point() +
-  geom_text_repel(aes(label = label))
+write_csv(test_pred_intervals, 'data/processed/area_coverage.csv')

@@ -99,12 +99,13 @@ nmax_q <- function(p, n, mu, sigma) {
   sigma * sqrt(2) * erf.inv(2 * p^(1/n) - 1) + mu
 }
 
-# probability of a million acre event, along with medians, 90% pred intervals over block max.
+# log_p: probability of a million acre event 
+# qxx: pred intervals for block maxima, using predicted number events
 test_preds <- test_preds %>%
-  mutate(log_p = n_event * pnorm(log(100000), mean = ln_mu, sd = ln_scale, log.p = TRUE),
+  mutate(log_p = n_event * pnorm(log(1e6), mean = ln_mu, sd = ln_scale, log.p = TRUE),
          q50 = nmax_q(.5, n = n_event, mu = ln_mu, sigma = ln_scale),
-         q95 = nmax_q(.95, n = n_event, mu = ln_mu, sigma = ln_scale),
-         q05 = nmax_q(.05, n = n_event, mu = ln_mu, sigma = ln_scale))
+         qhi = nmax_q(.975, n = n_event, mu = ln_mu, sigma = ln_scale),
+         qlo = nmax_q(.025, n = n_event, mu = ln_mu, sigma = ln_scale))
 
 holdout_ids <- st_covs$id[st_covs$year >= cutoff_year]
 pred_df <- expand.grid(x = 1e6 - min_size,
@@ -248,30 +249,25 @@ interval_df %>%
         axis.text.x = element_text(size = 7))
 ggsave('fig/max-preds-l2-minimal.png', width = 7, height = 4)
 
-# plot for all level 3 ecoregions (for supplement?)
+# plot for level 3 ecoregions
 interval_df %>%
+  group_by(NA_L3NAME) %>%
+  mutate(total_n = sum(!is.na(empirical_max))) %>%
+  filter(total_n > 20) %>%
   ggplot(aes(x = ym, group = NA_L3NAME)) +
   geom_ribbon(aes(ymin = m_qlo, ymax = m_qhi),
               color = NA,
-              fill = 'firebrick', alpha = .6) +
+              fill = 'firebrick', alpha = .7) +
   scale_y_log10() +
   theme_minimal() +
   facet_wrap(~ fct_reorder(l3_er, rmin),
              labeller = labeller(.rows = label_wrap_gen(23))) +
-  geom_point(aes(y = empirical_max), size = .3) +
+  geom_point(aes(y = empirical_max), size = .5) + #, size = .3) +
   xlab('') +
-  ylab('Maximum event size') +
-  theme(panel.grid.minor = element_blank(),
-        strip.text = element_text(size = 5.5),
-        axis.text.x = element_text(angle = 90, size = 8),
-        axis.text.y = element_text(size = 8))
-ggsave('fig/max-preds-l3-all.png', width = 10, height = 10)
+  ylab('Maximum exceedance (acres)') +
+  theme(panel.grid.minor = element_blank(), 
+        axis.text.x = element_text(angle = 90))
+ggsave('fig/max-preds-l3.png', width = 7, height = 4)
 
 # get overall interval coverage stats for block maxima
-interval_df %>%
-  filter(!is.na(empirical_max)) %>%
-  mutate(in_interval = m_qlo <= empirical_max & m_qhi >= empirical_max) %>%
-  ungroup %>%
-  summarize(p_coverage = mean(in_interval),
-            p_max_was_bigger = mean(empirical_max > m_qhi),
-            n_max_was_bigger = sum(empirical_max > m_qhi))
+write_csv(interval_df, 'data/processed/mev_intervals.csv')
