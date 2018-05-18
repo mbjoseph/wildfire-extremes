@@ -123,18 +123,19 @@ den_plot <- pr_df %>%
              color = Distribution)) +
   geom_line(alpha = .1) +
   facet_wrap(~model) +
-  scale_x_log10() +
+  scale_x_log10(breaks = c(10, 100, 1000)) +
   scale_y_log10(breaks = 10^(c(-5:1))) +
   theme_minimal() +
   scale_color_manual('Count distribution', values = cols) +
   facet_wrap(~Distribution, nrow = 1) +
   geom_point(data = emp_pr,
             aes(x = n_fire, y = pr_value),
-            inherit.aes = FALSE) +
+            inherit.aes = FALSE, size = .1) +
   theme(legend.position = 'none',
-        panel.grid.minor = element_blank()) +
+        panel.grid.minor = element_blank(), 
+        axis.text = element_text(size = 7)) +
   xlab('Counts > 1000 acres') +
-  ylab('Pr(counts > 1000 acres)')
+  ylab('Probability')
 
 # proportion of zero observations
 ppc_counts <- train_c_rep %>%
@@ -169,14 +170,15 @@ zero_plot <- ppc_counts %>%
              linetype = 'dashed', color = 'black') +
   geom_hline(yintercept = mean(stan_d$holdout_c == 0),
              linetype = 'dashed', color = 'black') +
-  xlab('Pr(0): training data') +
-  ylab('Pr(0): test data') +
+  xlab('Pr(0): train') +
+  ylab('Pr(0): test') +
   scale_color_manual('Count distribution', values = cols) +
   theme(legend.position = 'none') +
   theme(
     strip.background = element_blank(),
     strip.text.x = element_blank(),
-    panel.grid.minor = element_blank()
+    panel.grid.minor = element_blank(), 
+    axis.text = element_text(size = 7)
   )
 
 max_plot <- ppc_counts %>%
@@ -195,8 +197,8 @@ max_plot <- ppc_counts %>%
   geom_point(alpha = .4) +
   facet_wrap(~ Distribution, nrow = 1) +
   scale_fill_manual('Count distribution', values = cols) +
-  xlab('max(count): training data') +
-  ylab('max(count): test data') +
+  xlab('max: train') +
+  ylab('max: test') +
   scale_color_manual('Count distribution', values = cols) +
   # scale_x_log10() +
   # scale_y_log10() +
@@ -207,7 +209,8 @@ max_plot <- ppc_counts %>%
   theme(legend.position = 'none',
         strip.background = element_blank(),
         strip.text.x = element_blank(),
-        panel.grid.minor = element_blank())
+        panel.grid.minor = element_blank(), 
+        axis.text = element_text(size = 7))
 
 sum_plot <- ppc_counts %>%
   mutate(train = 'train') %>%
@@ -226,8 +229,8 @@ sum_plot <- ppc_counts %>%
   geom_point(alpha = .4) +
   guides(colour = guide_legend(override.aes = list(alpha = 1))) +
   scale_fill_manual('Count distribution', values = cols) +
-  xlab('sum(count): training data') +
-  ylab('sum(count): test data') +
+  xlab('sum: train') +
+  ylab('sum: test') +
   scale_color_manual('Count distribution', values = cols) +
   geom_vline(xintercept = sum(stan_d$counts),
              linetype = 'dashed', color = 'black') +
@@ -236,7 +239,9 @@ sum_plot <- ppc_counts %>%
   theme(legend.position = 'none',
         strip.background = element_blank(),
         strip.text.x = element_blank(),
-        panel.grid.minor = element_blank())
+        panel.grid.minor = element_blank(), 
+        axis.text = element_text(size = 7))
 
-cowplot::plot_grid(den_plot, zero_plot, max_plot, sum_plot, ncol = 1)
-ggsave('fig/ppc-counts.png', width = 9, height = 7)
+cowplot::plot_grid(den_plot, zero_plot, max_plot, sum_plot, 
+                   ncol = 1, rel_heights = c(1.3, 1, 1, 1))
+ggsave('fig/ppc-counts.png', width = 6, height = 4.5)

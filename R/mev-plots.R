@@ -35,8 +35,8 @@ zinb_preds <- read_rds('count-preds.rds') %>%
 
 # now, having the predicted counts, we need to simulate fire sizes for
 # each event, using the predictive distribution from the lognormal model
-ln_fit <- read_rds('ba_lognormal_fit.rds')
-ln_post <- rstan::extract(ln_fit, pars = c('mu_full', 'scale'))
+ln_post <- rstan::extract(read_rds('ba_lognormal_fit.rds'), 
+                          pars = c('mu_full', 'scale'))
 
 # we only really need the predictions for expected value and standard
 # deviation from the lognormal model, and we need to have the same
@@ -64,7 +64,6 @@ test_preds <- test_preds %>%
 
 
 # Inference over total burn area for the test period ----------------------
-
 total_df <- test_preds %>%
   left_join(select(st_covs, id, year)) %>%
   # filter out zero event records (don't contribute to sum)
@@ -80,31 +79,15 @@ actual_totals <- holdout_burns %>%
   summarize(total_area = sum(R_ACRES),
             total_events = n())
 
-total_hist <- total_df %>%
-  group_by(iter) %>%
-  summarize(total_area = sum(total_area),
-            total_events = sum(n_event)) %>%
-  ggplot(aes(x = total_area)) +
-  geom_histogram(alpha = .7, fill = 'red3', bins = 40) +
-  theme_minimal() +
-  theme(panel.grid.minor = element_blank()) +
-  geom_vline(aes(xintercept = total_area),
-             data = actual_totals, linetype = 'dashed') +
-  xlab('Total burn area (acres): 2010-2015') +
-  ylab('Posterior density')
-total_hist
-ggsave('fig/test-set-burn-area.png', plot = total_hist, width = 5, height = 3)
-
-# numeric summaries
 total_df %>%
   group_by(iter) %>%
-  summarize(total_area = sum(total_area),
-            total_events = sum(n_event)) %>%
+  summarize(predicted_total_area = sum(total_area),
+            predicted_total_events = sum(n_event)) %>%
   ungroup %>%
-  summarize(median(total_area),
-            quantile(total_area, c(.025)),
-            quantile(total_area, c(.975)))
-
+  mutate(actual_total_area = actual_totals$total_area, 
+         actual_total_events = actual_totals$total_events) %>%
+  write_csv('data/processed/predicted_totals.csv')
+gc()
 
 
 
@@ -122,21 +105,6 @@ test_preds <- test_preds %>%
          q50 = nmax_q(.5, n = n_event, mu = ln_mu, sigma = ln_scale),
          q95 = nmax_q(.95, n = n_event, mu = ln_mu, sigma = ln_scale),
          q05 = nmax_q(.05, n = n_event, mu = ln_mu, sigma = ln_scale))
-
-test_preds %>%
-  filter(n_event < 51, n_event > 0) %>%
-  ggplot(aes(exp(q95) + min_size, factor(n_event))) +
-  geom_density_ridges(scale = 3, rel_min_height = 0.01,
-                      fill = 'grey99', bandwidth = .12) +
-  theme_minimal() +
-  theme(panel.grid.minor = element_blank()) +
-  ylab('Number of fires > 1000 acres in one month') +
-  xlab('95% quantile: max. size (acres)') +
-  scale_y_discrete(breaks = as.character(seq(0, 50, by = 10))) +
-  scale_x_log10(breaks = c(1e3, 1e4, 1e5, 1e6),
-                labels = c('1,000', '10,000', '100,000', '1,000,000')) +
-  coord_flip()
-
 
 holdout_ids <- st_covs$id[st_covs$year >= cutoff_year]
 pred_df <- expand.grid(x = 1e6 - min_size,

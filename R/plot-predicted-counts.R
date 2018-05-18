@@ -14,7 +14,7 @@ area_df <- read_rds('data/processed/ecoregions.rds') %>%
   tbl_df %>%
   group_by(NA_L3NAME) %>%
   summarize(area = sum(Shape_Area))
-
+write_csv(area_df, 'data/processed/area_df.csv')
 
 # Extract posterior draws and visualize results ---------------------------
 post <- rstan::extract(read_rds(path = 'zinb_full_fit.rds'),
@@ -77,23 +77,24 @@ test_interval_d %>%
         axis.text.y = element_text(size = 8))
 ggsave('fig/count-preds.png', width = 10, height = 10)
 
-
-#################################################################
-test_interval_d %>%
-  summarize(mean(in_interval))
-
-# worst performance: lowest interval coverage by L3 ecoregion
-test_interval_d %>%
-  group_by(NA_L3NAME) %>%
-  summarize(interval_coverage = mean(in_interval)) %>%
-  arrange(interval_coverage)
-
-# what fraction of ecoregions had 100% interval coverage?
-test_interval_d %>%
-  group_by(NA_L3NAME) %>%
-  summarize(interval_coverage = mean(in_interval)) %>%
-  left_join(area_df) %>%
-  ungroup %>%
-  summarize(p_100_pct = mean(interval_coverage == 1),
-            n_100_pct = sum(interval_coverage == 1),
-            pct_area_100_pct = sum(area[interval_coverage == 1]) / sum(area))
+# 
+# ## Save count model interval coverage data
+# write_csv(test_interval_d, 'data/processed/count_intervals.csv')
+# test_interval_d %>%
+#   summarize(mean(in_interval))
+# 
+# # worst performance: lowest interval coverage by L3 ecoregion
+# test_interval_d %>%
+#   group_by(NA_L3NAME) %>%
+#   summarize(interval_coverage = mean(in_interval)) %>%
+#   arrange(interval_coverage)
+# 
+# # what fraction of ecoregions had 100% interval coverage?
+# test_interval_d %>%
+#   group_by(NA_L3NAME) %>%
+#   summarize(interval_coverage = mean(in_interval)) %>%
+#   left_join(area_df) %>%
+#   ungroup %>%
+#   summarize(p_100_pct = mean(interval_coverage == 1),
+#             n_100_pct = sum(interval_coverage == 1),
+#             pct_area_100_pct = sum(area[interval_coverage == 1]) / sum(area))

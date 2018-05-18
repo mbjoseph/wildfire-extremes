@@ -98,9 +98,16 @@ gc()
 train_ba_rep <- train_ba_rep %>%
   bind_rows
 
+
+my_theme <- theme_minimal() + 
+  theme(legend.position = 'none', 
+        panel.grid.minor = element_blank(), 
+        axis.text = element_text(size = 6), 
+        axis.title = element_text(size = 9))
+
 # Whole distribution
 den_plot <- train_ba_rep %>%
-  filter(iter < 101) %>%
+  filter(iter < 300) %>%
   mutate(Distribution = case_when(
     grepl('gamma', .$model) ~ 'Gamma',
     grepl('lognormal', .$model) ~ 'Lognormal',
@@ -111,22 +118,21 @@ den_plot <- train_ba_rep %>%
   ggplot(aes(x = value,
              color = Distribution,
              group = interaction(Distribution, iter))) +
-  theme_minimal() +
-  stat_density(aes(color = Distribution), geom="line", alpha = .1, position = 'identity') +
+  my_theme +
   scale_x_log10() +
+  stat_density(aes(color = Distribution), geom="line", alpha = .1, position = 'identity') +
   scale_color_manual('Burn area distribution', values = cols) +
   facet_wrap(~Distribution, nrow = 1) +
   stat_density(geom = 'line', position = 'identity',
                inherit.aes = FALSE,
                aes(x = actual_sizes),
                data = tibble(actual_sizes = stan_d$sizes)) +
-  theme(legend.position = 'none') +
   coord_cartesian(xlim = c(min(stan_d$sizes), 700000)) +
   geom_rug(inherit.aes = FALSE,
            aes(x = actual_sizes),
            data = tibble(actual_sizes = stan_d$sizes),
            alpha = .1) +
-  xlab('Burn area exceedance (acres)') +
+  xlab('Burn area exceedance (area)') +
   ylab('Density')
 
 # "Survival" plots for top 3 models
@@ -136,7 +142,7 @@ obs_ccdf <- tibble(values = sort(stan_d$sizes)) %>%
 gc()
 
 tail_plot <- train_ba_rep %>%
-  filter(iter < 1001) %>%
+  filter(iter < 300) %>%
   group_by(iter, model) %>%
   arrange(iter, model, value) %>%
   mutate(ccdf = seq(n(), 1, -1) / n()) %>%
@@ -156,7 +162,7 @@ tail_plot <- train_ba_rep %>%
     grepl('weibull', .$model) ~ 'Weibull'
   )) %>%
   ggplot(aes(med, ccdf, color = Distribution)) +
-  theme_minimal() +
+  my_theme +
   scale_color_manual('Burn area distribution', values = cols) +
   geom_point(shape = 1) +
   geom_errorbarh(aes(xmin = lo, xmax = hi)) +
@@ -166,10 +172,9 @@ tail_plot <- train_ba_rep %>%
   facet_wrap(~Distribution, nrow = 1) +
   coord_cartesian(xlim = c(1e5, 1e8),
                   ylim = c(1e-4, .01)) +
-  theme(legend.position = 'none') +
   geom_point(data = obs_ccdf, color = 'black', aes(x = values), shape = 1, size = .5) +
-  xlab('Burn area exceedance (acres)') +
-  ylab('Complementary CDF') +
+  xlab('Burn area exceedance (area)') +
+  ylab('CCDF') +
   theme(
     strip.background = element_blank(),
     strip.text.x = element_blank()
@@ -212,15 +217,14 @@ max_plot <- train_max %>%
     grepl('weibull', .$model) ~ 'Weibull'
   )) %>%
   ggplot(aes(train, test, color = Distribution)) +
-  theme_minimal() +
+  my_theme +
   scale_color_manual('Burn area distribution', values = cols) +
   geom_point(alpha = .4) +
-  xlab('max(acres): training data') +
-  ylab('max(acres): test data') +
+  xlab('max(area): train') +
+  ylab('max(area): test') +
   scale_x_log10() +
   scale_y_log10() +
   facet_wrap(~ Distribution, nrow = 1) +
-  theme(legend.position = 'none') +
   geom_vline(aes(xintercept = train),
              data = actual_maxima, color = 'black', linetype = 'dashed') +
   geom_hline(aes(yintercept = test),
@@ -244,15 +248,14 @@ sum_plot <- train_max %>%
     grepl('weibull', .$model) ~ 'Weibull'
   )) %>%
   ggplot(aes(train, test, color = Distribution)) +
-  theme_minimal() +
+  my_theme +
   scale_color_manual('Burn area distribution', values = cols) +
   geom_point(alpha = .4) +
-  xlab('sum(acres): training data') +
-  ylab('sum(acres): test data') +
+  xlab('sum(area): train') +
+  ylab('sum(area): test') +
   scale_x_log10() +
   scale_y_log10() +
   facet_wrap(~ Distribution, nrow = 1) +
-  theme(legend.position = 'none') +
   geom_vline(aes(xintercept = train),
              data = actual_sums, color = 'black', linetype = 'dashed') +
   geom_hline(aes(yintercept = test),
@@ -260,14 +263,15 @@ sum_plot <- train_max %>%
   theme(strip.background = element_blank(),
     strip.text.x = element_blank())
 
-cowplot::plot_grid(den_plot, tail_plot, max_plot, sum_plot, nrow = 4)
-ggsave(filename = 'fig/ppc-density-funs.png', width = 9, height = 7)
+cowplot::plot_grid(den_plot, tail_plot, max_plot, sum_plot, 
+                   nrow = 4, rel_heights = c(1.3, 1, 1, 1))
+ggsave(filename = 'fig/ppc-density-funs.png', width = 6, height = 4.25)
 
 
 
 
 
-# Evaluate posterior predictive interval coverage in test set -------------
+  # Evaluate posterior predictive interval coverage in test set -------------
 test_pred_intervals <- holdout_ba_rep %>%
   bind_rows %>%
   group_by(idx, model) %>%

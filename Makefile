@@ -2,14 +2,15 @@ data-dir = data/processed
 gdb = data/raw/us_pbg00_2007.gdb
 figs = fig/ppc-density-funs.png \
 	fig/burn-area-effs.png fig/ppc-counts.png \
-	fig/all-coefs.png fig/bivar-effs.png fig/fire-effs.pdf \
+	fig/all-coefs.png \
 	fig/count-partial-effs.png fig/attribution-plot.png \
-	fig/count-preds.png fig/test-set-burn-area.png \
-	fig/number-vs-exceedance.png fig/max-preds-l2-minimal.png \
-	fig/max-preds-l3-all.png \
+	fig/count-preds.png \
+	fig/max-preds-l2-minimal.png \
 	fig/maps.png
 	
-tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv
+tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv \
+	data/processed/rho_beta.csv data/processed/count_test_intervals.csv \
+	data/processed/area_df.csv data/processed/predicted_totals.csv
 
 all: main.pdf
 
@@ -96,17 +97,18 @@ data/processed/count-loglik.csv fig/ppc-counts.png: R/count-model-comps.R \
 	pois_fit.rds nb_fit.rds zip_fit.rds zinb_fit.rds
 		Rscript --vanilla R/count-model-comps.R
 
-fig/all-coefs.png fig/bivar-effs.png fig/fire-effs.pdf fig/count-partial-effs.png: R/count-effplots.R \
+fig/all-coefs.png fig/count-partial-effs.png: R/count-effplots.R \
 	zinb_full_fit.rds
 		Rscript --vanilla R/count-effplots.R
 
-fig/attribution-plot.png data/processed/count_test_intervals.csv: R/interaction-plots.R zinb_full_fit.rds test_preds.rds
+fig/attribution-plot.png: R/interaction-plots.R zinb_full_fit.rds test_preds.rds
 		Rscript --vanilla R/interaction-plots.R
 
-count-preds.rds fig/count-preds.png: R/plot-predicted-counts.R zinb_full_fit.rds
+count-preds.rds fig/count-preds.png data/processed/area_df.csv data/processed/count_test_intervals.csv: R/plot-predicted-counts.R \
+	zinb_full_fit.rds
 		Rscript --vanilla R/plot-predicted-counts.R
 
-fig/test-set-burn-area.png fig/number-vs-exceedance.png fig/max-preds-l2-minimal.png fig/max-preds-l3-all.png test_preds.rds: count-preds.rds \
+fig/max-preds-l2-minimal.png test_preds.rds data/processed/predicted_totals.csv: count-preds.rds \
 	ba_lognormal_fit.rds R/mev-plots.R
 		Rscript --vanilla R/mev-plots.R
 		
