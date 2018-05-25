@@ -110,7 +110,7 @@ count-preds.rds fig/count-preds.png data/processed/area_df.csv data/processed/co
 		Rscript --vanilla R/plot-predicted-counts.R
 
 fig/max-preds-l3.png test_preds.rds data/processed/predicted_totals.csv data/processed/mev_intervals.csv: count-preds.rds \
-	ba_lognormal_fit.rds R/mev-plots.R
+	ba_lognormal_fit.rds R/mev-plots.R data/processed/area_df.csv
 		Rscript --vanilla R/mev-plots.R
 		
 fig/maps.png: data/processed/mtbs.rds data/processed/ecoregions.rds
