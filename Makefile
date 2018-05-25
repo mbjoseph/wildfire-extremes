@@ -98,7 +98,7 @@ data/processed/count-loglik.csv fig/ppc-counts.png: R/count-model-comps.R \
 	pois_fit.rds nb_fit.rds zip_fit.rds zinb_fit.rds
 		Rscript --vanilla R/count-model-comps.R
 
-fig/all-coefs.png fig/count-partial-effs.png: R/count-effplots.R \
+fig/all-coefs.png fig/count-partial-effs.png data/processed/rho_beta.csv: R/count-effplots.R \
 	zinb_full_fit.rds
 		Rscript --vanilla R/count-effplots.R
 
