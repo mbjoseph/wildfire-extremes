@@ -289,11 +289,11 @@ kable(burn_area_loglik,
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/ppc-density-funs.png}
-\caption{Predictive checks for burn area models. The top row shows predicted density in color and empirical density for the training set in black. Row two shows the complementary cumulative distribution function (CCDF) at the tails, with 95\% and 50\% prediction intervals shown in color and observd data as black points. The third and fourth rows show checks for maximum and total burn areas in the training and test set, with observed values as dashed lines and posterior draws as colored points.}
+\caption{Predictive checks for burn area models. The top row shows predicted density in color and empirical density for the training set in black. Row two shows the complementary cumulative distribution function (CCDF) at the tails, with 95\% and 50\% prediction intervals shown in color and observed data as black points. The third and fourth rows show checks for maximum and total burn areas in the training and test set, with observed values as dashed lines and posterior draws as colored points.}
 \label{ppc-density-funs}
 \end{figure}
 
-The lognormal distribution performed best on the test set (Table \@ref(tab:ba-loglik)), and captured tail-behaviour better than other burn area distributions (Figure \ref{ppc-density-funs}).
+The lognormal distribution performed best on the test set (Table \@ref(tab:ba-loglik)), and captured tail-behavior better than other burn area distributions (Figure \ref{ppc-density-funs}).
 Although we might have expected the GPD to perform best given its theoretical support for exceedances over a threshold, in this case the GPD model was too heavy-tailed to adequately capture the pattern in the empirical data, predicting fires far larger than those observed in the training and test sets (Figure \ref{ppc-density-funs}). 
 The tapered Pareto distribution was too light-tailed (Figure \ref{ppc-density-funs}).
 The gamma and Weibull models performed very poorly overall on the test set  (Table \@ref(tab:ba-loglik)), apparently due to a lack of congruence between the shapes of these distributions and the actual burn area distribution. 
@@ -456,17 +456,16 @@ Further, the predictive performance of this approach seems to suggest that ordin
 Enhancing the spatiotemporal resolution of predictive models could better represent climatic and social drivers of fire dynamics and provide localized insights into fire dynamics to inform decision-making. 
 This raises computational challenges, but recent advances in distributed probabilistic computing [@tran2017deep], efficient construction of spatiotemporal point processes [@shirota2018scalable], and compact representations of nonlinear spatial interactions [@lee2011p] may provide solutions. 
 
-The Wallow Fire case study reveals at least one pitfall of increasing the spatiotemporal resolution with this approach. 
+The Wallow Fire case study reveals at least one limitation of increasing the spatiotemporal resolution with this approach. 
 When the model predictions are driven by covariates that are summarized in space and time (e.g. a mean across an ecoregion in a month), summary values may not represent conditions that are most relevant to an event. 
 With a discrete space-time segmentation, events can occur at the boundary of a spatiotemporal unit, e.g., if a fire spreads into an adjacent ecoregion or ignites on the first day of the month. 
-Long-burning large wildfires can span months, and a model that only uses conditions upon ignition to predict total burn area can fail to account for conditions that change over the course of the event.  
+Long-burning large wildfires can span months, and a model that only uses conditions upon ignition to predict total burn area can fail to account for conditions that change over the course of the event. 
 Modeling ignitions as a point process in continuous space and time [@brillinger2003risk], and explicitly modeling subsequent fire duration and spatial dynamics might provide a way separate conditions that ignite fires from those that affect spread. 
+Such an approach might be amenable to including information on fuel continuity, which is likely to limit the size of extremely large fires and did not factor into the current models predictions [@rollins2002landscape; @hargrove2000simulating]. 
 
-This paper presents a statistical approach to explain and predict extreme wildfires that incorporates spatially varying non-linear dynamics. 
+This paper presents and evaluates a statistical approach to explain and predict extreme wildfires that incorporates spatially varying non-linear dynamics. 
 The model reveals considerable differences in fire dynamics among ecoregions spanning the mountain west to the great plains, deserts, and eastern forests, and suggests a decent chance of very large fires exceeding one million acres in the contiguous US. 
-Our hope is that such an approach can be operationalized to inform decision-making, provide deeper insights into wildfire ecology, and address the modeling challenges that we have identified. 
-There is work to be done to link extreme wildfire dynamics with human consequences to better understand when and where wildfires are likely to result in catastrophic natural disasters. 
-In all but the most populated ecoregions, future increases in human density will increase wildfire risk, adding urgency to predictive modeling efforts with potential to mitigate loss of life, property damage, and health impacts from extreme wildfires. 
+Predictive approaches such as this can inform decision-making by placing probabilistic bounds on the number of wildfires and their sizes, while provide deeper insights into wildfire ecology. 
 
 # Acknowledgments {-}
 
@@ -556,7 +555,7 @@ Parameterizations for model likelihoods are provided first, followed by the fact
 
 $[n | \mu] = \dfrac{\mu^ne^{-\mu}}{n!},$ where $\begin{array} {l} \mu: \textnormal{mean} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau \mid \matr{N}] \propto \\
@@ -581,7 +580,7 @@ $[n | \mu] = \dfrac{\mu^ne^{-\mu}}{n!},$ where $\begin{array} {l} \mu: \textnorm
 
 $[n | \mu, \delta] = \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$, where $\begin{array}{l} \mu: \textnormal{mean} \\ \delta: \textnormal{dispersion} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau, \delta \mid \matr{N}] \propto \\
@@ -606,7 +605,7 @@ $[n | \mu, \delta] = \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \b
 
 $[n | \mu, \pi] = I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{-\mu}}{n!}$, where $\begin{array} {l} \mu: \textnormal{Poisson mean} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
@@ -653,7 +652,7 @@ $[n | \mu, \pi] = I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{
 
 $[n|\mu, \delta, \pi] = I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \big)^\delta) + I_{n > 0} \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$, where $\begin{array} {l} \mu: \textnormal{NB mean} \\ \delta: \textnormal{NB dispersion} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
@@ -700,7 +699,7 @@ $[n|\mu, \delta, \pi] = I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \
 
 $[y|\sigma, \kappa] = \dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big) ^ {- (\kappa + 1)\kappa^{-1}}$, where $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa^{(L)}, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
@@ -725,7 +724,7 @@ $[y|\sigma, \kappa] = \dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big)
 
 $[y|\kappa, \nu] = \Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{exp} (-x / \nu)$, where $\begin{array}{l} \kappa: \textnormal{shape} \\ \nu: \textnormal{taper} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \nu, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
@@ -751,7 +750,7 @@ $[y|\kappa, \nu] = \Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{ex
 
 $[y | \mu, \sigma] = \dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{exp}\Big( -\dfrac{(\log (y) - \mu)^2}{2 \sigma^2} \Big)$, where $\begin{array} {l} \mu: \textnormal{location} \\ \sigma: \textnormal{scale} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \sigma, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
@@ -776,7 +775,7 @@ $[y | \mu, \sigma] = \dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{e
 
 $[y | \kappa, \sigma] = \dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} \textnormal{exp}(-y / \sigma)$, where $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
@@ -801,7 +800,7 @@ $[y | \kappa, \sigma] = \dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} 
 
 $[y | \kappa, \sigma] = \dfrac{\kappa}{\sigma} \Big( \dfrac{y}{\sigma} \Big)^{\kappa - 1} \textnormal{exp} \Big( - \Big(\dfrac{y}{\sigma} \Big)^\alpha \Big)$, where $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$
 
-*Unnormalized posterior density:*
+Unnormalized posterior density:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \lambda, c, \tau \mid \bm{y}] \propto \\
