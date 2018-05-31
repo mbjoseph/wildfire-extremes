@@ -43,6 +43,11 @@ To run everything, you can type the following command from a terminal:
 make
 ```
 
+This takes ~3-4 days on a machine with 4 cores, assuming that you're making
+everything from scratch. 
+Fitting the models takes the longest due to data volume and parameter 
+dimensionality. 
+
 ## Overview of workflow
 
 ### 1. Data processing 
