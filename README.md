@@ -37,7 +37,8 @@ This will create and then open a project associated with this repository.
 
 ### Running the analysis
 
-To run everything, you can type the following command from a terminal: 
+To run everything, you can type the following command from a terminal 
+(e.g., the terminal pane in RStudio server): 
 
 ```
 make
