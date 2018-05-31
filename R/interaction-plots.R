@@ -155,28 +155,3 @@ p1 <- case_study_plot$plot +
 p1
 ggsave(filename = 'fig/attribution-plot.png', plot = p1,
        width = 7, height = 4)
-
-
-# now, look at analytical results for posterior over maxima vs. actual
-nmax_q <- function(p, n, mu, sigma) {
-  # quantile function for the n-sample maximum of normally
-  # distributed random variables
-  erf.inv <- function(x) qnorm((x + 1)/2)/sqrt(2)
-  sigma * sqrt(2) * erf.inv(2 * p^(1/n) - 1) + mu
-}
-
-test_preds <- read_rds('test_preds.rds')
-
-max_d_preds <- test_preds %>%
-  filter(NA_L3NAME == max_d$NA_L3NAME,
-         ym %in% c(max_d$ym, max_d$ym + 1/12, max_d$ym + 2/12)) %>%
-  select(-log_p, -starts_with('q'))
-
-# get 99% credible intervals
-max_d_preds %>%
-  filter(n_event > 0) %>%
-  group_by(ym) %>%
-  summarize(lo = exp(mean(nmax_q(.005, n_event, ln_mu, ln_scale))) + min_size,
-            hi = exp(mean(nmax_q(.995, n_event, ln_mu, ln_scale))) + min_size)
-max_d$R_ACRES
-

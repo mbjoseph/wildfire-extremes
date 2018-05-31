@@ -19,24 +19,16 @@ ecoregion_df <- read_rds('data/processed/ecoregions.rds') %>%
   data.frame
 
 # Extract posterior draws and visualize results ---------------------------
+
 post <- rstan::extract(read_rds(path = 'zinb_full_fit.rds'), 
                        pars = c('Rho_beta', 'beta', 'lp__'))
-str(post)
-gc()
-
-# get 95% credible interval for Rho_beta
-post$Rho_beta[, 1, 2] %>%
-  as_tibble %>%
-  write_csv('data/processed/rho_beta.csv')
 
 
+# Coefficient caterpillar plot ------------------------------
 
-# Coefficients that seem to be far from zero ------------------------------
-beta_df <- post$beta %>%
+beta_summary <- post$beta %>%
   reshape2::melt(varnames = c('iter', 'dim', 'col')) %>%
-  tbl_df
-
-beta_summary <- beta_df %>%
+  tbl_df %>%
   group_by(dim, col) %>%
   summarize(median = median(value),
             mean = mean(value),
@@ -71,6 +63,7 @@ coef_d <- beta_summary %>%
   group_by(Response) %>%
   mutate(max_abs = max(abs(median)),
          rel_size = median / max_abs)
+
 coefplot <- coef_d %>%
   ggplot(aes(x = median,
              y = variable,
@@ -96,15 +89,10 @@ coefplot <- coef_d %>%
   theme(legend.position = 'none') +
   geom_text_repel(aes(label = ifelse(nonzero, variable, '')),
                   color = 'black', size = 2)
-coefplot
-ggsave('fig/all-coefs.png', width = 6, height = 3.5)
-
-rm(beta_df)
-gc()
+ggsave('fig/all-coefs.png', plot = coefplot, width = 6, height = 3.5)
 
 
 # Partial effect plots ----------------------------------------------------
-vars
 
 partial_effs <- list()
 n_iter <- length(post$lp__)
@@ -196,6 +184,15 @@ p <- plot_data %>%
   xlab('') +
   theme(panel.grid.minor = element_blank(),
         legend.position = 'none')
-p
-ggsave('fig/count-partial-effs.png', width = 6, height = 4.5)
+
+ggsave('fig/count-partial-effs.png', plot = p, width = 6, height = 4.5)
+
+
+
+# Save numeric summaries for text -----------------------------------------
+
+post$Rho_beta[, 1, 2] %>%
+  as_tibble %>%
+  write_csv('data/processed/rho_beta.csv')
+
 

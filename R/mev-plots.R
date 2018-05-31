@@ -10,7 +10,6 @@ stan_d <- read_rds('data/processed/stan_d.rds')
 min_size <- stan_d$min_size
 holdout_burns <- read_rds('data/processed/holdout_burns.rds')
 mtbs <- read_rds('data/processed/mtbs.rds')
-area_df <- read_csv('data/processed/area_df.csv')
 
 
 # Simulate from the joint predictive distribution -------------------------
@@ -94,32 +93,10 @@ pred_df <- expand.grid(x = 1e6 - min_size,
                        id = holdout_ids,
                        iter = 1:max(test_preds$iter))
 
-iter_max <- 100
-exceedance_df <- test_preds %>%
-  filter(iter < iter_max, id %in% holdout_ids) %>%
-  full_join(filter(pred_df, iter < iter_max))
 
-exceedance_summary <- exceedance_df %>%
-  # find the cdf for monthly maxima
-  mutate(log_p = n_event * pnorm(log(x),
-                                 mean = ln_mu,
-                                 sd = ln_scale,
-                                 log.p = TRUE)) %>%
-  left_join(select(st_covs, id, year, rmin)) %>%
-  group_by(NA_L3NAME, iter, x) %>%
-  # sum to get the joint probability across all time steps
-  summarize(total_p = sum(log_p),
-            total_events = sum(n_event),
-            rmin = mean(rmin)) %>%
-  group_by(NA_L3NAME, x, rmin) %>%
-  summarize(`Exceedance probability` = 1 - mean(exp(total_p)),
-            ep_lo = 1 - quantile(exp(total_p), .025),
-            ep_hi = 1 - quantile(exp(total_p), .975),
-            `E(n)` = mean(total_events),
-            n_lo = quantile(total_events, .025),
-            n_hi = quantile(total_events, .975),
-            mean_rmin = mean(rmin)) %>%
-  ungroup
+exceedance_df <- test_preds %>%
+  filter(id %in% holdout_ids) %>%
+  full_join(filter(pred_df))
 
 overall_million <- exceedance_df %>%
   # find the cdf for monthly maxima
@@ -134,7 +111,7 @@ overall_million <- exceedance_df %>%
             total_events = sum(n_event)) %>%
   ungroup()
 
-# Get the probability of a million+ acre fire
+# probability of a million+ acre fire
 overall_million %>%
   summarize(med = median(1 - exp(total_p)),
             lo = quantile(1 - exp(total_p), .025),
@@ -152,9 +129,12 @@ test_preds <- test_preds %>%
          qvhi = min_size + exp(nmax_q(.995, n = n_event, mu = ln_mu, sigma = ln_scale)), 
          q25 = min_size + exp(nmax_q(.25, n = n_event, mu = ln_mu, sigma = ln_scale)), 
          q75 = min_size + exp(nmax_q(.75, n = n_event, mu = ln_mu, sigma = ln_scale)))
-
 write_rds(test_preds, path = 'test_preds.rds')
 
+
+
+
+# Visualize extremes predictions for some ecoregions ----------------------
 interval_df <- test_preds %>%
   group_by(NA_L3NAME, ym) %>%
   summarize(m_qlo = mean(qlo),
@@ -172,10 +152,6 @@ max_df <- mtbs %>%
   left_join(distinct(st_covs, NA_L3NAME, NA_L2NAME)) %>%
   group_by(NA_L2NAME) %>%
   mutate(n_events = n())
-
-most_events_ers <- max_df %>%
-  distinct(NA_L2NAME, n_events) %>%
-  arrange(-n_events)
 
 interval_df <- interval_df %>%
   left_join(select(st_covs,
