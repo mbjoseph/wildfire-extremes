@@ -37,3 +37,6 @@ vignettes/*.pdf
 ecoregion_tri.csv
 main.tex
 main.log
+main.bbl
+main.blg
+main.synctex.gz
