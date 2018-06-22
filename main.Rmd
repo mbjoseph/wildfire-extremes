@@ -25,8 +25,8 @@ count_test_intervals <- read_csv('data/processed/count_test_intervals.csv')
 \begin{abstract}
 Wildfires are becoming more frequent and getting larger in many parts of the globe, but predicting where and when extreme events might occur remains difficult. 
 To explain and predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire occurrence record with meteorological and housing data in a spatiotemporal Bayesian model with spatially varying nonlinear effects. 
-We find that dryness, air temperature, precipitation, and human housing density regulate wildfire risk, but these effects strongly depend on location and ecological context. 
-Statistically, most of the variability in the chance of an extreme wildfire results from changes in fire frequency, rather than changes in the underlying distribution of expected fire sizes.
+We find that dryness and air temperature strongly regulate wildfire risk, with precipitation, and human housing density playing weaker roles.
+Statistically, most of the variability in the chance of an extreme wildfire results from changes in fire frequency, rather than changes in the underlying distribution of expected fire sizes. 
 Meteorologically, extreme events occur when conditions are exceptionally hot and dry. 
 This model attains `r 100 * round(mean(count_test_intervals$in_interval), 3)`\% interval coverage for the number of fires over 1000 acres in a withheld data set over a five-year prediction time horizon. 
 We argue that recent wildfire extremes need not be surprising, and future extremes might be predictable if accurate meteorological forecasts are available to drive models of fire occurrence and size.
@@ -38,29 +38,26 @@ We argue that recent wildfire extremes need not be surprising, and future extrem
 # Introduction {-}
 
 Wildfire frequency and burned area has increased over the past couple decades in the United States [@dennison2014large; @westerling2016increasing], and other areas globally [@krawchuk2009global; @pechony2010driving]. 
-In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] given the hazards they pose in some ecosystems as well as to human lives and infrastructure [@kochi2010economic; @diaz2012economic].
-But, predicting extreme wildfires - i.e.., fires with the largest burn area over a spatiotemporal domain - at a management-relevant scale remains difficult. 
+In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] - i.e.., fires with the largest burn area over a spatiotemporal domain - given the hazards they pose in some ecosystems as well as to human lives and infrastructure [@kochi2010economic; @diaz2012economic].
+While case studies of particular extremes can provide insight into what caused observed events in the context of local drivers [@peterson20152013], predicting future extremes across heterogeneous regions is remains difficult but important from the perspective of managing disaster related resource allocation at a national level. 
 
-Statistical models of wildfire extremes require distributional specifications for burn area.
-For example, both the generalized extreme value (GEV) distribution [@moritz1997analyzing] and generalized Pareto distribution (GPD) have been used to model wildfire extremes, typically with models being developed separately for different spatial regions [@bermudez2009spatial; @jiang2011extreme]. 
-More recent efforts have developed temporal or spatial models of fire sizes [@mendes2010spatial], and spatial models with year as a covariate [@diaz2016modeling].
-Spatiotemporal models have been described with linear, spatially constant covariate effects [@serra2014spatio; @serra2014spatioB], but this assumption is unappealing in large spatial domains, and in the context of nonlinear drivers of wildfire occurrence and size [@preisler2004probability; @preisler2007statistical; @balshi2009assessing; @krawchuk2009global; @vilar2010model; @woolford2011spatio; @woolford2014lightning].
+Factors driving wildfire extremes vary in space and time [@barbero2014modeling], but it is unclear how best to account for this in a predictive model. 
+Previous efforts have used region-specific models [@bermudez2009spatial], temporal or spatial models [@mendes2010spatial], and spatial models with year as a covariate [@diaz2016modeling]. 
+Recently, spatiotemporal models have been described with linear, spatially constant covariate effects [@serra2014spatio; @serra2014spatioB]. 
+However, linear, spatially constant effects are unappealing in large spatial domains and in the context of nonlinear drivers of wildfires [@fosberg1978weather, @goodrick2002modification, @preisler2004probability; @preisler2007statistical; @balshi2009assessing; @krawchuk2009global; @vilar2010model; @woolford2011spatio; @woolford2014lightning]. 
+For example, global wildfire probability shows a hump-shaped relationship with temperature and moisture [@moritz2012climate]. 
+Interactions among drivers also impose nonlinearity, e.g., in hot and dry climates, sparse fuels inhibit fire [@mclaughlin1982effects], but in cold and wet climates, fires are energy limited [@Krawchuk2011]. 
 
-Nonlinear divers of wildfire dynamics have been repeatedly demonstrated.
-Globally, wildfire probability shows a hump-shaped relationship with temperature and moisture [@moritz2012climate]. 
-In hot and dry climates, fuels are typically too sparse to support fire; in cold and wet climates, fires are energy limited [@Krawchuk2011]. 
-Humans also  affect wildfire risk, and ignite most of the wildfires in U.S. [@balch2017human], while also suppressing most fires.
-As human density increases from zero, ignition pressure increases, but eventually landscapes become so urbanized, fragmented, and/or fire-suppressed that wildfire risk decreases [@Syphard2007; @bowman2011human; @Bistinas2013; @Knorr2013; @Mcwethy2013; @Syphard2017].
-At intermediate density, wildfire dynamics respond to human ignition and altered fuel distributions [@Guyette2002], but these responses depend on environmental context and characteristics of the human population [@Marlon2008; @Li2009]. 
-Further complicating matters, the drivers of large wildfires are known to be spatially variable in addition to being nonlinear [@barbero2014modeling].
+Prediction is also complicated by uncertainty in which distribution(s) to use to assign probabilities to extreme events. 
+The generalized Pareto distribution (GPD) has frequently been used [@bermudez2009spatial; @jiang2011extreme], but the GPD requires a threshold to delineate extreme vs. not extreme events [@davison1990models, @coles2014introduction]. 
+The utility and validity of one threshold for extremes in a heterogeneous region is debatable [@tedim2018defining]. 
+Recently proposed metastatistical extreme value (MEV) approaches do not require such a threshold [@marani2015metastatistical; @zorzetto2016emergence]. 
+In the MEV framework, the occurrence and size of future events, and the parameters of their distributions are treated as random variables which imply a distribution for extremes. 
+This approach has roots in compound distributions [@dubey1970compound; @wiitala1999assessing], doubly stochastic processes [@cox1980point], superstatistics [@beck2003superstatistics], and the Bayesian posterior predictive distribution [@gelman2013bayesian]. 
 
+Here, we extend the MEV perspective to account for non-linear, spatially varying wildfire dynamics with the goal of predicting and explaining extreme wildfire events across the contiguous United States.
 We aim to predict occurrence (where and when), and magnitude (burn area) of large wildfires over a monthly time scale. 
-Such information could help prioritize reactive fire suppression resources, or inform proactive planning to mitigate wildfire risk.
-Point-process models for occurrence with generalized Pareto models for burn area have been used [@davison1990models], but require a threshold that delineates extreme vs. not extreme events, discarding information about non-extremes. 
-A metastatistical extreme value (MEV) approach does not require such a threshold and retains information on all events [@marani2015metastatistical; @zorzetto2016emergence]. 
-This approach has roots in compound distributions [@dubey1970compound; @wiitala1999assessing], doubly stochastic processes [@cox1980point], superstatistics [@beck2003superstatistics], and the Bayesian posterior predictive distribution [@gelman2013bayesian].
-In the MEV framework, the occurrence and size of future events, and the parameters of their distributions are treated as random variables. 
-Here, we exploit and extend this deeply Bayesian notion to account for non-linear, spatially varying wildfire dynamics with the goal of predicting and explaining extreme wildfire events across the contiguous United States.
+Such information could help prioritize reactive fire suppression resources or inform proactive wildfire risk mitigation.
 
 # Methods {-}
 
@@ -73,11 +70,9 @@ count_df <- full_join(train_counts, holdout_counts)
 n_fires_total <- sum(count_df$n_fire)
 ```
 
-We acquired fire occurrence data from the Monitoring Trends in Burn Severity (MTBS, www.mtbs.gov) program [@eidenshink20071145801], which includes spatial and temporal information on the occurrence of wildfires in the United States from 1984 to 2015. 
+We acquired wildfire event data for the contiguous United States from the Monitoring Trends in Burn Severity (MTBS, www.mtbs.gov) program [@eidenshink20071145801], which includes spatiotemporal information on the occurrence of wildfires in the United States from 1984 to 2015. 
 The MTBS data contain fires greater than 1000 acres in the western US and greater than 500 acres in the eastern US. 
-For consistency across the US, we discarded all records in the MTBS data less than 1000 acres. 
-We also excluded data from Alaska, Hawaii, and Puerto Rico, so that our study area is a continuous swath of land, comprising the lower 48 states, resulting in `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events under consideration (Figure \ref{study-region}A).
-
+For consistency across the US, we discarded all records in the MTBS data less than 1000 acres, resulting in `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events under consideration (Figure \ref{study-region}A).
 
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/maps.png}
@@ -87,7 +82,7 @@ We also excluded data from Alaska, Hawaii, and Puerto Rico, so that our study ar
 
 To explain fire size and occurrence, we used a combination of meteorological variables including humidity, air temperature, precipitation, and wind speed. 
 These variables were selected on the basis of previous work, and also with an aim to capture directly the effects of easily interpretable meteorological quantities (as compared to an index of fire weather, for example). 
-Meteorological layers were acquired from the gridMET data[@abatzoglou2013development] that blends monthly high-spatial resolution (~4-km) climate data from the Parameter-elevation Relationships on Independent Slopes Model [@daly2008physiographically] with high-temporal resolution (hourly) data from the National Land Data Assimilation System (NLDAS2) using climatologically aided interpolation. 
+Meteorological layers were acquired from the gridMET data [@abatzoglou2013development] that blends monthly high-spatial resolution (~4-km) climate data from the Parameter-elevation Relationships on Independent Slopes Model [@daly2008physiographically] with high-temporal resolution (hourly) data from the National Land Data Assimilation System (NLDAS2) using climatologically aided interpolation. 
 The resultant products are a suite of surface meteorological variables summarized at the daily time step and at a 4-km spatial grain. 
 Daily values of total precipitation, minimum relative humidity, mean wind speed, and maximum air temperature were averaged at a monthly time step for each of 84 Environmental Protection Agency level 3 ecoregions for each month from 1984 to 2015 [@omernik1987ecoregions; @omernik2014ecoregions].
 For each month, we computed the mean amount of precipitation over the past 12 months to get an indicator of long term water availability, which might relate to fuel biomass availability for some ecoregions. 
@@ -181,7 +176,7 @@ We also include predictive checks for the proportion of zero counts, and totals 
 Posterior predictive inference for maxima is similar in spirit to the MEV approach. 
 Both obtain a distribution over maxima by marginalizing over unknown parameters, including the number of events, size of each event, and parameters of their generative [@marani2015metastatistical].
 However, a Bayesian approach explicitly conditions on the observed data to obtain a posterior distribution of parameters.
-Seeing this connection is useful in the context of including priors and propagating uncertainty in derived parameters such as total burn areas, and probabilities of million acre wildfires.
+Seeing this connection is useful in the context of including priors and propagating uncertainty in derived parameters, including total burn areas and probabilities of million acre wildfires.
 
 ## Parameter estimation {-}
 
@@ -225,7 +220,8 @@ rho_beta <- read_csv('data/processed/rho_beta.csv') %>% unlist
 \label{count-partial-effs}
 \end{figure}
 
-Minimum relative humidity and maximum air temperature had the strongest effects on the negative binomial mean (Figure \ref{count-partial-effs}, and results for the zero-inflation component are similar (posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)`, `r round(quantile(rho_beta, .975), 3)`). 
+Minimum relative humidity and maximum air temperature had the strongest effects on the negative binomial mean (Figure \ref{count-partial-effs}). 
+Results for the zero-inflation component are similar (posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)`, `r round(quantile(rho_beta, .975), 3)`). 
 The model uncovered unique effects of meteorological variables at level 1, 2, and 3 ecoregions (Figure \ref{all-coefs}).
 For example, the positive interaction effect between the second air temperature basis vector and the L1 Great Plains ecoregions indicates that the expected number of wildfires in plains ecoregions with cold conditions is high relative to other ecoregions. 
 The Ozark/Ouachita-Appalachian forest and Ozark Highlands were also identified as having region-specific temperature effects (Figure \ref{all-coefs}). 
@@ -422,9 +418,9 @@ Evidently, conditions in May that drove (under)predictions of maximum burn area 
 # Discussion {-}
 
 Extreme wildfires are often devastating, but perhaps they need not be surprising. 
-By allowing the non-linear effects of weather and housing density to vary across space, we were able to achieve good predictive accuracy for fire extremes as measured by interval coverage over a five-year prediction window. 
+By allowing the non-linear effects of weather and housing density to vary across space, we were able to achieve good predictive accuracy for fire extremes over a five-year prediction window. 
 We estimate a non-negligible chance of wildfires larger than what has been observed in recent decades, perhaps even over one million acres.
-However, the Wallow Fire case study reveals some limitations worth considering for future efforts. 
+However, the Wallow Fire case study reveals some promising directions for future prediction efforts. 
 
 Predicting large wildfire occurrence across a large geographic region at a monthly time step could support short to medium term wildfire management and disaster planning. 
 However, we have assumed here that high-quality meteorological forecast data are available. 
@@ -438,26 +434,24 @@ But, even if one had a perfect forecast, novel conditions present a challenge fo
 For example, the High Plains ecoregion had its highest monthly precipitation, lowest 12 month running precipitation, driest, hottest, and windiest conditions in the held-out data, so that the range of environmental conditions in the training data did not encompass the range of future conditions. 
 Extrapolating beyond the range of training inputs is generally difficult, but the hierarchical spatial effect specification used here allows partial pooling among climatically similar ecoregions that can inform such predictions, unlike models fit separately to disjoint spatial regions. 
 
-Previous research indicates that human-caused climate change is expected to increase fire activity in the western U.S. [@Abatzoglou2016], the Pacific Northwest [@rogers], and globally (albeit with high spatial variability that includes some areas of decreased fire activity) [@flannigan]. 
-Meteorological and anthropogenic effects are coupled by human-caused climate change, which alters fuel distribution and dryness along with fire weather. 
-The nonlinear effect of human-density provides an interesting wrinkle in future expectations. 
+Human-caused climate change is expected to increase fire activity in the western U.S. [@rogers, @Abatzoglou2016] and elsewhere [@flannigan], which when coupled with the nonlinear effect of human-density provides a key inferential wrinkle. 
 While most U.S. ecoregions are increasing in human density over time, some of these ecoregions are in the range of values in which this increases the expected number of large fires, while others are so populated that further increases would reduce the chance of a large fire.
-
-The effect of human density on the expected number of large fires is likely driven by increased ignition pressure [@balch2017human].
+The hump-shaped effect of human density on the expected number of large fires is likely driven by ignition pressure and fire suppression [@balch2017human].
+As human density increases from zero, ignition pressure increases, but eventually landscapes become so urbanized, fragmented, and/or fire-suppressed that wildfire risk decreases [@Syphard2007; @bowman2011human; @Bistinas2013; @Knorr2013; @Mcwethy2013; @Syphard2017].
+At intermediate density, wildfire dynamics respond to human ignition and altered fuel distributions [@Guyette2002], but these responses depend on environmental context and characteristics of the human population [@Marlon2008; @Li2009]. 
 This model indicates that the combination of moderate to high human density and dry conditions would nonlinearly increase the chance of an extreme fire event. 
 Both human density and dryness are expected to increase in the future across large swaths of the US [@lloyd2017high; @stavros2014regional,  @radeloff2010housing]. 
 This result raises questions around how wildfire burn area scales with consequences such as human mortality, health risks from smoke and particulate emission, and the financial burden of wildfire management and disaster recovery. 
-The approach described in this paper could be extended to explore these scaling properties spatially, to understand where extremes might have the greatest impact on humans in the future. 
 
-This work points to promising directions for future quantitative efforts.
-Default choices such as Poisson and GPD distributions should be checked against alternatives. 
-Further, the predictive performance of this approach seems to suggest that ordinary events inform the extremes, which would not be the case if the generative distribution of extremes was completely unique. 
+This work points to promising directions for future predictive efforts.
+Default choices such as Poisson and GPD distributions should be checked against alternatives that may perform better. 
+Further, the predictive skill of this model seems to suggest that ordinary events inform the extremes, which would not be the case if the generative distribution of extremes was completely unique. 
 Enhancing the spatiotemporal resolution of predictive models could better represent climatic and social drivers of fire dynamics and provide localized insights into fire dynamics to inform decision-making. 
 This raises computational challenges, but recent advances in distributed probabilistic computing [@tran2017deep], efficient construction of spatiotemporal point processes [@shirota2018scalable], and compact representations of nonlinear spatial interactions [@lee2011p] may provide solutions. 
 
 The Wallow Fire case study reveals at least one limitation of increasing the spatiotemporal resolution with this approach. 
 When the model predictions are driven by covariates that are summarized in space and time (e.g. a mean across an ecoregion in a month), summary values may not represent conditions that are most relevant to an event. 
-With a discrete space-time segmentation, events can occur at the boundary of a spatiotemporal unit, e.g., if a fire spreads into an adjacent ecoregion or ignites on the first day of the month. 
+With a discrete space-time segmentation, events can occur at the boundary of a spatiotemporal unit, e.g., if a fire spreads into an adjacent ecoregion or ignites on the last day of the month. 
 Long-burning large wildfires can span months, and a model that only uses conditions upon ignition to predict total burn area can fail to account for conditions that change over the course of the event. 
 Modeling ignitions as a point process in continuous space and time [@brillinger2003risk], and explicitly modeling subsequent fire duration and spatial dynamics might identify conditions that ignite fires and those that affect spread. 
 Such an approach might be amenable to including information on fuel continuity, which is likely to limit the size of extremely large fires and did not factor into the current models predictions [@rollins2002landscape; @hargrove2000simulating]. 
