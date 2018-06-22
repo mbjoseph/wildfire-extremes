@@ -97,6 +97,8 @@ beta_summary %>%
   ylab('') +
   xlab('')
 
+write_csv(x = beta_summary, path = 'data/processed/burn-area-beta.csv')
+
 # Partial effect plots ----------------------------------------------------
 which_var <- 'rmin'
 

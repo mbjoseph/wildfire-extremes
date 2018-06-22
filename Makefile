@@ -11,7 +11,8 @@ figs = fig/ppc-density-funs.png \
 tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv \
 	data/processed/rho_beta.csv data/processed/count_test_intervals.csv \
 	data/processed/area_df.csv data/processed/predicted_totals.csv \
-	data/processed/area_coverage.csv data/processed/mev_intervals.csv
+	data/processed/area_coverage.csv data/processed/mev_intervals.csv \
+	data/processed/burn-area-beta.csv
 
 all: main.pdf
 
@@ -91,7 +92,7 @@ fig/ppc-density-funs.png data/processed/burn-area-loglik.csv data/processed/area
 	ba_tpareto_fit.rds ba_weibull_fit.rds
 		Rscript --vanilla R/burn-area-model-comps.R
 
-fig/burn-area-effs.png: ba_lognormal_fit.rds R/burn-area-plots.R
+fig/burn-area-effs.png data/processed/burn-area-beta.csv: ba_lognormal_fit.rds R/burn-area-plots.R
 		Rscript --vanilla R/burn-area-plots.R
 
 data/processed/count-loglik.csv fig/ppc-counts.png: R/count-model-comps.R \

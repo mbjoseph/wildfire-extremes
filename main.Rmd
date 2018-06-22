@@ -221,7 +221,7 @@ rho_beta <- read_csv('data/processed/rho_beta.csv') %>% unlist
 \end{figure}
 
 Minimum relative humidity and maximum air temperature had the strongest effects on the negative binomial mean (Figure \ref{count-partial-effs}). 
-Results for the zero-inflation component are similar (posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)`, `r round(quantile(rho_beta, .975), 3)`). 
+Results for the zero-inflation component are similar (posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)` - `r round(quantile(rho_beta, .975), 3)`). 
 The model uncovered unique effects of meteorological variables at level 1, 2, and 3 ecoregions (Figure \ref{all-coefs}).
 For example, the positive interaction effect between the second air temperature basis vector and the L1 Great Plains ecoregions indicates that the expected number of wildfires in plains ecoregions with cold conditions is high relative to other ecoregions. 
 The Ozark/Ouachita-Appalachian forest and Ozark Highlands were also identified as having region-specific temperature effects (Figure \ref{all-coefs}). 
@@ -230,7 +230,7 @@ Housing density showed a unimodal relationship to expected count (Figure \ref{co
 
 \begin{figure}[ht] 
 \includegraphics[width=.9\textwidth]{fig/all-coefs.png}
-\caption{Caterpillar plots of zero inflated negative binomial model coefficients, $\beta^{(\mu)}$ (left) and $\beta^{(\pi)}$ (right). Horizontal line segments denote 95\% credible intervals. Grey segments indicate coefficients with a less that 87\% posterior probability of being positive or negative, and colored segments indicate coefficients that are probably positive (red) or negative (blue). B-spline vectors are indicated by colons, e.g., \code{Humidity:1} indicates the first basis vector corresponding to humidity. Interactions between variables \code{a} and \code{b} are represented as \code{Intxn(a x b)}. Level 1 ecoregions are represented by \code{L1 ecoregion name}, and \code{L2} and \code{L3} indicate level 2 and 3 ecoregions.}
+\caption{Caterpillar plots of zero inflated negative binomial model coefficients, $\beta^{(\mu)}$ (left) and $\beta^{(\pi)}$ (right). Horizontal line segments denote 95\% credible intervals. Grey segments indicate coefficients with a less than 87\% posterior probability of being positive or negative, and colored segments indicate coefficients that are probably positive (red) or negative (blue). B-spline vectors are indicated by colons, e.g., \code{Humidity:1} indicates the first basis vector corresponding to humidity. Interactions between variables \code{a} and \code{b} are represented as \code{Intxn(a x b)}. Level 1 ecoregions are represented by \code{L1 ecoregion name}, and \code{L2} and \code{L3} indicate level 2 and 3 ecoregions.}
 \label{all-coefs} 
 \end{figure}
 
@@ -295,8 +295,15 @@ The gamma and Weibull models performed very poorly overall on the test set  (Tab
 Despite a poor fit to the bulk of the wildfire burn area distribution, both of these models performed adequately in the upper tails (Figure \ref{ppc-density-funs}).
 Hereafter we present results for the lognormal model, which had the highest test set log likelihood and captured tail behavior of the empirical fire size distribution.
 
+```{r burn-area-beta, message = FALSE, results='hide'}
+burn_area_beta <- read_csv('data/processed/burn-area-beta.csv')
+hum_1_effect <- filter(burn_area_beta, nonzero)
+assert_that(nrow(hum_1_effect) == 1)
+```
+
+<!-- TODO programmatically insert following estimate -->
 Relative humidity was the primary driver of expected burn area for a fire event (Figure \ref{burn-area-effs}A). 
-The first basis vector for mean daily minimum relative humidity was the only coefficient with a 95\% credible interval that did not include zero (posterior median: 1.67, 95\% CI: (0.025, 2.316)). 
+The first basis vector for mean daily minimum relative humidity was the only coefficient with a 95\% credible interval that did not include zero (posterior median: `r hum_1_effect$median %>% round(2)`, 95\% CI: (`r hum_1_effect$lo %>% round(2)` - `r hum_1_effect$hi %>% round(2)`)). 
 This nonlinear effect can be observed in Figure \ref{burn-area-effs}B as a marked increase in the expected burn area below 20\% mean daily minimum humidity. 
 This leads to a periodicity gradient among ecoregions in the seasonality of expected fire sizes, with little or no periodic signal in humid ecoregions (Figure \ref{burn-area-effs}C).
 There was not strong evidence that meteorological variables had spatially variable effects on expected wildfire burn area. 
@@ -382,7 +389,7 @@ If we extrapolate, the probability that at least one fire exceeded one million a
 
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/max-preds-l3.png}
-\caption{Posterior 99\% prediction intervals for the burn area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with wildfires in more than 20 months. Empirical maxima are shown as black dots.}
+\caption{Posterior 99\% (light red) and 95\% (dark red) prediction intervals for the burn area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with wildfires in more than 20 months. Empirical maxima are shown as black dots.}
 \label{max-preds-l3}
 \end{figure}
 
@@ -400,8 +407,8 @@ To better understand how well the model could or could not anticipate notable ex
 The Wallow Fire was accidentally ignited on May 29, 2011 by two campers in the L3 Arizona/New Mexico Mountains ecoregion.
 It burned through the month of June and into early July. 
 The model underpredicted the total burn area of the Wallow Fire. 
-The 99\% credible interval for the maximum fire size for May 2011 was (`r round(wallow_may_df$m_qvlo) %>% format(big.mark = ',', scientific = FALSE)`, `r round(wallow_may_df$m_qvhi) %>% format(big.mark = ',', scientific = FALSE)`) acres, but the Wallow Fire is recorded as 563,655 acres in the MTBS data. 
-The 99\% credible interval for June 2011 was (`r round(wallow_jun_df$m_qvlo) %>% format(big.mark = ',', scientific = FALSE)`, `r round(wallow_jun_df$m_qvhi) %>% format(big.mark = ',', scientific = FALSE)`) acres, which contains the true value. 
+The 99\% credible interval for the maximum fire size for May 2011 was (`r round(wallow_may_df$m_qvlo) %>% format(big.mark = ',', scientific = FALSE)` - `r round(wallow_may_df$m_qvhi) %>% format(big.mark = ',', scientific = FALSE)`) acres, but the Wallow Fire is recorded as 563,655 acres in the MTBS data. 
+The 99\% credible interval for June 2011 was (`r round(wallow_jun_df$m_qvlo) %>% format(big.mark = ',', scientific = FALSE)` - `r round(wallow_jun_df$m_qvhi) %>% format(big.mark = ',', scientific = FALSE)`) acres, which contains the true value. 
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/attribution-plot.png}
