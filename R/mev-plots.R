@@ -2,7 +2,6 @@ library(tidyverse)
 library(patchwork)
 library(assertthat)
 library(sf)
-library(stringr)
 
 st_covs <- read_rds('data/processed/st_covs.rds')
 cutoff_year <- read_rds('data/processed/cutoff_year.rds')

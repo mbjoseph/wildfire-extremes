@@ -3,8 +3,6 @@
 
 library(tidyverse)
 library(rstan)
-library(ggridges)
-library(viridis)
 library(ggthemes)
 library(ggrepel)
 library(sf)

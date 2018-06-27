@@ -7,7 +7,6 @@ train_burns <- read_rds('data/processed/train_burns.rds')
 holdout_burns <- read_rds('data/processed/holdout_burns.rds')
 stan_d <- read_rds('data/processed/stan_d.rds')
 
-
 model_fits <- list.files(pattern = '*.fit.*\\.rds')
 
 burn_area_fits <- grep(model_fits, pattern = 'ba_', value = TRUE)

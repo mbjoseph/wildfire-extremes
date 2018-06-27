@@ -181,11 +181,21 @@ Seeing this connection is useful in the context of including priors and propagat
 ## Parameter estimation {-}
 
 We used a combination of variational approximations and Hamiltonian Monte Carlo methods to sample from the posterior distributions of count and burn area models. 
-A variational approximation [@kucukelbir2015automatic] was used for count models to quickly identify the best count model and avoid excessive multi-day model runs. 
-Models were fit in the Stan probabilistic programming language using the \code{rstan} package [@carpenter2016stan]. 
+A variational approximation [@kucukelbir2015automatic] was used for count models to quickly identify a preferred model and avoid excessive multi-day model runs. 
+Models were fit in the Stan probabilistic programming language using the \code{rstan} package [@carpenter2016stan; @rstan]. 
 The best performing count model and all burn area models were fit using the No-U-Turn Sampler [@hoffman2014no].
 We ran four chains for 1000 iterations each, and discarded the first 500 iterations as warmup. 
 Convergence was assessed using visual inspection of trace plots, with $\hat{R} \geq 1.1$ as an indicator convergence failure [@brooks1998general].
+
+## Implementation {-}
+
+All data processing, model fitting, and visualization were implemented with open source software, primarily in the R programming langugage [@R], and wrapped in a reproducible workflow via GNU Make and Docker [@Stallman2004; @boettiger2015introduction]. 
+Data cleaning and transformation required the R packages assertthat [@assertthat], lubridate [@lubridate], Matrix [@Matrix], pbapply [@pbapply], splines [@splines], tidyverse [@tidyverse], and zoo [@zoo]. 
+Spatial data were processed with raster [@raster], rgdal [@rgdal], sf [@sf], and spdep [@spdep].
+Finally, we used cowplot [@cowplot], ggrepel [@ggrepel], ggthemes [@ggthemes], patchwork [@patchwork], and RColorBrewer [@rcolorbrewer] for visualization. 
+The manuscript was written in R Markdown [@rmarkdown]. 
+Analyses were run on an Amazon Web Services m5.2xlarge EC2 instance with four physical cores and 32 GB of RAM, and the whole workflow requires $\approx$ 72 hours. 
+All code to reproduce the analysis is available on GitHub at TODO: insert URL here and cite the repo's DOI.
 
 # Results {-}
 
@@ -301,7 +311,6 @@ hum_1_effect <- filter(burn_area_beta, nonzero)
 assert_that(nrow(hum_1_effect) == 1)
 ```
 
-<!-- TODO programmatically insert following estimate -->
 Relative humidity was the primary driver of expected burn area for a fire event (Figure \ref{burn-area-effs}A). 
 The first basis vector for mean daily minimum relative humidity was the only coefficient with a 95\% credible interval that did not include zero (posterior median: `r hum_1_effect$median %>% round(2)`, 95\% CI: (`r hum_1_effect$lo %>% round(2)` - `r hum_1_effect$hi %>% round(2)`)). 
 This nonlinear effect can be observed in Figure \ref{burn-area-effs}B as a marked increase in the expected burn area below 20\% mean daily minimum humidity. 

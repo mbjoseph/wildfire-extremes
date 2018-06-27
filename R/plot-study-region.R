@@ -1,6 +1,5 @@
 library(sf)
 library(tidyverse)
-library(ggplot2)
 library(RColorBrewer)
 library(patchwork)
 

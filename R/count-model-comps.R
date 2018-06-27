@@ -3,7 +3,6 @@
 # using the variational approximation
 library(cowplot)
 library(tidyverse)
-library(ggridges)
 library(patchwork)
 library(ggrepel)
 

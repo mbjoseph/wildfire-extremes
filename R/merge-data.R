@@ -1,11 +1,7 @@
 library(tidyverse)
 library(rgdal)
-library(maptools)
-library(foreign)
-library(purrr)
 library(sf)
 library(zoo)
-library(RCurl)
 library(assertthat)
 
 

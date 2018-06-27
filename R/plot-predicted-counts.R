@@ -1,6 +1,5 @@
 
 library(tidyverse)
-library(ggridges)
 library(patchwork)
 library(sf)
 

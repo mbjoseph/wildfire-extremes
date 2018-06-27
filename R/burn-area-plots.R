@@ -1,10 +1,8 @@
 library(tidyverse)
 library(rstan)
-library(ggridges)
-library(viridis)
 library(ggrepel)
-library(patchwork)
 library(ggthemes)
+library(patchwork)
 
 colnamesX <- read_rds('data/processed/colnamesX.rds')
 X <- read_rds('data/processed/X.rds')
@@ -16,9 +14,6 @@ stan_d <- read_rds('data/processed/stan_d.rds')
 post <- rstan::extract(read_rds('ba_lognormal_fit.rds'), 
                        pars = c('beta', 'lp__', 'mu_full'))
 str(post)
-gc()
-
-
 
 # Coefficients that seem to be far from zero ------------------------------
 beta_df <- post$beta %>%
@@ -76,26 +71,6 @@ coefplot <- beta_summary %>%
                   alpha = 1, size = 2.5) +
   ggtitle('A')
 coefplot
-
-# show important coefficients
-beta_summary %>%
-  filter(p_neg > .8 | p_pos > .8) %>%
-  select(dim, col, p_neg, p_pos, variable,
-         median, variable) %>%
-  left_join(beta_df) %>%
-  ggplot(aes(value, reorder(variable, median), fill = median)) +
-  theme_minimal() +
-  geom_density_ridges(scale = 3, rel_min_height = 0.005,
-                      color = alpha(1, .6)) +
-  geom_vline(xintercept = 0, linetype = 'dashed', alpha = .1) +
-  theme(axis.text.y = element_text(size = 7)) +
-  scale_fill_gradient2() +
-  theme(legend.position = 'none',
-        panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_line(color = 'grey95'),
-        axis.text.y = element_text(size = 6)) +
-  ylab('') +
-  xlab('')
 
 write_csv(x = beta_summary, path = 'data/processed/burn-area-beta.csv')
 
@@ -201,29 +176,6 @@ location_ts_plot <- loc_ts %>%
              labeller = labeller(.rows = label_wrap_gen(23))) +
   ggtitle('C')
 location_ts_plot
-
-# plotting expected values vs. covariates
-cmap <- c(viridis(6, option = 'C'),
-          rev(viridis(6, option = 'C')))
-
-humidity_scatter <- st_covs %>%
-  full_join(mu_df) %>%
-  filter(year < stan_d$cutoff_year) %>%
-  mutate(l2_er = tools::toTitleCase(tolower(as.character(NA_L2NAME))),
-         l2_er = gsub(' and ', ' & ', l2_er),
-         l2_er = gsub('Usa ', '', l2_er)) %>%
-  ggplot(aes(x = rmin,
-             y = exp(median) + stan_d$min_size,
-             color = month)) +
-  geom_point(alpha = .6) +
-  theme_minimal() +
-  scale_color_gradientn(colors = cmap, 'Month') +
-  xlab('Relative humidity (%)') +
-  ylab('Expected fire size') +
-  theme(panel.grid.minor = element_blank(),
-        strip.text.x = element_text(size = 8, color = 'grey30')) +
-  ggtitle('B')
-humidity_scatter
 
 q <- (coefplot + p) / location_ts_plot + plot_layout(heights = c(.6, 1), ncol = 1)
 q
