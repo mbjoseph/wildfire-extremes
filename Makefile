@@ -114,7 +114,8 @@ fig/max-preds-l3.png test_preds.rds data/processed/predicted_totals.csv data/pro
 	ba_lognormal_fit.rds R/mev-plots.R data/processed/area_df.csv
 		Rscript --vanilla R/mev-plots.R
 		
-fig/maps.png: data/processed/mtbs.rds data/processed/ecoregions.rds
+fig/maps.png: data/processed/mtbs.rds data/processed/ecoregions.rds R/plot-study-region.R
+		Rscript --vanilla R/plot-study-region.R
 		
 push_fits: 
 	aws s3 cp . s3://earthlab-mjoseph/ --recursive --exclude "*" --include "*_fit.rds"
