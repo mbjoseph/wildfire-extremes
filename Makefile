@@ -6,7 +6,8 @@ figs = fig/ppc-density-funs.png \
 	fig/count-partial-effs.png fig/attribution-plot.png \
 	fig/count-preds.png \
 	fig/max-preds-l3.png \
-	fig/maps.png
+	fig/maps.png \
+	fig/spline-concept.png
 	
 tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv \
 	data/processed/rho_beta.csv data/processed/count_test_intervals.csv \
@@ -116,6 +117,9 @@ fig/max-preds-l3.png test_preds.rds data/processed/predicted_totals.csv data/pro
 		
 fig/maps.png: data/processed/mtbs.rds data/processed/ecoregions.rds R/plot-study-region.R
 		Rscript --vanilla R/plot-study-region.R
+		
+fig/spline-concept.png: R/spline-concept.R
+		Rscript --vanilla R/spline-concept.R
 		
 push_fits: 
 	aws s3 cp . s3://earthlab-mjoseph/ --recursive --exclude "*" --include "*_fit.rds"

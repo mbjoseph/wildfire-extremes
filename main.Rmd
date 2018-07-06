@@ -135,9 +135,16 @@ More detail on the parameterization of each burn area distribution is provided i
 ### Accounting for nonlinear forcing {-}
 
 The design matrix $\matr{X}$ was constructed to allow for spatially varying nonlinear effects of housing density and meteorological drivers. 
-We used B-splines to account for nonlinearity and allowed the coefficients for each basis vector to vary spatially [@wood2017]. 
+We used B-splines to account for nonlinearity (Figure \ref{spline-concept}) and allowed the coefficients for each basis vector to vary spatially [@wood2017]. 
 Then, we constructed univariate B-splines for log housing density, wind speed, same month precipitation, previous 12 month precipitation, air temperature, and humidity, with five degrees of freedom (including an intercept) for each variable.
 This step generated 30 basis vectors (five for each of six variables). 
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/spline-concept.png}
+\caption{Conceptual figure to illustrate the use of B-splines to construct nonlinear functions. In the left panel, five B-spline vectors are shown, which map values of an input variable (on the x-axis) to a value on the y-axis. The middle panel shows the same B-spline vectors, but weighted (multiplied) by real numbers, with the weights illustrated as annotations. These weighted B-spline vectors are summed to produce the values of a nonlinear function (right panel) that maps input variables to an output value.}
+\label{spline-concept} 
+\end{figure}
+
 
 ```{r}
 colnamesX <- read_rds('data/processed/colnamesX.rds')
