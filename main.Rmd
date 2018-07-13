@@ -23,10 +23,10 @@ count_test_intervals <- read_csv('data/processed/count_test_intervals.csv')
 ```
 
 \begin{abstract}
-Wildfires are becoming more frequent and getting larger in many parts of the globe, but predicting where and when extreme events might occur remains difficult. 
+Wildfires are becoming more frequent in parts of the globe, but predicting where and when extreme events might occur remains difficult. 
 To explain and predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire occurrence record with meteorological and housing data in a spatiotemporal Bayesian model with spatially varying nonlinear effects. 
 We find that dryness and air temperature strongly regulate wildfire risk, with precipitation, and human housing density playing weaker roles.
-Statistically, most of the variability in the chance of an extreme wildfire results from changes in fire frequency, rather than changes in the underlying distribution of expected fire sizes. 
+Statistically, most of the variability in the chance of an extreme wildfire results from changes in fire frequency that influence sampling from the tails of fire size distributions, rather than changes in the underlying distributions of expected fire sizes. 
 Meteorologically, extreme events occur when conditions are exceptionally hot and dry. 
 This model attains `r 100 * round(mean(count_test_intervals$in_interval), 3)`\% interval coverage for the number of fires over 1000 acres in a withheld data set over a five-year prediction time horizon. 
 We argue that recent wildfire extremes need not be surprising, and future extremes might be predictable if accurate meteorological forecasts are available to drive models of fire occurrence and size.
@@ -38,15 +38,17 @@ We argue that recent wildfire extremes need not be surprising, and future extrem
 # Introduction {-}
 
 Wildfire frequency and burned area has increased over the past couple decades in the United States [@dennison2014large; @westerling2016increasing], and other areas globally [@krawchuk2009global; @pechony2010driving]. 
-In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] - i.e.., fires with the largest burn area over a spatiotemporal domain - given the hazards they pose in some ecosystems as well as to human lives and infrastructure [@kochi2010economic; @diaz2012economic].
-While case studies of particular extremes can provide insight into what caused observed events in the context of local drivers [@peterson20152013], predicting future extremes across heterogeneous regions is remains difficult but important from the perspective of managing disaster related resource allocation at a national level. 
+In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] given the hazards they pose in some ecosystems as well as to human lives and infrastructure [@kochi2010economic; @diaz2012economic]. 
+While case studies of particular extremes can provide insight into what caused past events in the context of local drivers [@peterson20152013], predictions of future extremes at a national level could inform disaster related resource allocation. 
+Here, we consider an extreme wildfire to be a fire with the largest burned area over some well-defined spatiotemporal domain.
+Predicting extremes is difficult in general, but extreme wildfires are particularly difficult because of spatiotemporal heterogeneity and uncertainty in which distributions to use.
 
 Factors driving wildfire extremes vary in space and time [@barbero2014modeling], but it is unclear how best to account for this in a predictive model. 
-Previous efforts have used region-specific models [@bermudez2009spatial], temporal or spatial models [@mendes2010spatial], and spatial models with year as a covariate [@diaz2016modeling]. 
-Recently, spatiotemporal models have been described with linear, spatially constant covariate effects [@serra2014spatio; @serra2014spatioB]. 
+Previous efforts have used year or region-specific models, aggregating over space or time [@bermudez2009spatial], temporally or spatially explicit models [@mendes2010spatial], and spatial models with year as a covariate [@diaz2016modeling]. 
+Recently, rich spatiotemporal models have been described with linear, spatially constant covariate effects [@serra2014spatio; @serra2014spatioB]. 
 However, linear, spatially constant effects are unappealing in large spatial domains and in the context of nonlinear drivers of wildfires [@fosberg1978weather, @goodrick2002modification, @preisler2004probability; @preisler2007statistical; @balshi2009assessing; @krawchuk2009global; @vilar2010model; @woolford2011spatio; @woolford2014lightning]. 
 For example, global wildfire probability shows a hump-shaped relationship with temperature and moisture [@moritz2012climate]. 
-Interactions among drivers also impose nonlinearity, e.g., in hot and dry climates, sparse fuels inhibit fire [@mclaughlin1982effects], but in cold and wet climates, fires are energy limited [@Krawchuk2011]. 
+Interactions among drivers also impose nonlinearity, e.g., in hot and dry climates fuel sparsity limits fire spread [@mclaughlin1982effects], but in cold and wet climates, fires are energy limited [@Krawchuk2011]. 
 
 Prediction is also complicated by uncertainty in which distribution(s) to use to assign probabilities to extreme events. 
 The generalized Pareto distribution (GPD) has frequently been used [@bermudez2009spatial; @jiang2011extreme], but the GPD requires a threshold to delineate extreme vs. not extreme events [@davison1990models, @coles2014introduction]. 
@@ -56,7 +58,7 @@ In the MEV framework, the occurrence and size of future events, and the paramete
 This approach has roots in compound distributions [@dubey1970compound; @wiitala1999assessing], doubly stochastic processes [@cox1980point], superstatistics [@beck2003superstatistics], and the Bayesian posterior predictive distribution [@gelman2013bayesian]. 
 
 Here, we extend the MEV perspective to account for non-linear, spatially varying wildfire dynamics with the goal of predicting and explaining extreme wildfire events across the contiguous United States.
-We aim to predict occurrence (where and when), and magnitude (burn area) of large wildfires over a monthly time scale. 
+We aim to predict occurrence (where and when), and magnitude (burn area) of large wildfires at a monthly time scale. 
 Such information could help prioritize reactive fire suppression resources or inform proactive wildfire risk mitigation.
 
 # Methods {-}
@@ -72,7 +74,8 @@ n_fires_total <- sum(count_df$n_fire)
 
 We acquired wildfire event data for the contiguous United States from the Monitoring Trends in Burn Severity (MTBS, www.mtbs.gov) program [@eidenshink20071145801], which includes spatiotemporal information on the occurrence of wildfires in the United States from 1984 to 2015. 
 The MTBS data contain fires greater than 1000 acres in the western US and greater than 500 acres in the eastern US. 
-For consistency across the US, we discarded all records in the MTBS data less than 1000 acres, resulting in `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events under consideration (Figure \ref{study-region}A).
+For consistency across the US, we discarded all records in the MTBS data less than 1000 acres, resulting in `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events under consideration (Figure \ref{study-region}A). 
+Each event in the MTBS data has a discovery date, and a spatial point location.
 
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/maps.png}
@@ -81,10 +84,11 @@ For consistency across the US, we discarded all records in the MTBS data less th
 \end{figure}
 
 To explain fire size and occurrence, we used a combination of meteorological variables including humidity, air temperature, precipitation, and wind speed. 
-These variables were selected on the basis of previous work, and also with an aim to capture directly the effects of easily interpretable meteorological quantities (as compared to an index of fire weather, for example). 
+These variables were selected on the basis of previous work, and also with an aim to capture directly the effects of easily interpretable meteorological quantities. 
 Meteorological layers were acquired from the gridMET data [@abatzoglou2013development] that blends monthly high-spatial resolution (~4-km) climate data from the Parameter-elevation Relationships on Independent Slopes Model [@daly2008physiographically] with high-temporal resolution (hourly) data from the National Land Data Assimilation System (NLDAS2) using climatologically aided interpolation. 
 The resultant products are a suite of surface meteorological variables summarized at the daily time step and at a 4-km spatial grain. 
-Daily values of total precipitation, minimum relative humidity, mean wind speed, and maximum air temperature were averaged at a monthly time step for each of 84 Environmental Protection Agency level 3 ecoregions for each month from 1984 to 2015 [@omernik1987ecoregions; @omernik2014ecoregions].
+Daily values of total precipitation, minimum relative humidity, mean wind speed, and maximum air temperature were averaged at a monthly time step for each of 84 Environmental Protection Agency level 3 (L3) ecoregions for each month from 1984 to 2015 [@omernik1987ecoregions; @omernik2014ecoregions].
+We chose to segment the continental U.S. with level 3 ecoregions as a compromise between the more numerous (computationally demanding) level 4 ecoregions, and the coarser level 2 ecoregions. 
 For each month, we computed the mean amount of precipitation over the past 12 months to get an indicator of long term water availability, which might relate to fuel biomass availability for some ecoregions. 
 
 We also used publicly available housing density estimates that were generated based on the US 2000 decennial census as explanatory variables [@radeloff2010housing]. 
@@ -93,7 +97,7 @@ To generate approximate measures of housing density at monthly time intervals, w
 
 ## Model development {-}
 
-We built two types of models: one describing the occurrence of fires within an ecoregion over time (i.e., the total number of fires occurring in each ecoregion for each month from 1984 - 2015), and another describing the size of each wildfire in each ecoregion and month.
+We built two types of models: one describing the occurrence of fires within each L3 ecoregion over time (i.e., the total number of fires occurring in each ecoregion for each month from 1984 - 2015), and another describing the size of each wildfire in each ecoregion and month. 
 For the occurrence models, the response variable was a count (number of fires), and for the burn area models, the response was a continuous positive quantity (burn area of each fire event). 
 Modeling the size of each fire, rather than the mean or total burn area of all fires within a spatiotemporal unit allows us to explore spatiotemporal variation in the distribution of fire sizes. 
 We used the period from 1984 to 2009 for training, and the period from 2010 to 2015 was withheld to evaluate predictive performance. 
@@ -446,7 +450,7 @@ We estimate a non-negligible chance of wildfires larger than what has been obser
 However, the Wallow Fire case study reveals some promising directions for future prediction efforts. 
 
 Predicting large wildfire occurrence across a large geographic region at a monthly time step could support short to medium term wildfire management and disaster planning. 
-However, we have assumed here that high-quality meteorological forecast data are available. 
+However, we have assumed here that climate forecast data are available. 
 This is convenient for separating the predictive skill of the fire model from that of a climate model, but in practice predictions are likely to be limited by the quality of climate predictions. 
 Weather predictions should be most accurate over relatively short time scales, e.g., upcoming fire seasons, or what will happen next month. 
 But, this model could be used in conjunction with longer term climate projections to explore potential wildfire dynamics on a decadal time horizon.
@@ -454,7 +458,7 @@ But, this model could be used in conjunction with longer term climate projection
 Driving a model with meteorological features raises challenges related to predictive uncertainty and covariate shift - a change in the underlying distribution of forcing variables, potentially outside of the historic range. 
 Ideally, this uncertainty would be propagated forward in a predictive model, possibly through stacking of predictive distributions that are generated from multiple models of future climate dynamics [@yao2017using]. 
 But, even if one had a perfect forecast, novel conditions present a challenge for predictive modeling [@quionero2009dataset]. 
-For example, the High Plains ecoregion had its highest monthly precipitation, lowest 12 month running precipitation, driest, hottest, and windiest conditions in the held-out data, so that the range of environmental conditions in the training data did not encompass the range of future conditions. 
+For example, the High Plains ecoregion had its highest monthly precipitation, lowest 12 month running precipitation, driest, hottest, and windiest conditions in the test set period, so that the range of environmental conditions in the training data did not encompass the range of future conditions. 
 Extrapolating beyond the range of training inputs is generally difficult, but the hierarchical spatial effect specification used here allows partial pooling among climatically similar ecoregions that can inform such predictions, unlike models fit separately to disjoint spatial regions. 
 
 Human-caused climate change is expected to increase fire activity in the western U.S. [@rogers, @Abatzoglou2016] and elsewhere [@flannigan], which when coupled with the nonlinear effect of human-density provides a key inferential wrinkle. 
@@ -569,9 +573,12 @@ Parameterizations for model likelihoods are provided first, followed by the fact
 
 ### Poisson wildfire count model {-}
 
-$[n | \mu] = \dfrac{\mu^ne^{-\mu}}{n!},$ where $\begin{array} {l} \mu: \textnormal{mean} \end{array}$
+We used the following parameterization of the Poisson distribution: 
 
-Unnormalized posterior density:
+$$[n | \mu] = \dfrac{\mu^ne^{-\mu}}{n!},$$ 
+where $\mu$ is the mean and variance.
+
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau \mid \matr{N}] \propto \\
@@ -594,9 +601,12 @@ Unnormalized posterior density:
 
 ### Negative binomial wildfire count model {-}
 
-$[n | \mu, \delta] = \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$, where $\begin{array}{l} \mu: \textnormal{mean} \\ \delta: \textnormal{dispersion} \end{array}$
+We used the following parameterization of the negative binomial distribution: 
+$$[n | \mu, \delta] = \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta,$$ 
 
-Unnormalized posterior density:
+where $\mu$ is the mean, and $\delta$ is a dispersion parameter.
+
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau, \delta \mid \matr{N}] \propto \\
@@ -619,9 +629,12 @@ Unnormalized posterior density:
 
 ### Zero-inflated Poisson wildfire count model {-}
 
-$[n | \mu, \pi] = I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{-\mu}}{n!}$, where $\begin{array} {l} \mu: \textnormal{Poisson mean} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$
+We used the following parameterization of the zero-inflated Poisson distribution: 
 
-Unnormalized posterior density:
+$$[n | \mu, \pi] = I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{-\mu}}{n!},$$
+where $\mu$ is the Poisson mean, and $1-\pi$ is the probability of an extra zero.
+
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
@@ -666,9 +679,11 @@ Unnormalized posterior density:
 
 ### Zero-inflated negative binomial wildfire count model {-}
 
-$[n|\mu, \delta, \pi] = I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \big)^\delta) + I_{n > 0} \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta$, where $\begin{array} {l} \mu: \textnormal{NB mean} \\ \delta: \textnormal{NB dispersion} \\ \pi: 1 - \textnormal{Pr(extra 0)} \end{array}$
+We used the following parameterization of the zero-inflated negative binomial distribution: 
+$$[n|\mu, \delta, \pi] = I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \big)^\delta) + I_{n > 0} \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta,$$ 
+where $\mu$ is the negative binomial mean, $\delta$ is the negative binomial dispersion, and , and $1-\pi$ is the probability of an extra zero.
 
-Unnormalized posterior density:
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
@@ -713,9 +728,11 @@ Unnormalized posterior density:
 
 ### Generalized Pareto/Lomax burn area model {-}
 
-$[y|\sigma, \kappa] = \dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big) ^ {- (\kappa + 1)\kappa^{-1}}$, where $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$
+We used the following parameterization of the GPD/Lomax distribution: 
+$$[y|\sigma, \kappa] = \dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big) ^ {- (\kappa + 1)\kappa^{-1}},$$ 
+where $\kappa$ is a shape parameter and $\sigma$ is a scale parameter. 
 
-Unnormalized posterior density:
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa^{(L)}, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
@@ -738,9 +755,11 @@ Unnormalized posterior density:
 
 ### Tapered Pareto burn area model {-}
 
-$[y|\kappa, \nu] = \Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{exp} (-x / \nu)$, where $\begin{array}{l} \kappa: \textnormal{shape} \\ \nu: \textnormal{taper} \end{array}$
+We used the following parameterization of the tapered Pareto distribution: 
+$$[y|\kappa, \nu] = \Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{exp} (-x / \nu),$$ 
+where $\kappa$ is a shape parameter and $\nu$ a taper parameter.
 
-Unnormalized posterior density:
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \nu, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
@@ -764,9 +783,11 @@ Unnormalized posterior density:
 
 ### Lognormal burn area model {-}
 
-$[y | \mu, \sigma] = \dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{exp}\Big( -\dfrac{(\log (y) - \mu)^2}{2 \sigma^2} \Big)$, where $\begin{array} {l} \mu: \textnormal{location} \\ \sigma: \textnormal{scale} \end{array}$
+We used the following parameterization of the lognormal distribution: 
+$$[y | \mu, \sigma] = \dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{exp}\Big( -\dfrac{(\log (y) - \mu)^2}{2 \sigma^2} \Big),$$
+where $\mu$ and $\sigma$ are location and scale parameters, respectively.
 
-Unnormalized posterior density:
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \sigma, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
@@ -789,9 +810,11 @@ Unnormalized posterior density:
 
 ### Gamma burn area model {-}
 
-$[y | \kappa, \sigma] = \dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} \textnormal{exp}(-y / \sigma)$, where $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$
+We used the following parameterization of the gamma distribution: 
+$$[y | \kappa, \sigma] = \dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} \textnormal{exp}(-y / \sigma),$$ 
+where $\kappa$ is a shape parameter and $\sigma$ a scale parameter.
 
-Unnormalized posterior density:
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
@@ -814,9 +837,11 @@ Unnormalized posterior density:
 
 ### Weibull burn area model {-}
 
-$[y | \kappa, \sigma] = \dfrac{\kappa}{\sigma} \Big( \dfrac{y}{\sigma} \Big)^{\kappa - 1} \textnormal{exp} \Big( - \Big(\dfrac{y}{\sigma} \Big)^\alpha \Big)$, where $\begin{array} {l} \kappa: \textnormal{shape} \\ \sigma: \textnormal{scale} \end{array}$
+We used the following parameterization of the Weibull distribution: 
+$$[y | \kappa, \sigma] = \dfrac{\kappa}{\sigma} \Big( \dfrac{y}{\sigma} \Big)^{\kappa - 1} \textnormal{exp} \Big( - \Big(\dfrac{y}{\sigma} \Big)^\alpha \Big),$$ 
+where $\kappa$ is a shape parameter and $\sigma$ is a scale parameter.
 
-Unnormalized posterior density:
+The unnormalized posterior density of this model is:
 
 \begin{flalign*}
 && [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \lambda, c, \tau \mid \bm{y}] \propto \\

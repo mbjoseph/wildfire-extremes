@@ -100,30 +100,26 @@ for (v in seq_along(vars)) {
   print(paste('Processing', vars[v]))
   for (i in seq_along(unique_ers)) {
     setTxtProgressBar(pb, i)
-    subdf <- st_covs %>%
-      filter(NA_L3NAME == unique_ers[i]) %>%
-      mutate(row_id = 1:n())
-    X_sub <- Matrix(X[st_covs$NA_L3NAME == unique_ers[i], ], sparse = TRUE)
+    X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
     cols <- grepl(vars[v], colnames(X_sub))
     if (vars[v] == 'pr') {
       cols <- grepl(vars[v], colnames(X_sub)) &
         !grepl('12mo', colnames(X_sub))
     }
 
-    effects <- array(dim = c(nrow(X_sub), 1, 3)) # 1 response, 3: med, lo, hi
-    for (j in 1:nrow(X_sub)) {  # month j
-      for (k in 1) {          # response k=1 --> negbinom mean
-        vals <- X_sub[j, cols] %*% t(post$beta[, k, cols])
-        effects[j, k, ] <- quantile(vals, c(.025, .5, .975))
-      }
-    }
+    effects <- X_sub[, cols] %*% t(post$beta[, 1, cols]) %>% # 1 --> negbinom mean
+      apply(1, quantile, c(0.025, .5, .975))
+    
+    subdf <- st_covs %>%
+      filter(NA_L3NAME == unique_ers[i]) %>%
+      mutate(row_id = parse_number(rownames(X_sub)))
+    
     partial_effs[[length(partial_effs) + 1]] <- effects %>%
-      reshape2::melt(varnames = c('row_id', 'response', 'quantity')) %>%
+      reshape2::melt(varnames = c('quantity', 'row_id')) %>%
       as_tibble %>%
-      mutate(response = ifelse(response == 1, 'negbinom', 'zeroinfl'),
-             quantity = case_when(.$quantity == 1 ~ 'lo',
-                                  .$quantity == 2 ~ 'med',
-                                  .$quantity == 3 ~ 'hi'),
+      mutate(quantity = case_when(.$quantity == "2.5%" ~ 'lo',
+                                  .$quantity == "50%" ~ 'med',
+                                  .$quantity == "97.5%" ~ 'hi'),
              var = vars[v]) %>%
       spread(quantity, value) %>%
       left_join(select(subdf, row_id, NA_L3NAME, ym))
@@ -133,7 +129,7 @@ close(pb)
 
 
 name_df <- tibble(covariate = vars,
-                  fancy_name = c('Housing density (units/km^2)',
+                  fancy_name = c('Housing density log(units/km^2)',
                                  'Wind speed (m/s)',
                                  'Precipitation: same month (mm)',
                                  'Precipitation: 12 month (mm)',
@@ -148,7 +144,6 @@ for (i in seq_along(vars)) {
     left_join(st_covs) %>%
     mutate(covariate = vars[i]) %>%
     left_join(name_df) %>%
-    filter(response == 'negbinom') %>%
     rename(covariate_value = !!vars[i]) %>%
     select(covariate, covariate_value, med, lo, hi,
            NA_L3NAME, ym, NA_L1NAME, NA_L2NAME,
@@ -161,29 +156,38 @@ better_name <- distinct(ecoregion_df, NA_L1NAME) %>%
                 'Southern Semi-arid Highlands',
                 l1_er))
 
+
+regions_to_highlight <- c("Eastern Temperate Forests", 
+                          'Great Plains', 
+                          'North American Deserts')
+
 plot_data <- effect_plot_df %>%
   bind_rows %>% 
   mutate(covariate_value = case_when(
     .$covariate == 'tmmx' ~ covariate_value - 273.15,
-    .$covariate == 'log_housing_density' ~ exp(covariate_value),
     TRUE ~ covariate_value)) %>%
-  left_join(better_name)
+  left_join(better_name) %>%
+  mutate(l1_er_subset = ifelse(l1_er %in% regions_to_highlight, 
+                               l1_er, "Other"))
+
+
+
+pal <- c("#D55E00", "#56B4E9", "#009E73", scales::alpha(1, .2))#"#999999")
 
 p <- plot_data %>%
   ggplot(aes(covariate_value, y = med)) +
   theme_minimal() +
-  geom_ribbon(aes(ymin = lo, ymax = hi, group = NA_L3NAME),
-              color = NA, alpha = .02) +
-  geom_line(alpha = .5, aes(group = NA_L3NAME, color = l1_er)) +
+  geom_line(aes(group = NA_L3NAME, color = l1_er_subset)) +
   ylab('Partial effect') +
   facet_wrap(~fancy_name, scales = 'free_x', ncol = 3, 
              strip.position = 'bottom') +
-  scale_color_gdocs('') +
+  scale_color_manual(values = pal, '') +
   xlab('') +
   theme(panel.grid.minor = element_blank(),
-        legend.position = 'none')
-
-ggsave('fig/count-partial-effs.png', plot = p, width = 6, height = 4.5)
+  legend.position = 'bottom') + 
+  scale_y_continuous(breaks = c(-3, 0, 3))
+p
+ggsave('fig/count-partial-effs.png', plot = p, width = 6, height = 4)
 
 
 
