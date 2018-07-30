@@ -4,7 +4,6 @@ figs = fig/ppc-density-funs.png \
 	fig/burn-area-effs.png fig/ppc-counts.png \
 	fig/all-coefs.png \
 	fig/count-partial-effs.png fig/attribution-plot.png \
-	fig/count-preds.png \
 	fig/max-preds-l3.png \
 	fig/maps.png \
 	fig/spline-concept.png
@@ -13,7 +12,8 @@ tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv \
 	data/processed/rho_beta.csv data/processed/count_test_intervals.csv \
 	data/processed/area_df.csv data/processed/predicted_totals.csv \
 	data/processed/area_coverage.csv data/processed/mev_intervals.csv \
-	data/processed/burn-area-beta.csv
+	data/processed/burn-area-beta.csv \
+	data/processed/million-er-mon.csv
 
 all: main.pdf
 
@@ -104,15 +104,15 @@ fig/all-coefs.png fig/count-partial-effs.png data/processed/rho_beta.csv: R/coun
 	zinb_full_fit.rds
 		Rscript --vanilla R/count-effplots.R
 
-fig/attribution-plot.png: R/interaction-plots.R zinb_full_fit.rds test_preds.rds
+fig/attribution-plot.png: R/interaction-plots.R zinb_full_fit.rds
 		Rscript --vanilla R/interaction-plots.R
 
-count-preds.rds fig/count-preds.png data/processed/area_df.csv data/processed/count_test_intervals.csv: R/plot-predicted-counts.R \
+count-preds.rds data/processed/area_df.csv data/processed/count_test_intervals.csv: R/plot-predicted-counts.R \
 	zinb_full_fit.rds
 		Rscript --vanilla R/plot-predicted-counts.R
 
-fig/max-preds-l3.png test_preds.rds data/processed/predicted_totals.csv data/processed/mev_intervals.csv: count-preds.rds \
-	ba_lognormal_fit.rds R/mev-plots.R data/processed/area_df.csv
+fig/max-preds-l3.png test_preds.rds data/processed/predicted_totals.csv data/processed/million-er-mon.csv data/processed/mev_intervals.csv: count-preds.rds \
+	ba_lognormal_fit.rds R/mev-plots.R
 		Rscript --vanilla R/mev-plots.R
 		
 fig/maps.png: data/processed/mtbs.rds data/processed/ecoregions.rds R/plot-study-region.R
