@@ -73,6 +73,41 @@ total_df %>%
 gc()
 
 
+# Simulating maxima from posterior predictive dist ------------------------
+
+max_df <- test_preds %>%
+  # filter out zero event records (don't contribute to max)
+  filter(n_event > 0) %>%
+  rowwise() %>%
+  mutate(max_area = max(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
+  ungroup
+  
+max_summary <- max_df %>%
+  group_by(NA_L3NAME, iter) %>%
+  summarize(max_area = max(max_area)) %>% # max over timesteps
+  ungroup %>%
+  group_by(NA_L3NAME) %>%
+  summarize(med = median(max_area), 
+            lo = quantile(max_area, .025), 
+            hi = quantile(max_area, .975), 
+            vlo = quantile(max_area, .005), 
+            vhi = quantile(max_area, .995))
+
+true_max <- holdout_burns %>%
+  group_by(NA_L3NAME) %>%
+  summarize(max = max(R_ACRES))
+
+true_max %>%
+  full_join(max_summary) %>%
+  ggplot(aes(max, med)) + 
+  geom_point() + 
+  scale_x_log10() + 
+  scale_y_log10() + 
+  geom_abline(slope = 1, yintercept = 0, linetype = 'dashed') + 
+  xlab('Observed maximum') + 
+  ylab('Predicted maximum') + 
+  geom_linerange(aes(ymin = lo, ymax = hi), alpha = .2) + 
+  theme_minimal()
 
 # Generate derived parameters about the distribution of maxima ----------------
 nmax_q <- function(p, n, mu, sigma) {
@@ -95,8 +130,8 @@ pred_df <- expand.grid(x = 1e6 - min_size,
 
 exceedance_df <- test_preds %>%
   filter(id %in% holdout_ids) %>%
-  full_join(filter(pred_df))
-
+  full_join(pred_df)
+ 
 overall_million <- exceedance_df %>%
   # find the cdf for monthly maxima
   mutate(log_p = n_event * pnorm(log(x),
@@ -116,6 +151,46 @@ overall_million %>%
             lo = quantile(1 - exp(total_p), .025),
             hi =quantile(1 - exp(total_p), .975)) %>%
   write_csv('data/processed/million-acre-prob.csv')
+
+# probabilities of million acre fires for each ecoregion month
+million_er_mon <- exceedance_df %>%
+  # find the cdf for monthly maxima
+  mutate(log_p = n_event * pnorm(log(x),
+                                 mean = ln_mu,
+                                 sd = ln_scale,
+                                 log.p = TRUE)) %>%
+  group_by(x, NA_L3NAME, ym) %>%
+  # sum to get the joint probability across all time steps
+  summarize(med = median(1 - exp(log_p)),
+            lo = quantile(1 - exp(log_p), .025),
+            hi = quantile(1 - exp(log_p), .975), 
+            expected_n = mean(n_event)) %>%
+  ungroup() %>%
+  left_join(select(st_covs, NA_L3NAME, NA_L2NAME, NA_L1NAME, ym, rmin, month, year))
+
+million_er_mon %>%
+  write_csv('data/processed/million-er-mon.csv')
+
+# Million acre probability by ecoregion
+# probabilities of million acre fires for each ecoregion month
+million_er <- exceedance_df %>%
+  # find the cdf for monthly maxima
+  mutate(log_p = n_event * pnorm(log(x),
+                                 mean = ln_mu,
+                                 sd = ln_scale,
+                                 log.p = TRUE)) %>%
+  group_by(x, NA_L3NAME, iter) %>%
+  # sum to get the joint probability across all time steps
+  summarize(total_p = sum(log_p)) %>%
+  ungroup %>%
+  group_by(x, NA_L3NAME) %>%
+  summarize(med = median(1 - exp(total_p))) %>%
+  ungroup()
+
+er_shp <- read_sf('data/raw/us_eco_l3/us_eco_l3.shp') %>%
+  mutate(NA_L3NAME = ifelse(NA_L3NAME == "Chihuahuan Desert", 
+                            "Chihuahuan Deserts", NA_L3NAME)) %>%
+  left_join(million_er)
 
 
 

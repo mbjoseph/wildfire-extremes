@@ -135,6 +135,7 @@ st_covs$row <- 1:nrow(st_covs)
 mu_df <- post$mu_full %>%
   reshape2::melt(varnames = c('iter', 'row')) %>%
   tbl_df %>%
+  mutate(value = value) %>%
   group_by(row) %>%
   summarize(median = median(value),
             lo = quantile(value, 0.05),
@@ -171,7 +172,7 @@ location_ts_plot <- loc_ts %>%
   theme(legend.position = 'none',
         panel.grid.minor = element_blank()) +
   scale_y_log10() +
-  ylab('Expected fire size') +
+  ylab('Expected fire size (acres)') +
   facet_wrap(~ NA_L1NAME, nrow = 2,
              labeller = labeller(.rows = label_wrap_gen(23))) +
   ggtitle('C')
