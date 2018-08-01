@@ -23,14 +23,14 @@ count_test_intervals <- read_csv('data/processed/count_test_intervals.csv')
 ```
 
 \begin{abstract}
-Wildfires are becoming more frequent in parts of the globe, but predicting where and when extreme events might occur remains difficult. 
+Wildfires are becoming more frequent in parts of the globe, but predicting where and when extreme events occur remains difficult. 
 To explain and predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire occurrence record with meteorological and housing data in spatiotemporal Bayesian models with spatially varying nonlinear effects. 
 We compared models with different distributions for the number and sizes of large fires. 
 A zero-inflated negative binomial model for fire counts and a lognormal model for burn areas provided the best performance.
 We find that dryness and air temperature strongly regulate wildfire risk, with precipitation, and housing density playing weaker roles.
 Statistically, most of the variability in the chance of an extreme wildfire results from changes in fire frequency that influence sampling from the tails of fire size distributions, rather than changes in the underlying distributions of expected fire sizes. 
 Meteorologically, extreme events occur when conditions are hot and dry, but the effect of air temperature is spatially variable. 
-This model attains `r 100 * round(mean(count_test_intervals$in_interval), 3)`\% interval coverage for the number of fires over 1000 acres in a withheld data set over a five-year prediction time horizon. 
+This model attains `r 100 * round(mean(count_test_intervals$in_interval), 3)`\% interval coverage for the number of fires in a withheld data set over a five-year prediction time horizon. 
 We argue that recent wildfire extremes need not be surprising, and future extremes might be predictable if accurate meteorological forecasts are available to drive models of fire occurrence and size.
 \end{abstract}
 
@@ -39,30 +39,30 @@ We argue that recent wildfire extremes need not be surprising, and future extrem
 
 # Introduction {-}
 
-Wildfire frequency and burned area has increased over the past couple decades in the United States [@dennison2014large; @westerling2016increasing], and other areas globally [@krawchuk2009global; @pechony2010driving]. 
-In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] given the hazards they pose in some ecosystems as well as to human lives and infrastructure [@kochi2010economic; @diaz2012economic]. 
-While case studies of particular extremes can provide insight into what caused past events in the context of local drivers [@peterson20152013], predictions of future extremes at a national level could inform disaster related resource allocation. 
-Here, we consider an extreme wildfire to be a fire with the largest burned area over some well-defined spatiotemporal domain.
+Wildfire frequency and burned area has increased over the past couple decades in the United States [@dennison2014large; @westerling2016increasing], and elsewhere [@krawchuk2009global; @pechony2010driving]. 
+In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] given their impact on human lives and infrastructure [@kochi2010economic; @diaz2012economic]. 
+While case studies of particular extremes provide insight into what caused past events [@peterson20152013], predictions of future extremes at a national level could inform disaster related resource allocation. 
+Here, we consider an extreme wildfire to be a fire with the largest burned area over a bounded spatiotemporal domain, e.g., within a spatial region and a temporal interval.
 Predicting extremes is difficult in general, but extreme wildfires are particularly difficult because of spatiotemporal heterogeneity and uncertainty in which distributions to use.
 
 Factors driving wildfire extremes vary in space and time [@barbero2014modeling], but it is unclear how best to account for this in a predictive model. 
 Previous efforts have used year or region-specific models, aggregating over space or time [@bermudez2009spatial], temporally or spatially explicit models [@mendes2010spatial], and spatial models with year as a covariate [@diaz2016modeling]. 
 Recently, rich spatiotemporal models have been described with linear, spatially constant covariate effects [@serra2014spatio; @serra2014spatioB]. 
-However, linear, spatially constant effects are suboptimal over large spatial domains and in the context of nonlinear drivers of wildfires [@fosberg1978weather, @goodrick2002modification, @preisler2004probability; @preisler2007statistical; @balshi2009assessing; @krawchuk2009global; @pechony2009fire; @vilar2010model; @woolford2011spatio; @woolford2014lightning]. 
+However, linear, spatially constant effects are suboptimal over large spatial domains with nonlinear drivers [@fosberg1978weather, @goodrick2002modification, @preisler2004probability; @preisler2007statistical; @balshi2009assessing; @krawchuk2009global; @pechony2009fire; @vilar2010model; @woolford2011spatio; @woolford2014lightning]. 
 For example, global wildfire probability shows a hump-shaped relationship with temperature and moisture [@moritz2012climate]. 
 Interactions among drivers also impose nonlinearity, e.g., in hot and dry climates fuel sparsity limits fire spread [@mclaughlin1982effects], but in cold and wet climates, fires are energy limited [@Krawchuk2011]. 
 
 Prediction is also complicated by uncertainty in which distribution(s) to use to assign probabilities to extreme events. 
-The generalized Pareto distribution (GPD) has frequently been used [@bermudez2009spatial; @jiang2011extreme], but the GPD requires a threshold to delineate extreme vs. not extreme events [@davison1990models, @coles2014introduction]. 
-The utility and validity of one threshold for extremes in a heterogeneous region is debatable [@tedim2018defining]. 
+The generalized Pareto distribution (GPD) has frequently been used [@bermudez2009spatial; @jiang2011extreme], but the GPD requires a threshold to delineate extreme events [@davison1990models, @coles2014introduction]. 
+The utility and validity of a threshold for extremes in a heterogeneous region is debatable [@tedim2018defining]. 
 Recently proposed metastatistical extreme value (MEV) approaches do not require such a threshold [@marani2015metastatistical; @zorzetto2016emergence]. 
-In the MEV framework, the occurrence and size of future events, and the parameters of their distributions are treated as random variables which imply a distribution for extremes. 
+In the MEV framework, the occurrence and size of future events, and the parameters of their distributions are treated as random variables which together imply a distribution for extremes. 
 This approach has roots in compound distributions [@dubey1970compound; @wiitala1999assessing], doubly stochastic processes [@cox1980point], superstatistics [@beck2003superstatistics], and the Bayesian posterior predictive distribution [@gelman2013bayesian]. 
-The link to Bayesian inference is paticularly useful, as it provides an easy way to propagate uncertainty forward to to predictions of extremes [@coles2003fully].
+The link to Bayesian inference is particularly useful, as it provides an easy way to propagate uncertainty forward to to predictions of extremes [@coles2003fully].
 
 Here, we extend the MEV perspective to account for non-linear, spatially varying wildfire dynamics with the goal of predicting and explaining extreme wildfire events across the contiguous United States.
 We aim to predict occurrence (where and when), and magnitude (burn area) of large wildfires at a monthly time scale. 
-Such information could help prioritize reactive fire suppression resources or inform proactive wildfire risk mitigation.
+Such predictions can be used to prioritize reactive fire suppression resources or inform proactive wildfire risk mitigation.
 
 # Methods {-}
 
@@ -77,7 +77,7 @@ n_fires_total <- sum(count_df$n_fire)
 
 We acquired wildfire event data for the contiguous United States from the Monitoring Trends in Burn Severity (MTBS, www.mtbs.gov) program [@eidenshink20071145801], which includes spatiotemporal information on the occurrence of wildfires in the United States from 1984 to 2015. 
 The MTBS data contain fires greater than 1000 acres in the western U.S. and greater than 500 acres in the eastern U.S. 
-For consistency across the U.S., we discarded all records in the MTBS data less than 1000 acres, resulting in `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events under consideration (Figure \ref{study-region}A). 
+For consistency across the U.S., we discarded all records in the MTBS data less than 1000 acres, resulting in `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events (Figure \ref{study-region}A). 
 Each event in the MTBS data has a discovery date, and a spatial point location.
 
 \begin{figure}[ht]
@@ -89,19 +89,19 @@ Each event in the MTBS data has a discovery date, and a spatial point location.
 To explain fire size and occurrence, we used a combination of meteorological variables including humidity, air temperature, precipitation, and wind speed. 
 These variables were selected on the basis of previous work, and also with an aim to capture directly the effects of easily interpretable meteorological quantities. 
 Meteorological layers were acquired from the gridMET data [@abatzoglou2013development] that blends monthly high-spatial resolution (~4-km) climate data from the Parameter-elevation Relationships on Independent Slopes Model [@daly2008physiographically] with high-temporal resolution (hourly) data from the National Land Data Assimilation System (NLDAS2) using climatologically aided interpolation. 
-The resultant products are a suite of surface meteorological variables summarized at the daily time step and at a 4-km spatial grain. 
-Daily values of total precipitation, minimum relative humidity, mean wind speed, and maximum air temperature were averaged at a monthly time step for each of 84 Environmental Protection Agency level 3 (L3) ecoregions for each month from 1984 to 2015 [@omernik1987ecoregions; @omernik2014ecoregions].
+The resultant products are a suite of surface meteorological variables summarized at the daily time step and at a 4-km pixel resolution. 
+Daily total precipitation, minimum relative humidity, mean wind speed, and maximum air temperature were averaged at a monthly time step for each of 84 Environmental Protection Agency level 3 (L3) ecoregions for each month from 1984 to 2015 [@omernik1987ecoregions; @omernik2014ecoregions].
 We chose to segment the continental U.S. with level 3 ecoregions as a compromise between the more numerous (computationally demanding) level 4 ecoregions, and the coarser level 2 ecoregions. 
-For each month, we computed the mean amount of precipitation over the past 12 months to get an indicator of long term water availability, which might relate to fuel biomass availability for some ecoregions. 
+We also computed cumulative monthly precipitation over the previous 12 months for each ecoregion-month combination, which might relate to fuel biomass availability in some ecoregions. 
 
-We also used publicly available housing density estimates that were generated based on the U.S. 2000 decennial census as explanatory variables [@radeloff2010housing]. 
+We also used publicly available housing density estimates that were generated based on the U.S. 2000 decennial census as explanatory variables that may relate to human ignition pressure [@radeloff2010housing]. 
 These are provided at decadal time steps, and spatially at the level of census partial block groups. 
 To generate approximate measures of housing density at monthly time intervals, we used a simple linear interpolation over time, and aggregated spatially across block groups to compute mean housing density for each ecoregion in each month. 
 
 ## Model development {-}
 
 We built two types of models: one describing the occurrence of fires within each L3 ecoregion over time (i.e., the total number of fires occurring in each ecoregion for each month from 1984 - 2015), and another describing the size of each wildfire in each ecoregion and month. 
-For the occurrence models, the response variable was a count (number of fires), and for the burn area models, the response was a continuous positive quantity (burn area of each fire event). 
+For occurrence models, the response variable was a count (number of fires), and for burn area models, the response was a continuous positive quantity (burn area of each fire event). 
 Modeling the size of each fire, rather than the mean or total burn area of all fires within a spatiotemporal unit allows us to explore spatiotemporal variation in the distribution of fire sizes. 
 We used the period from 1984 to 2009 for training, and the period from 2010 to 2015 was withheld to evaluate predictive performance. 
 
@@ -125,7 +125,7 @@ where $\alpha^{(\mu)}$ and $\alpha^{(\pi)}$ are scalar intercept parameters, $\m
 
 ### Burn area {-}
 
-We developed multiple candidate models for burn area, each of which specified a different distribution for burn areas [@reed2002power; @hernandez2015statistical], including the generalized Pareto [@hosking1987parameter], tapered Pareto [@schoenberg2003distribution], lognormal, gamma, and Weibull distributions. 
+We developed five candidate models for burn area, each of which specified a different distribution for burn areas [@reed2002power; @hernandez2015statistical], including the generalized Pareto [@hosking1987parameter], tapered Pareto [@schoenberg2003distribution], lognormal, gamma, and Weibull distributions. 
 We evaluated each model in terms of test set log likelihood, and posterior predictive checks for burn area extremes. 
 We defined the response $y_{i}$ as the number of acres burned over 1000 for the $i^{th}$ fire event, which occurred in spatial unit $s_i$ and time step $t_i$.
 
@@ -150,7 +150,7 @@ This step generated 30 basis vectors (five for each of six variables).
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/spline-concept.png}
-\caption{Conceptual figure to illustrate the use of B-splines to construct nonlinear functions. In the left panel, five B-spline vectors are shown, which map values of an input variable (on the x-axis) to a value on the y-axis. The middle panel shows the same B-spline vectors, but weighted (multiplied) by real numbers, with the weights illustrated as annotations. These weighted B-spline vectors are summed to produce the values of a nonlinear function (right panel) that maps input variables to an output value.}
+\caption{Conceptual figure to illustrate the use of B-splines to construct nonlinear functions. In the left panel, five B-spline vectors are shown, which map values of an input variable (on the x-axis) to a value on the y-axis. The middle panel shows the same B-spline vectors, but weighted (multiplied) by real numbers, with the weights illustrated as annotations. These weighted B-spline vectors are summed to produce the values of a nonlinear function (right panel).}
 \label{spline-concept} 
 \end{figure}
 
@@ -163,9 +163,9 @@ X_pct_zero <- mean(X == 0)
 
 To allow for spatial variation in these nonlinear effects, we added interaction effects between each of the basis vectors and ecoregions [@brezger2006generalized; @kneib2009variable].
 The hierarchical nesting of ecoregion designations (Figure \ref{study-region}B-D) lends itself to such interactions. 
-Conceptually, what happens in a level 3 ecoregion may be related to what happens in the level 2 ecoregion containing the level 3 region, the level 1 ecoregion containing the level 2 region, and a global effect. 
+Conceptually, coefficients in a level 3 ecoregion may be related to coefficients in the level 2 ecoregion containing the level 3 region, the level 1 ecoregion containing the level 2 region, and a global effect. 
 The coefficient associated with a basis vector for any level 3 ecoregion is the sum of a global effect, a level 1 ecoregion adjustment, a level 2 ecoregion adjustment, and a level 3 ecogregion adjustment. 
-Thus, for every univariate basis vector, we included an interaction effect with ecoregion at each of the three ecoregion levels.
+Thus, for every univariate basis vector, we included interaction effects with ecoregion at each of the three ecoregion levels.
 This allows borrowing of information across space (level 3 ecoregions in a level 2 ecoregion are often adjacent), and for regions that are ecologically similar. 
 We also included adjustments on the global intercept for each level 1, 2, and 3 ecoregion to account for spatial variation that is unrelated to climate or housing density. 
 This specification induces sparsity in $\matr{X}$ that we exploit to increase the efficiency of computing $\bm \mu$ and $\bm \pi$. 
@@ -203,11 +203,11 @@ A variational approximation [@kucukelbir2015automatic] was used for count models
 Models were fit in the Stan probabilistic programming language using the \code{rstan} package [@carpenter2016stan; @rstan]. 
 The best performing count model and all burn area models were fit using the No-U-Turn Sampler [@hoffman2014no].
 We ran four chains for 1000 iterations each, and discarded the first 500 iterations as warmup. 
-Convergence was assessed using visual inspection of trace plots, with $\hat{R} \geq 1.1$ as an indicator convergence failure [@brooks1998general].
+Convergence was assessed using visual inspection of trace plots, with potential scale reduction statistic values $\hat{R} \geq 1.1$ as an indicator convergence failure [@brooks1998general].
 
 ## Implementation {-}
 
-All data processing, model fitting, and visualization were implemented with open source software, primarily in the R programming langugage [@R], and wrapped in a reproducible workflow via GNU Make and Docker [@Stallman2004; @boettiger2015introduction]. 
+All data processing, model fitting, and visualization were implemented with open source software, primarily in the R programming language [@R], and wrapped in a reproducible workflow via GNU Make and Docker [@Stallman2004; @boettiger2015introduction]. 
 Data cleaning and transformation required the R packages assertthat [@assertthat], lubridate [@lubridate], Matrix [@Matrix], pbapply [@pbapply], splines [@splines], tidyverse [@tidyverse], and zoo [@zoo]. 
 Spatial data were processed with raster [@raster], rgdal [@rgdal], sf [@sf], and spdep [@spdep].
 Finally, we used cowplot [@cowplot], ggrepel [@ggrepel], ggthemes [@ggthemes], patchwork [@patchwork], and RColorBrewer [@rcolorbrewer] for visualization. 
@@ -233,7 +233,7 @@ Hereafter, we report results from the zero-inflated negative binomial model.
 ```{r count-loglik, message=FALSE} 
 count_loglik <- read_csv('data/processed/count-loglik.csv')
 kable(count_loglik, 
-      caption = 'Performance of count models on the test set in descending order. Numbers represent posterior means with standard deviations in parentheses for the test set log likelihood.') %>%
+      caption = 'Performance of count models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.') %>%
   kable_styling(latex_options = 'striped')
 ```
 
@@ -244,16 +244,16 @@ rho_beta <- read_csv('data/processed/rho_beta.csv') %>% unlist
 
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/count-partial-effs.png}
-\caption{Partial effects on the log-transformed negative binomial mean for each level 3 ecoregion, colored by level 1 ecoregion. Lines are posterior medians.}
+\caption{Partial effects on the log-transformed negative binomial mean component of the zero-inflated negative binomial model for each level 3 ecoregion, colored by level 1 ecoregion. Lines are posterior medians. Results are similar for the zero-inflation component.}
 \label{count-partial-effs}
 \end{figure}
 
-Minimum relative humidity and maximum air temperature had the strongest effects on the negative binomial mean (Figure \ref{count-partial-effs}). 
-Results for the zero-inflation component are similar (posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)` - `r round(quantile(rho_beta, .975), 3)`). 
+Minimum relative humidity and maximum air temperature had the strongest effects on both the zero-inflation component and the expected value of the negative binomial component (Figure \ref{count-partial-effs}, posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)` - `r round(quantile(rho_beta, .975), 3)`). 
 The model uncovered unique effects of meteorological variables at level 1, 2, and 3 ecoregions (Figure \ref{all-coefs}).
-For example, the positive interaction effect between the second air temperature basis vector and the L1 Great Plains ecoregions indicates that the expected number of wildfires in plains ecoregions with cold conditions is high relative to other ecoregions. 
+For example, a positive interaction effect between the second air temperature basis vector and the L1 Great Plains ecoregions indicates that the expected number of wildfires in plains ecoregions with cold conditions is high relative to other ecoregions. 
 The Ozark/Ouachita-Appalachian forest and Ozark Highlands were also identified as having region-specific temperature effects (Figure \ref{all-coefs}). 
-These region specific effects manifest as clusters of lines in Figure \ref{count-partial-effs}. 
+Twelve month total precipitation also had region specific effects in the Mississippi Alluvial and Southeast Coastal Plains ecoregion, where it tended to reduce fire risk (Figure \ref{all-coefs}).
+In contrast, twelve month precipitation tended to increase risk in desert ecoregions (Figure \ref{count-partial-effs}). 
 Housing density showed a unimodal relationship to expected count (Figure \ref{count-partial-effs}), with lower expected counts in unpopulated and heavily populated ecoregions, and higher expected counts with moderately populated ecoregions. 
 
 \begin{figure}[ht] 
@@ -306,7 +306,7 @@ For nearly half of the level 3 ecoregions (`r total_count_coverage$n_100_pct` of
 ```{r ba-loglik, message=FALSE} 
 burn_area_loglik <- read_csv('data/processed/burn-area-loglik.csv')
 kable(burn_area_loglik, 
-      caption = 'Performance of burn area models on the test set in descending order. Numbers represent posterior means with standard deviations in parentheses for the test set log likelihood.') %>%
+      caption = 'Performance of burn area models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.') %>%
   kable_styling(latex_options = 'striped')
 ```
 
@@ -317,10 +317,10 @@ kable(burn_area_loglik,
 \end{figure}
 
 The lognormal distribution performed best on the test set (Table \@ref(tab:ba-loglik)), and captured tail-behavior better than other burn area distributions (Figure \ref{ppc-density-funs}).
-Although we might have expected the GPD to perform best given its theoretical support for exceedances over a threshold, in this case the GPD model was too heavy-tailed to adequately capture the pattern in the empirical data, predicting fires far larger than those observed in the training and test sets (Figure \ref{ppc-density-funs}). 
+The GPD model was too heavy-tailed to adequately capture the pattern in the empirical data, predicting fires far larger than those observed in the training and test sets (Figure \ref{ppc-density-funs}). 
 The tapered Pareto distribution was too light-tailed (Figure \ref{ppc-density-funs}).
 The gamma and Weibull models performed very poorly overall on the test set  (Table \@ref(tab:ba-loglik)), apparently due to a lack of congruence between the shapes of these distributions and the actual burn area distribution. 
-Despite a poor fit to the bulk of the wildfire burn area distribution, both of these models performed adequately in the upper tails (Figure \ref{ppc-density-funs}).
+Despite a poor fit to the bulk of the wildfire burn area distribution, both performed adequately in the upper tails (Figure \ref{ppc-density-funs}).
 Hereafter we present results for the lognormal model, which had the highest test set log likelihood and captured tail behavior of the empirical fire size distribution.
 
 ```{r burn-area-beta, message = FALSE, results='hide'}
@@ -332,12 +332,12 @@ assert_that(nrow(hum_1_effect) == 1)
 Relative humidity was the primary driver of expected burn area for a fire event (Figure \ref{burn-area-effs}A). 
 The first basis vector for mean daily minimum relative humidity was the only coefficient with a 95\% credible interval that did not include zero (posterior median: `r hum_1_effect$median %>% round(2)`, 95\% CI: (`r hum_1_effect$lo %>% round(2)` - `r hum_1_effect$hi %>% round(2)`)). 
 This nonlinear effect can be observed in Figure \ref{burn-area-effs}B as a marked increase in the expected burn area below 20\% mean daily minimum humidity. 
-This leads to a periodicity gradient among ecoregions in the seasonality of expected fire sizes, with little or no periodic signal in humid ecoregions (Figure \ref{burn-area-effs}C).
+This leads to a seasonality gradient among ecoregions of expected fire sizes, with little or no seasonal signal in typically humid ecoregions such as Marine West Coast Forests of the Pacific Northwest, and distinct seasonal oscillations in ecoregions that have periodic fluctuations between dry and humid conditions such as the Temperate Sierras (Figure \ref{burn-area-effs}C).
 There was not strong evidence that meteorological variables had spatially variable effects on expected wildfire burn area. 
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/burn-area-effs.png}
-\caption{\textbf{A}. Estimated posterior medians and 95\% credible intervals for each of the 3,473 coefficients associated with expected burn area. Only one coefficient - the first basis vector for humidity - had a 95\% credible interval that excluded zero, shown in red. This effect is visualized in \textbf{B}. Partial effects of mean daily minimum humidity for each level 3 ecoregion, with posterior medians drawn as lines, and the 95\% credible intervals as ribbons. \textbf{C}. Monthly time series of expected fire sizes for every level 3 ecoregion, faceted and colored by level 1 ecoregions sorted by mean humidity. Lines are posterior medians and ribbons are 95\% credible intervals. The year 2010 marks the boundary between the training and test set.}
+\caption{\textbf{A}. Estimated posterior medians and 95\% credible intervals for each of the 3,473 coefficients associated with expected burn area. Only one coefficient - the first basis vector for humidity - had a 95\% credible interval that excluded zero, shown in red. This effect is visualized in \textbf{B}. Partial effects of mean daily minimum humidity for each level 3 ecoregion, with posterior medians drawn as lines, and the 95\% credible intervals as ribbons. \textbf{C}. Monthly time series of expected fire sizes for every level 3 ecoregion, faceted and colored by level 1 ecoregions sorted by mean humidity. Lines are posterior medians and ribbons are 95\% credible intervals.}
 \label{burn-area-effs} 
 \end{figure}
 
@@ -413,7 +413,7 @@ million_er_mon <- read_csv('data/processed/million-er-mon.csv') %>%
 
 By combining the output of the event count and burn area models, we derived posterior prediction intervals for the size of the largest fire in a month for each region, integrating over uncertainty in the number of fires, as well as the lognormal mean and standard deviation for burn area.
 In the holdout period from 2010 to 2015, a 99\% prediction interval achieved `r 100 * round(mean(mev_intervals$in_interval), 3)`\% interval coverage, with `r 100 * round(mean(mev_intervals$empirical_max > mev_intervals$m_qhi), 3)`\% of the block maxima (`r sum(mev_intervals$empirical_max > mev_intervals$m_qhi)` fire events) being larger than predicted (Figure \ref{max-preds-l3}). 
-The model predicted the total area burned over the entire test period from 2010 to 2015 to be `r format(median(predicted_totals$predicted_total_area), big.mark = ',', scientific = FALSE)` (95\% CI: (`r format(quantile(predicted_totals$predicted_total_area, .025), big.mark = ',', scientific = FALSE)` - `r format(quantile(predicted_totals$predicted_total_area, .975), big.mark = ',', scientific = FALSE)`) and the actual value was `r format(unique(predicted_totals$actual_total_area), big.mark = ',', scientific = FALSE)`. 
+The model predicted the total area burned over the entire contiguous United States in test period from 2010 to 2015 to be `r format(median(predicted_totals$predicted_total_area), big.mark = ',', scientific = FALSE)` (95\% CI: (`r format(quantile(predicted_totals$predicted_total_area, .025), big.mark = ',', scientific = FALSE)` - `r format(quantile(predicted_totals$predicted_total_area, .975), big.mark = ',', scientific = FALSE)`) and the actual value was `r format(unique(predicted_totals$actual_total_area), big.mark = ',', scientific = FALSE)`. 
 While fires over a million acres in size have happened historically, all fires in the training and test sets were below one million acres. 
 If we extrapolate, the probability that at least one fire in the contiguous U.S. exceeded one million acres in the period from 2010 to 2015 was estimated to be between `r round(million_acres$lo, 3)` and `r round(million_acres$hi, 3)` (95\% CI), with a posterior median of `r round(million_acres$med, 3)`. 
 The highest estimated probability for a million acre event was `r round(million_er_mon$med[1], 3)` (posterior median), with a 95\% CI of (`r round(million_er_mon$lo[1], 3)`, `r round(million_er_mon$hi[1], 3)`) seen for the `r million_er_mon$NA_L3NAME[1]` ecoregion in `r month.name[million_er_mon$month[1]]` `r million_er_mon$year[1]`. 
@@ -440,7 +440,6 @@ The Wallow Fire was accidentally ignited on May 29, 2011 by two campers in the L
 It burned through the month of June and into early July. 
 The model underpredicted the total burn area of the Wallow Fire. 
 The 99\% credible interval for the maximum fire size for May 2011 was (`r round(wallow_may_df$m_qvlo) %>% format(big.mark = ',', scientific = FALSE)` - `r round(wallow_may_df$m_qvhi) %>% format(big.mark = ',', scientific = FALSE)`) acres, but the Wallow Fire is recorded as 563,655 acres in the MTBS data. 
-The 99\% credible interval for June 2011 was (`r round(wallow_jun_df$m_qvlo) %>% format(big.mark = ',', scientific = FALSE)` - `r round(wallow_jun_df$m_qvhi) %>% format(big.mark = ',', scientific = FALSE)`) acres, which contains the true value. 
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/attribution-plot.png}
@@ -451,21 +450,17 @@ The 99\% credible interval for June 2011 was (`r round(wallow_jun_df$m_qvlo) %>%
 We evaluated the contribution of each covariate to the linear predictor functions of the three model components (lognormal mean for burn areas, negative binomial mean for counts, and the logit probability of the zero-inflation component) to understand why these predictions differed. 
 We defined the contribution of a variable as the dot product of the elements in the design matrix $\matr{X}$ corresponding to a particular driver variable (e.g., humidity), and the estimated coefficients in $\bm{\beta}$ corresponding to that variable.
 This provides a quantitative measure of how each input variable contributes to the linear predictor for an ecoregion, and incorporates the overall, level 1, level 2, and level 3 ecoregion adjustments on these effects. 
-Figure \ref{attribution-plot} reveals that humidity is the primary driver of variation in the model's predictions, and that the conditions in June - the month after ignition - favored more large fires, with drier, hotter conditions. 
+Humidity is the primary driver of variation in the model's predictions overall, and June 2011 - the month after ignition - favored more large fires, with drier, hotter conditions (Figure \ref{attribution-plot}). 
+The 99\% credible interval for June 2011 was (`r round(wallow_jun_df$m_qvlo) %>% format(big.mark = ',', scientific = FALSE)` - `r round(wallow_jun_df$m_qvhi) %>% format(big.mark = ',', scientific = FALSE)`) acres, which contains the true value. 
 Evidently, conditions in May that drove (under)predictions of maximum burn area were not representative of the conditions over most of the Wallow Fire's duration.
+The failure of the model to correctly predict the size of the Wallow fire suggests potential avenues for improvement, discussed below. 
 
 # Discussion {-}
 
 Extreme wildfires are often devastating, but perhaps they need not be surprising. 
 By allowing the non-linear effects of weather and housing density to vary across space, we were able to achieve good predictive accuracy for fire extremes over a five-year prediction window. 
-We estimate a non-negligible chance of wildfires larger than what has been observed in recent decades, perhaps even over one million acres.
-However, the Wallow Fire case study reveals some promising directions for future prediction efforts. 
-
-Predicting large wildfire occurrence across a large geographic region at a monthly time step could support short to medium term wildfire management and disaster planning. 
-However, we have assumed here that climate forecast data are available. 
-This is convenient for separating the predictive skill of the fire model from that of a climate model, but in practice predictions are likely to be limited by the quality of climate predictions. 
-Weather predictions should be most accurate over relatively short time scales, e.g., upcoming fire seasons, or what will happen next month. 
-But, this model could be used in conjunction with longer term climate projections to explore potential wildfire dynamics on a decadal time horizon.
+We estimate a moderate chance of wildfires larger than what has been observed in recent decades, perhaps even over one million acres.
+Such predictions can support short to medium term wildfire management and probabilistic hazard assessment. 
 
 Driving a model with meteorological features raises challenges related to predictive uncertainty and covariate shift - a change in the underlying distribution of forcing variables, potentially outside of the historic range. 
 Ideally, this uncertainty would be propagated forward in a predictive model, possibly through stacking of predictive distributions that are generated from multiple models of future climate dynamics [@yao2017using]. 
@@ -483,8 +478,9 @@ Both human density and dryness are expected to increase in the future across lar
 This result raises questions around how wildfire burn area scales with consequences such as human mortality, health risks from smoke and particulate emission, and the financial burden of wildfire management and disaster recovery [@reid2016critical; @radeloff2018rapid]. 
 
 This work points to promising directions for future predictive efforts.
-Default choices such as Poisson and GPD distributions should be checked against alternatives that may perform better. 
-Further, the predictive skill of this model seems to suggest that ordinary events inform the extremes, which would not be the case if the generative distribution of extremes was completely unique. 
+Default choices such as Poisson and GPD distributions should be checked against alternative distributions. 
+Further, the predictive skill of this model seems to suggest that ordinary events provide information on extremes, which would not be the case if the generative distribution of extremes was completely unique.
+Previous case studies have identified that extremes or anomalies in climatological drivers play a role in the evolution of extreme wildfires [@peterson20152013], but for this work, monthly averages of climatological drivers over fairly large spatial regions were used, which may smooth over or hide anomalous or extreme conditions.  
 Enhancing the spatiotemporal resolution of predictive models could better represent climatic and social drivers of fire dynamics and provide localized insights into fire dynamics to inform decision-making. 
 This raises computational challenges, but recent advances in distributed probabilistic computing [@tran2017deep], efficient construction of spatiotemporal point processes [@shirota2018scalable], and compact representations of nonlinear spatial interactions [@lee2011p] may provide solutions. 
 
@@ -494,6 +490,7 @@ With a discrete space-time segmentation, events can occur at the boundary of a s
 Long-burning large wildfires can span months, and a model that only uses conditions upon ignition to predict total burn area can fail to account for conditions that change over the course of the event. 
 Modeling ignitions as a point process in continuous space and time [@brillinger2003risk], and explicitly modeling subsequent fire duration and spatial dynamics might identify conditions that ignite fires and those that affect spread. 
 Such an approach might be amenable to including information on fuel continuity, which is likely to limit the size of extremely large fires and did not factor into the current models predictions [@rollins2002landscape; @hargrove2000simulating]. 
+To the extent that a model reflects the generative process for extreme events, the decomposition of contributions to the model's predictions may provide insight into attribution for meteorological and anthropogenic drivers of extremes.
 
 This paper presents and evaluates a statistical approach to explain and predict extreme wildfires that incorporates spatially varying non-linear dynamics. 
 The model reveals considerable differences in fire dynamics among ecoregions spanning the mountain west to the great plains, deserts, and eastern forests, and suggests a decent chance of very large fires exceeding one million acres in the contiguous U.S. 

@@ -74,7 +74,7 @@ ll_d <- holdout_c_loglik %>%
            grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
   spread(train, value)
 
-ll_d %>%
+loglik_df <- ll_d %>%
   group_by(Distribution) %>%
   summarize(mean_test = median(test),
             sd_test = sd(test)) %>%
@@ -83,7 +83,9 @@ ll_d %>%
                          ' (', trimws(format(sd_test, digits = 0, scientific = FALSE)), ')')) %>%
   rename(`Holdout log likelihood` = pretty, 
          Model = Distribution) %>%
-  select(-ends_with('test')) %>%
+  select(-ends_with('test')) 
+
+loglik_df %>%
   write_csv('data/processed/count-loglik.csv')
 
 
@@ -117,7 +119,11 @@ den_plot <- pr_df %>%
     grepl('^nb', .$model) ~ 'Negative binomial',
     grepl('pois', .$model) ~ 'Poisson',
     grepl('zip', .$model) ~ 'ZI Poisson',
-    grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
+    grepl('zinb', .$model) ~ 'ZI Negative binomial'), 
+    Distribution = factor(Distribution, levels = c('ZI Negative binomial', 
+                                                   'Negative binomial', 
+                                                   'Poisson', 
+                                                   'ZI Poisson'))) %>%
   ggplot(aes(value, pr_value, group = iter,
              color = Distribution)) +
   geom_line(alpha = .1) +
@@ -157,7 +163,11 @@ zero_plot <- ppc_counts %>%
     grepl('^nb', .$model) ~ 'Negative binomial',
     grepl('pois', .$model) ~ 'Poisson',
     grepl('zip', .$model) ~ 'ZI Poisson',
-    grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
+    grepl('zinb', .$model) ~ 'ZI Negative binomial'), 
+    Distribution = factor(Distribution, levels = c('ZI Negative binomial', 
+                                                   'Negative binomial', 
+                                                   'Poisson', 
+                                                   'ZI Poisson'))) %>%
   dplyr::select(-max_count, -sum_count, -model) %>%
   spread(train, p_zero) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
@@ -188,7 +198,11 @@ max_plot <- ppc_counts %>%
     grepl('^nb', .$model) ~ 'Negative binomial',
     grepl('pois', .$model) ~ 'Poisson',
     grepl('zip', .$model) ~ 'ZI Poisson',
-    grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
+    grepl('zinb', .$model) ~ 'ZI Negative binomial'), 
+    Distribution = factor(Distribution, levels = c('ZI Negative binomial', 
+                                                   'Negative binomial', 
+                                                   'Poisson', 
+                                                   'ZI Poisson'))) %>%
   dplyr::select(-p_zero, -sum_count, -model) %>%
   spread(train, max_count) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +
@@ -219,7 +233,11 @@ sum_plot <- ppc_counts %>%
     grepl('^nb', .$model) ~ 'Negative binomial',
     grepl('pois', .$model) ~ 'Poisson',
     grepl('zip', .$model) ~ 'ZI Poisson',
-    grepl('zinb', .$model) ~ 'ZI Negative binomial')) %>%
+    grepl('zinb', .$model) ~ 'ZI Negative binomial'), 
+    Distribution = factor(Distribution, levels = c('ZI Negative binomial', 
+                                                   'Negative binomial', 
+                                                   'Poisson', 
+                                                   'ZI Poisson'))) %>%
   dplyr::select(-max_count, -p_zero, -model) %>%
   spread(train, sum_count) %>%
   ggplot(aes(x = train, y = test, color = Distribution)) +

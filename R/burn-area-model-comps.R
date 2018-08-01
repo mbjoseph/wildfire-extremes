@@ -112,8 +112,12 @@ den_plot <- train_ba_rep %>%
     grepl('lognormal', .$model) ~ 'Lognormal',
     grepl('_pareto', .$model) ~ 'Generalized Pareto',
     grepl('_tpareto', .$model) ~ 'Tapered Pareto',
-    grepl('weibull', .$model) ~ 'Weibull'
-  )) %>%
+    grepl('weibull', .$model) ~ 'Weibull'), 
+    Distribution = factor(Distribution, levels = c('Lognormal', 
+                                                   'Generalized Pareto', 
+                                                   'Tapered Pareto', 
+                                                   'Weibull', 
+                                                   'Gamma'))) %>%
   ggplot(aes(x = value,
              color = Distribution,
              group = interaction(Distribution, iter))) +
@@ -159,7 +163,12 @@ tail_plot <- train_ba_rep %>%
     grepl('_pareto', .$model) ~ 'Generalized Pareto',
     grepl('_tpareto', .$model) ~ 'Tapered Pareto',
     grepl('weibull', .$model) ~ 'Weibull'
-  )) %>%
+  ), 
+  Distribution = factor(Distribution, levels = c('Lognormal', 
+                                                 'Generalized Pareto', 
+                                                 'Tapered Pareto', 
+                                                 'Weibull', 
+                                                 'Gamma'))) %>%
   ggplot(aes(med, ccdf, color = Distribution)) +
   my_theme +
   scale_color_manual('Burn area distribution', values = cols) +
@@ -214,7 +223,12 @@ max_plot <- train_max %>%
     grepl('_pareto', .$model) ~ 'Generalized Pareto',
     grepl('_tpareto', .$model) ~ 'Tapered Pareto',
     grepl('weibull', .$model) ~ 'Weibull'
-  )) %>%
+  ), 
+  Distribution = factor(Distribution, levels = c('Lognormal', 
+                                                 'Generalized Pareto', 
+                                                 'Tapered Pareto', 
+                                                 'Weibull', 
+                                                 'Gamma'))) %>%
   ggplot(aes(train, test, color = Distribution)) +
   my_theme +
   scale_color_manual('Burn area distribution', values = cols) +
@@ -245,7 +259,12 @@ sum_plot <- train_max %>%
     grepl('_pareto', .$model) ~ 'Generalized Pareto',
     grepl('_tpareto', .$model) ~ 'Tapered Pareto',
     grepl('weibull', .$model) ~ 'Weibull'
-  )) %>%
+  ), 
+  Distribution = factor(Distribution, levels = c('Lognormal', 
+                                                 'Generalized Pareto', 
+                                                 'Tapered Pareto', 
+                                                 'Weibull', 
+                                                 'Gamma'))) %>%
   ggplot(aes(train, test, color = Distribution)) +
   my_theme +
   scale_color_manual('Burn area distribution', values = cols) +

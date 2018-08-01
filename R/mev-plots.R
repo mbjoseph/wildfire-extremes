@@ -251,10 +251,10 @@ interval_df %>%
   ggplot(aes(x = ym, group = NA_L3NAME)) +
   geom_ribbon(aes(ymin = m_qlo, ymax = m_qhi),
               color = NA,
-              fill = 'firebrick', alpha = .4) +
+              fill = 'firebrick', alpha = .7) +
   geom_ribbon(aes(ymin = m_qvlo, ymax = m_qvhi),
               color = NA,
-              fill = 'firebrick', alpha = .4) +
+              fill = 'firebrick', alpha = .3) +
   scale_y_log10() +
   theme_minimal() +
   facet_wrap(~ fct_reorder(l3_er, rmin),
