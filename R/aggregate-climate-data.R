@@ -21,8 +21,6 @@ usa_shp <- spTransform(usa_shp,
 summarize_by_month <- function(url, mask_shp) {
   # takes a climate data url and a masking spatial polygon as input
   # and makes a monthly summary of the climate data, masked by the polygon
-
-
   # pull the raw climate data file down locally
   file <- basename(url)
 
@@ -66,13 +64,12 @@ summarize_by_month <- function(url, mask_shp) {
   month_seq <- lubridate::month(date_seq)
 
   res <- raster::stackApply(raster, month_seq, fun = fun)
-  corrected_res <- raster::flip(raster::t(res), direction = "x")
-  names(corrected_res) <- paste(var, year,
-                                unique(lubridate::month(date_seq, label = TRUE)),
-                                sep = "_")
+  names(res) <- paste(var, year,
+                      unique(lubridate::month(date_seq, label = TRUE)),
+                      sep = "_")
   p4string <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
-  raster::projection(corrected_res) <- sp::CRS(p4string)
-  masked_res <- raster::mask(corrected_res, mask_shp)
+  raster::projection(res) <- sp::CRS(p4string)
+  masked_res <- raster::mask(res, mask_shp)
   raster::writeRaster(masked_res, out_name, format = "GTiff")
   unlink(file)
   return(paste("File", out_name, "written"))
