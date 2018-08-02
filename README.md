@@ -2,7 +2,7 @@
 
 [![Docker Automated build](https://img.shields.io/docker/automated/mbjoseph/wildfire-extremes.svg)](https://hub.docker.com/r/mbjoseph/wildfire-extremes/)
 [![Docker Build Status](https://img.shields.io/docker/build/mbjoseph/wildfire-extremes.svg)](https://hub.docker.com/r/mbjoseph/wildfire-extremes/)
-
+[![DOI](https://zenodo.org/badge/64492265.svg)](https://zenodo.org/badge/latestdoi/64492265)
 
 This repository contains code to build spatiotemporal models of wildfire extremes in the contiguous United States. 
 
