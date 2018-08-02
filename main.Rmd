@@ -211,7 +211,7 @@ Spatial data were processed with raster [@raster], rgdal [@rgdal], sf [@sf], and
 Finally, we used cowplot [@cowplot], ggrepel [@ggrepel], ggthemes [@ggthemes], patchwork [@patchwork], and RColorBrewer [@rcolorbrewer] for visualization. 
 The manuscript was written in R Markdown [@rmarkdown]. 
 Analyses were run on an Amazon Web Services m5.2xlarge EC2 instance with four physical cores and 32 GB of RAM, and the whole workflow requires $\approx$ 72 hours. 
-All code to reproduce the analysis is available on GitHub at TODO: insert URL here and cite the repo's DOI.
+All code to reproduce the analysis is available on GitHub at https://github.com/mbjoseph/wildfire-extremes [@max_joseph_2018_1326858].
 
 # Results {-}
 
