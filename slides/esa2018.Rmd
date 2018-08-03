@@ -29,13 +29,17 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
+h <- 2.2
+
 knitr::opts_chunk$set(echo = FALSE, 
-                      fig.width = 5, fig.height = 3, 
-                      message = FALSE)
-library(latex2exp)
+                      fig.width = 1.618 * h, fig.height = h, 
+                      message = FALSE, fig.align = 'center')
+library(rgeos)
 library(sf)
 library(tidyverse)
 library(patchwork)
+library(RColorBrewer)
+library(splines)
 theme_set(theme_minimal() + 
             theme(panel.grid.minor = element_blank()))
 ```
@@ -44,7 +48,8 @@ theme_set(theme_minimal() +
 
 ```{r, echo = FALSE, results='hide', message=FALSE}
 # Read fire data ----------------------
-mtbs <- read_rds('../data/processed/mtbs.rds')
+mtbs <- read_rds('../data/processed/mtbs.rds') %>%
+  mutate(train = FIRE_YEAR < 2010)
 mtbs %>%
   group_by(FIRE_YEAR) %>%
   summarize(max_size = max(R_ACRES)) %>%
@@ -144,17 +149,9 @@ sampling_plot(n = 500, seed)
 sampling_plot(n = 1000, seed)
 ```
 
-# 
+# The number of fires is stochastic
 
 ```{r, echo = FALSE}
-p1 <- density_df %>%
-    ggplot(aes(x, old_den)) + 
-    geom_line() + 
-    theme(axis.text = element_blank(),
-          panel.grid = element_blank()) +
-    xlab('Fire size') + 
-    ylab('')
-
 e_nb <- 2
 s_nb <- 2
 
@@ -168,6 +165,22 @@ p2 <- num_dist %>%
           panel.grid = element_blank()) +
     xlab('Number of fires') + 
     ylab('')
+
+p2 + 
+  ylab('Probability')
+```
+
+# 
+
+```{r, echo = FALSE}
+p1 <- density_df %>%
+    ggplot(aes(x, old_den)) + 
+    geom_line() + 
+    theme(axis.text = element_blank(),
+          panel.grid = element_blank()) +
+    xlab('Fire size') + 
+    ylab('')
+
 
 arrow_df <- data.frame(x = c(0),
                        xend = c(1),
@@ -196,68 +209,75 @@ p4 <- expand.grid(n = count_vals,
 (p1 + p2 + plot_layout(ncol = 1)) | p3 | p4
 ```
 
-#
+# Our approach
+
+Relate fire size and number to:
+
+- meteorological conditions
+- housing density
+- ecological context
+
+**Can we predict extremes?**
+
+# The data
+
+1984-2009 (train), 2010-2015 (test)
 
 ```{r, echo = FALSE}
-uncertain_den <- expand.grid(iter = 1:n_count, 
-                             x = density_df$x) %>%
-  as_tibble() %>%
-  mutate(mean = rnorm(n_count, sd = .2)[iter], 
-         sd = abs(rnorm(n_count, mean = 1, sd = .2)[iter]),
-         density = dnorm(x, mean = mean, sd = sd))
+if (!file.exists('../data/processed/simple_ecoregions.rds')) {
+  ecoregions <- read_rds('../data/processed/ecoregions.rds') %>%
+    as('Spatial') %>%
+    gSimplify(tol = 500) %>%
+    as('sf')
+}
 
-p1 <- uncertain_den %>%
-  ggplot(aes(x, density, group = iter)) + 
-  geom_line(alpha = .1) + 
-    theme(axis.text = element_blank(),
-          panel.grid = element_blank()) + 
-  xlab('Fire size') + 
-  ylab('')
+fire_map <- ecoregions %>%
+  ggplot() +
+  geom_sf(size = .2, fill = 'white') + 
+  geom_sf(data = mtbs, size = .1, 
+          inherit.aes = FALSE, color = 'red', alpha = .2) + 
+  theme_minimal() + 
+  theme(panel.grid.major = element_line(colour = "lightgrey"), 
+        legend.position = 'none', 
+        axis.text = element_blank()) + 
+  ggtitle('')
 
-
-num_dist <- expand.grid(iter = 1:n_count, 
-                        y = 0:30) %>%
-  as_tibble %>%
-  mutate(mu_nb = rnorm(n_count, e_nb, .4)[iter], 
-         size_nb = abs(rnorm(n_count, s_nb, .2))[iter], 
-         pr_y = dnbinom(y, mu = mu_nb, size = size_nb))
-
-p2 <- num_dist %>%
-    ggplot(aes(y, pr_y, group = iter)) + 
-    geom_point(alpha = .05) + 
-    geom_linerange(aes(ymin = 0, ymax = pr_y), alpha = .01) +
-    theme(axis.text = element_blank(),
-          panel.grid = element_blank()) +
-    xlab('Number of fires') + 
-    ylab('')
-
-arrow_df <- data.frame(x = c(0),
-                       xend = c(1),
-                       y = c(0), 
-                       yend = c(0))
-
-p3 <- ggplot(arrow_df, aes(x, y)) + 
-  geom_segment(aes(xend = xend, yend = yend), 
-               arrow = arrow()) + 
-  theme_void()
-
-max_dist <- uncertain_den %>%
-  select(iter, mean, sd) %>%
-  full_join(select(num_dist, iter, mu_nb, size_nb, y)) %>%
-  distinct %>%
-  full_join(expand.grid(iter = 1:n_count, 
-                        x = seq(-4, 5, length.out = len))) %>%
-  mutate(max_den = y * pnorm(x)^(y - 1) * dnorm(x)) %>%
-  distinct()
-  
-p4 <- max_dist %>%
-  ggplot(aes(x, max_den, group = interaction(iter, y))) + 
-  geom_line(alpha = .01) + 
-  xlab('Maximum size') + 
-  ylab('') + 
-  theme(axis.text = element_blank(),
-      panel.grid = element_blank())
-
-(p1 + p2 + plot_layout(ncol = 1)) | p3 | p4
+fire_map
 ```
 
+# Nonlinear effects
+
+```{r, message = FALSE, fig.width=8}
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank(), 
+                  panel.grid.major = element_blank(), 
+                  axis.text.x = element_blank(), 
+                  plot.title = element_text(size=10)))
+
+m <- 5
+pal <- 2
+axis_alpha <- .2
+
+# Simulating function values ----------------------------------------------
+n <- 100
+x <- seq(0, 1, length.out = n)
+unweighted_basis <- splines::bs(x, df = 5, intercept = TRUE) %>%
+  as.data.frame() %>%
+  as_tibble %>%
+  mutate(x = x) %>%
+  gather(key = 'dim', 'basis_value', -x) %>%
+  mutate(dim = as.integer(dim), 
+         weight = 1,
+         type = 'Unweighted')
+
+weights <- c(-1, 1, -.5, 1, 1)
+
+function_val <- unweighted_basis %>%
+  mutate(type = 'Weighted', 
+         weight = weights[dim], 
+         weighted_value = weight * basis_value) %>%
+  group_by(x) %>%
+  summarize(f_x = sum(weighted_value))
+
+# TODO: replicate this for each ecoregion to show that we get clusters of functions
+```
