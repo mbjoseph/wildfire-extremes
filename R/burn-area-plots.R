@@ -156,6 +156,8 @@ loc_ts <- mu_df %>%
          NA_L1NAME = factor(tools::toTitleCase(NA_L1NAME)),
          NA_L1NAME = fct_reorder(NA_L1NAME, rmin))
 
+write_rds(loc_ts, 'data/processed/loc_ts.rds')
+
 location_ts_plot <- loc_ts %>%
 #  filter(year < stan_d$cutoff_year) %>%
   group_by(NA_L1NAME) %>%

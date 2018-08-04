@@ -237,12 +237,18 @@ Relate fire size and number to:
 ```{r}
 ecoregions <- read_rds('../data/processed/ecoregions.rds')
 
+if (!file.exists('very-simple-ecoregions.shp')) {
+  system("ogr2ogr -progress -simplify 200 very-simple-ecoregions.shp ../data/raw/us_eco_l3/us_eco_l3.shp")
+}
+
+simple_ecoregions <- read_sf('very-simple-ecoregions.shp')
+
 if (!file.exists('fire-map.png')) {
-  fire_map <- ecoregions %>%
+  fire_map <- simple_ecoregions %>%
     ggplot() +
-    geom_sf(size = .2, fill = 'white') + 
-    geom_sf(data = mtbs, size = .1, 
-            inherit.aes = FALSE, color = 'red', alpha = .2) + 
+    geom_sf(size = .5, fill = 'white') + 
+    geom_sf(data = mtbs, size = .1,
+            inherit.aes = FALSE, color = 'red', alpha = .2) +
     theme_minimal() + 
     theme(panel.grid.major = element_line(colour = "lightgrey"), 
           legend.position = 'none', 
@@ -257,6 +263,26 @@ if (!file.exists('fire-map.png')) {
 \includegraphics{fire-map}
 
 \end{center}
+
+#
+
+\begin{center}
+
+\includegraphics[width=.95\textwidth,height=.8\textheight,keepaspectratio]{inputs-models-inference} 
+
+\end{center}
+
+# Bayesian spatiotemporal models
+
+- Spatial splines
+- Time-evolving Markov random fields
+
+\begin{center}
+
+\includegraphics[width=.95\textwidth,height=.5\textheight,keepaspectratio]{qr_img} 
+
+\end{center}
+
 
 
 # Nonlinear effects
@@ -346,7 +372,9 @@ f1 %>%
 
 # What we found
 
-```{r, fig.height = 3}
+# Dry conditions $\rightarrow$ larger fires
+
+```{r}
 plot_data <- read_rds('../data/processed/plot_data.rds')
 burn_area_partials <- read_rds("../data/processed/burn_area_partials.rds")
 st_covs <- read_rds('../data/processed/st_covs.rds')
@@ -366,17 +394,166 @@ max_df <- read_rds('../test_preds.rds') %>%
             n = n()) %>%
   left_join(select(st_covs, NA_L3NAME, ym, rmin, tmmx, tmmx, vs, prev_12mo_precip, housing_density))
 
-plot_data %>%
-  filter(covariate == 'rmin') %>%
-  mutate(response = 'Fire count') %>%
-  select(covariate_value, med, NA_L3NAME, response) %>%
-  rename(rmin = covariate_value) %>%
-  full_join(select(burn_area_partials, rmin, med, NA_L3NAME) %>%
-              mutate(response = 'Fire size')) %>%
+burn_area_partials %>%
   ggplot(aes(rmin, med, group = NA_L3NAME)) + 
   geom_line(alpha = .1) + 
-  facet_wrap(~response, scales = 'free_y', ncol = 1) + 
   geom_hline(yintercept = 0, linetype = 'dashed') + 
   xlab('Humidity') + 
-  ylab('Effect')
+  ylab('Effect on fire size')
+```
+
+# Middle Rockies 
+
+```{r, fig.width = 6, fig.height = 4}
+plot_jpeg = function(url) {
+  jpg <- RCurl::getURLContent(url) %>%
+    jpeg::readJPEG(native = T)
+  res <- dim(jpg)[2:1] # get the resolution, [x, y]
+  plot(1, 1, xlim=c(1,res[1]), ylim=c(1,res[2]),
+       asp = 1, type = 'n', xaxs = 'i', yaxs = 'i',
+       xaxt = 'n', yaxt = 'n', xlab = '', ylab = '', bty = 'n')
+  rasterImage(jpg,1,1,res[1],res[2])
+}
+
+plot_jpeg("https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Yellowstone_Lower_Fall.jpg/1280px-Yellowstone_Lower_Fall.jpg")
+```
+
+# 
+
+```{r, fig.height = 3}
+loc_ts <- read_rds('../data/processed/loc_ts.rds')
+
+er_hum_ts <- function(ecoregion) {
+  ts <- loc_ts %>%
+    filter(NA_L3NAME == ecoregion) %>%
+    mutate(train = ym < 2010)
+  
+  p1 <- ts %>%
+    ggplot(aes(ym, rmin)) + 
+    geom_line() + 
+    xlab('') + 
+    ylab('Humidity') + 
+    ylim(0, 100)
+  
+  p2 <- ts %>%
+    ggplot(aes(ym, exp(median) + min_size, fill = train)) + 
+    geom_ribbon(aes(ymin = exp(lo) + min_size, ymax = exp(hi) + min_size), 
+                alpha = .4) +
+    geom_line() + 
+    xlab('') + 
+    ylab('E(acres)') + 
+    theme(legend.position = 'none')
+  
+  p1 / p2  
+}
+
+er_hum_ts('Middle Rockies')
+```
+
+# Atlantic Coastal Pine Barrens
+
+```{r, fig.width = 6, fig.height = 4}
+plot_jpeg("https://upload.wikimedia.org/wikipedia/commons/6/6d/Mullica_River_5.jpg")
+```
+
+# 
+
+```{r, fig.height = 3}
+er_hum_ts('Atlantic Coastal Pine Barrens')
+```
+
+# Dry conditions $\rightarrow$ more fires
+
+```{r}
+plot_data %>%
+  filter(covariate == 'rmin') %>%
+  ggplot(aes(covariate_value, med, group = NA_L3NAME)) + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_line(alpha = .1) + 
+  xlab('Humidity') + 
+  ylab('Effect on number of fires')
+```
+
+# Temperature effects are context dependent
+
+#
+
+```{r}
+plot_data %>%
+  filter(covariate == 'tmmx') %>%
+  ggplot(aes(covariate_value, med, group = NA_L3NAME)) + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_line(alpha = .1) + 
+  xlab('Temperature (C)') + 
+  ylab('Effect on number of fires')
+```
+
+# Great Plains
+
+```{r}
+plot_data %>%
+  filter(covariate == 'tmmx') %>%
+  mutate(highlight = NA_L1NAME == 'GREAT PLAINS') %>%
+  ggplot(aes(covariate_value, med, group = NA_L3NAME, 
+             color = highlight)) + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_line() + 
+  xlab('Temperature (C)') + 
+  ylab('Effect on number of fires') + 
+  theme(legend.position = 'none') +
+  scale_color_manual(values = c(scales::alpha(1, .1), 
+                                'dodgerblue'))
+```
+
+# Ozark/Ouachita-Appalachian Forests
+
+```{r}
+plot_data %>%
+  filter(covariate == 'tmmx') %>%
+  mutate(highlight = NA_L2NAME == 'OZARK/OUACHITA-APPALACHIAN FORESTS') %>%
+  ggplot(aes(covariate_value, med, group = NA_L3NAME, 
+             color = highlight)) + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_line() + 
+  xlab('Temperature (C)') + 
+  ylab('Effect on number of fires') + 
+  theme(legend.position = 'none') +
+  scale_color_manual(values = c(scales::alpha(1, .1), 
+                                'dodgerblue'))
+```
+
+# Putting it all together
+
+```{r}
+(p1 + p2 + plot_layout(ncol = 1)) | p3 | p4
+```
+
+# 
+
+```{r, fig.width = 4, fig.height = 3, warning=FALSE}
+interval_df <- read_csv('../data/processed/mev_intervals.csv')
+to_plot <- c("Middle Rockies", 
+             "Atlantic Coastal Pine Barrens", 
+             "Northwestern Great Plains", 
+             "Ozark Highlands")
+interval_df %>%
+  filter(NA_L3NAME %in% to_plot) %>%
+  group_by(NA_L3NAME) %>%
+  mutate(total_n = sum(!is.na(empirical_max))) %>%
+  ggplot(aes(x = ym, group = NA_L3NAME)) +
+  geom_ribbon(aes(ymin = m_qlo, ymax = m_qhi),
+              color = NA,
+              fill = 'firebrick', alpha = .7) +
+  geom_ribbon(aes(ymin = m_qvlo, ymax = m_qvhi),
+              color = NA,
+              fill = 'firebrick', alpha = .3) +
+  scale_y_log10() +
+  theme_minimal() +
+  facet_wrap(~ fct_reorder(l3_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(23))) +
+  geom_point(aes(y = empirical_max), size = .5) +
+  xlab('') +
+  ylab('Maximum fire size (acres)') +
+  theme(panel.grid.minor = element_blank(), 
+        axis.text.x = element_text(angle = 90))
 ```
