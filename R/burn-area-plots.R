@@ -107,12 +107,16 @@ for (i in seq_along(unique_ers)) {
 }
 close(pb)
 
-p <- partial_effs %>%
+burn_area_partials <- partial_effs %>%
   bind_rows %>%
   left_join(st_covs) %>%
   mutate(NA_L1NAME = tolower(NA_L1NAME),
          NA_L1NAME = factor(tools::toTitleCase(NA_L1NAME)),
-         NA_L1NAME = fct_reorder(NA_L1NAME, rmin)) %>%
+         NA_L1NAME = fct_reorder(NA_L1NAME, rmin))
+
+write_rds(burn_area_partials, 'data/processed/burn_area_partials.rds')
+
+p <- burn_area_partials %>%
   ggplot(aes(rmin, med, group = NA_L3NAME)) +
   geom_ribbon(aes(ymin = lo, ymax = hi), color = NA,
               alpha = .1) +

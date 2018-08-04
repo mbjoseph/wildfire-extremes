@@ -2,9 +2,9 @@
 title: "Understanding and predicting\nwildfire extremes"
 subtitle: "https://github.com/mbjoseph/wildfire-extremes"
 author: "Maxwell B. Joseph"
-date: "2018-08-07"
 output:
   beamer_presentation:
+    fig_caption: false
     latex_engine: xelatex
     fonttheme: "structurebold"
 header-includes: 
@@ -30,13 +30,13 @@ header-includes:
 
 ```{r setup, include=FALSE}
 h <- 2.2
-
 knitr::opts_chunk$set(echo = FALSE, 
                       fig.width = 1.618 * h, fig.height = h, 
                       message = FALSE, fig.align = 'center')
 library(rgeos)
 library(sf)
 library(tidyverse)
+library(ggthemes)
 library(patchwork)
 library(RColorBrewer)
 library(splines)
@@ -46,20 +46,31 @@ theme_set(theme_minimal() +
 
 # 
 
-```{r, echo = FALSE, results='hide', message=FALSE}
+```{r, results='hide'}
 # Read fire data ----------------------
 mtbs <- read_rds('../data/processed/mtbs.rds') %>%
   mutate(train = FIRE_YEAR < 2010)
-mtbs %>%
-  group_by(FIRE_YEAR) %>%
-  summarize(max_size = max(R_ACRES)) %>%
-  ggplot(aes(FIRE_YEAR, max_size)) + 
-  geom_point(data = mtbs, aes(y = R_ACRES), alpha = .01) +
-  geom_point() + 
-  scale_y_log10() + 
-  xlab('Year') + 
-  ylab('Fire size (acres)')
+
+if (!file.exists('max-plot.png')) {
+  max_plot <- mtbs %>%
+    group_by(FIRE_YEAR) %>%
+    summarize(max_size = max(R_ACRES)) %>%
+    ggplot(aes(FIRE_YEAR, max_size)) + 
+    geom_point(data = mtbs, aes(y = R_ACRES), alpha = .01) +
+    geom_point() + 
+    scale_y_log10() + 
+    xlab('Year') + 
+    ylab('Fire size (acres)')
+  ggsave('max-plot.png', plot = max_plot, width = 1.618 * h, height = h, dpi = 400)
+}
+
 ```
+
+\begin{center}
+
+\includegraphics{max-plot}
+
+\end{center}
 
 # Two ideas
 
@@ -68,7 +79,7 @@ mtbs %>%
 
 # 
 
-```{r, echo = FALSE}
+```{r}
 len <- 100
 density_df <- tibble(x = seq(-4, 5, length.out = len)) %>%
   mutate(old_den = dnorm(x), 
@@ -92,7 +103,7 @@ density_df %>%
 
 #
 
-```{r, echo = FALSE}
+```{r}
 sampling_plot <- function(n = 5, seed) {
   set.seed(seed)
   samples <- tibble(x = rnorm(n))
@@ -115,43 +126,43 @@ sampling_plot(n = 5, seed)
 
 # 
 
-```{r, echo = FALSE}
+```{r}
 sampling_plot(n = 10, seed)
 ```
 
 #
 
-```{r, echo = FALSE}
+```{r}
 sampling_plot(n = 20, seed)
 ```
 
 #
 
-```{r, echo = FALSE}
+```{r}
 sampling_plot(n = 50, seed)
 ```
 
 #
 
-```{r, echo = FALSE}
+```{r}
 sampling_plot(n = 100, seed)
 ```
 
 #
 
-```{r, echo = FALSE}
+```{r}
 sampling_plot(n = 500, seed)
 ```
 
 #
 
-```{r, echo = FALSE}
+```{r}
 sampling_plot(n = 1000, seed)
 ```
 
 # The number of fires is stochastic
 
-```{r, echo = FALSE}
+```{r}
 e_nb <- 2
 s_nb <- 2
 
@@ -172,7 +183,7 @@ p2 +
 
 # 
 
-```{r, echo = FALSE}
+```{r}
 p1 <- density_df %>%
     ggplot(aes(x, old_den)) + 
     geom_line() + 
@@ -223,36 +234,34 @@ Relate fire size and number to:
 
 1984-2009 (train), 2010-2015 (test)
 
-```{r, echo = FALSE}
-if (!file.exists('../data/processed/simple_ecoregions.rds')) {
-  ecoregions <- read_rds('../data/processed/ecoregions.rds') %>%
-    as('Spatial') %>%
-    gSimplify(tol = 500) %>%
-    as('sf')
+```{r}
+ecoregions <- read_rds('../data/processed/ecoregions.rds')
+
+if (!file.exists('fire-map.png')) {
+  fire_map <- ecoregions %>%
+    ggplot() +
+    geom_sf(size = .2, fill = 'white') + 
+    geom_sf(data = mtbs, size = .1, 
+            inherit.aes = FALSE, color = 'red', alpha = .2) + 
+    theme_minimal() + 
+    theme(panel.grid.major = element_line(colour = "lightgrey"), 
+          legend.position = 'none', 
+          axis.text = element_blank()) + 
+    ggtitle('')
+  ggsave('fire-map.png', plot = fire_map, width = 1.618 * h, height = h, dpi = 400)
 }
-
-fire_map <- ecoregions %>%
-  ggplot() +
-  geom_sf(size = .2, fill = 'white') + 
-  geom_sf(data = mtbs, size = .1, 
-          inherit.aes = FALSE, color = 'red', alpha = .2) + 
-  theme_minimal() + 
-  theme(panel.grid.major = element_line(colour = "lightgrey"), 
-        legend.position = 'none', 
-        axis.text = element_blank()) + 
-  ggtitle('')
-
-fire_map
 ```
+
+\begin{center}
+
+\includegraphics{fire-map}
+
+\end{center}
+
 
 # Nonlinear effects
 
-```{r, message = FALSE, fig.width=8}
-theme_set(theme_minimal() + 
-            theme(panel.grid.minor = element_blank(), 
-                  panel.grid.major = element_blank(), 
-                  axis.text.x = element_blank(), 
-                  plot.title = element_text(size=10)))
+```{r, message = FALSE}
 
 m <- 5
 pal <- 2
@@ -270,14 +279,104 @@ unweighted_basis <- splines::bs(x, df = 5, intercept = TRUE) %>%
          weight = 1,
          type = 'Unweighted')
 
-weights <- c(-1, 1, -.5, 1, 1)
-
-function_val <- unweighted_basis %>%
+generate_f <- function(weights) {
+  stopifnot(length(weights) == m)
+  unweighted_basis %>%
   mutate(type = 'Weighted', 
          weight = weights[dim], 
          weighted_value = weight * basis_value) %>%
   group_by(x) %>%
   summarize(f_x = sum(weighted_value))
+}
 
-# TODO: replicate this for each ecoregion to show that we get clusters of functions
+set.seed(123456)
+er1_w <- rnorm(m)
+er2_w <- er1_w + rnorm(m, mean = 0, sd = .4)
+er3_w <- rnorm(m)
+
+f1 <- generate_f(er1_w) %>%
+  mutate(NA_L3NAME = "Central Rockies")
+f1 %>%
+  ggplot(aes(x, f_x, color = NA_L3NAME)) + 
+  geom_line() + 
+  xlab('Explanatory variable') + 
+  ylab('Effect') + 
+  theme(axis.text = element_blank(), 
+        panel.grid = element_blank(), 
+        legend.position = 'none') + 
+  scale_color_gdocs()
+```
+
+# Nonlinear effects
+
+```{r, message = FALSE}
+f2 <- generate_f(er2_w) %>%
+  mutate(NA_L3NAME = 'Southern Rockies')
+
+f1 %>%
+  full_join(f2) %>%
+  ggplot(aes(x, f_x, color = NA_L3NAME)) + 
+  geom_line() + 
+  xlab('Explanatory variable') + 
+  ylab('Effect') + 
+  theme(axis.text = element_blank(), 
+        panel.grid = element_blank(), 
+        legend.position = 'none') + 
+  scale_color_gdocs()
+```
+
+# Nonlinear effects
+
+```{r, message = FALSE}
+f3 <- generate_f(er3_w) %>%
+  mutate(NA_L3NAME = 'Z region')
+
+f1 %>%
+  full_join(f2) %>%
+  full_join(f3) %>%
+  ggplot(aes(x, f_x, color = NA_L3NAME)) + 
+  geom_line() + 
+  xlab('Explanatory variable') + 
+  ylab('Effect') + 
+  theme(axis.text = element_blank(), 
+        panel.grid = element_blank(), 
+        legend.position = 'none') + 
+  scale_color_gdocs()
+```
+
+# What we found
+
+```{r, fig.height = 3}
+plot_data <- read_rds('../data/processed/plot_data.rds')
+burn_area_partials <- read_rds("../data/processed/burn_area_partials.rds")
+st_covs <- read_rds('../data/processed/st_covs.rds')
+min_size <- 1e3
+max_df <- read_rds('../test_preds.rds') %>%
+  # filter out zero event records (don't contribute to max)
+  filter(n_event > 0) %>%
+  rowwise() %>%
+  mutate(max_area = max(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
+  ungroup %>%
+  group_by(NA_L3NAME, ym) %>%
+  summarize(med = median(max_area), 
+            lo = quantile(max_area, .025), 
+            hi = quantile(max_area, .975), 
+            vlo = quantile(max_area, .005), 
+            vhi = quantile(max_area, .995), 
+            n = n()) %>%
+  left_join(select(st_covs, NA_L3NAME, ym, rmin, tmmx, tmmx, vs, prev_12mo_precip, housing_density))
+
+plot_data %>%
+  filter(covariate == 'rmin') %>%
+  mutate(response = 'Fire count') %>%
+  select(covariate_value, med, NA_L3NAME, response) %>%
+  rename(rmin = covariate_value) %>%
+  full_join(select(burn_area_partials, rmin, med, NA_L3NAME) %>%
+              mutate(response = 'Fire size')) %>%
+  ggplot(aes(rmin, med, group = NA_L3NAME)) + 
+  geom_line(alpha = .1) + 
+  facet_wrap(~response, scales = 'free_y', ncol = 1) + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  xlab('Humidity') + 
+  ylab('Effect')
 ```

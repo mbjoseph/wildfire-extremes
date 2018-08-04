@@ -169,7 +169,7 @@ plot_data <- effect_plot_df %>%
   left_join(better_name) %>%
   mutate(l1_er_subset = ifelse(l1_er %in% regions_to_highlight, 
                                l1_er, "Other"))
-
+write_rds(plot_data, 'data/processed/plot_data.rds')
 
 
 pal <- c("#D55E00", "#56B4E9", "#009E73", scales::alpha(1, .2))#"#999999")
