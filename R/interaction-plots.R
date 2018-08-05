@@ -155,3 +155,4 @@ p1 <- case_study_plot$plot +
 p1
 ggsave(filename = 'fig/attribution-plot.png', plot = p1,
        width = 7, height = 4)
+write_rds(case_study_plot, 'data/processed/case-study-plot.rds')

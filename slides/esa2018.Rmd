@@ -1,7 +1,7 @@
 ---
-title: "Understanding and predicting\nwildfire extremes"
+title: "Understanding and predicting wildfire extremes in the contiguous United States"
 subtitle: "https://github.com/mbjoseph/wildfire-extremes"
-author: "Maxwell B. Joseph"
+author: "Max Joseph, Matt Rossi, Nate Mietkiewicz, Adam Mahood, Megan Cattau, Lise St. Denis, Chelsea Nagy, Virginia Iglesias, John Abatzoglou, Jennifer Balch"
 output:
   beamer_presentation:
     fig_caption: false
@@ -402,6 +402,8 @@ burn_area_partials %>%
   ylab('Effect on fire size')
 ```
 
+92\% interval coverage
+
 # Middle Rockies 
 
 ```{r, fig.width = 6, fig.height = 4}
@@ -473,6 +475,8 @@ plot_data %>%
   xlab('Humidity') + 
   ylab('Effect on number of fires')
 ```
+
+99\% interval coverage
 
 # Temperature effects are context dependent
 
@@ -556,4 +560,37 @@ interval_df %>%
   ylab('Maximum fire size (acres)') +
   theme(panel.grid.minor = element_blank(), 
         axis.text.x = element_text(angle = 90))
+```
+
+78\% interval coverage
+
+# 
+
+```{r, fig.width = 4.5}
+case_study_plot <- read_rds('../data/processed/case-study-plot.rds')
+
+date_df <- expand.grid(year = 2010:2015, 
+                       month = 1:12) %>%
+  as_tibble %>%
+  mutate(ym = zoo::as.yearmon(paste(year, month, sep = '-')), 
+         month_abb = month.abb[month])
+
+case_study_plot$plot_data %>%
+  filter(Response != "Zero-inflation component (number of fires)") %>%
+  mutate(Response = ifelse(grepl("Lognormal", Response), "Fire size", "Fire count")) %>%
+  left_join(date_df) %>%
+  ggplot(aes(ym, y = median_eff, color = variable)) +
+    geom_line() +
+    facet_wrap(~Response, scales = 'free_y', ncol = 1) +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank()) +
+    xlab('') +
+    ylab('Contribution') +
+    scale_color_manual('', values = c('dodgerblue',
+                                              'red',
+                                              scales::alpha(
+                                                c('green4',
+                                                  'pink',
+                                                  'orange',
+                                                  'lightblue'), .7)))
 ```
