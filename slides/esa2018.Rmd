@@ -1,7 +1,7 @@
 ---
 title: "Understanding and predicting wildfire extremes in the contiguous United States"
 subtitle: "https://github.com/mbjoseph/wildfire-extremes"
-author: "Max Joseph, Matt Rossi, Nate Mietkiewicz, Adam Mahood, Megan Cattau, Lise St. Denis, Chelsea Nagy, Virginia Iglesias, John Abatzoglou, Jennifer Balch"
+author: "Max Joseph (@mxwlj), Matt Rossi, Nate Mietkiewicz, Adam Mahood, Megan Cattau, Lise St. Denis, Chelsea Nagy, Virginia Iglesias, John Abatzoglou, Jennifer Balch"
 output:
   beamer_presentation:
     fig_caption: false
@@ -86,19 +86,32 @@ density_df <- tibble(x = seq(-4, 5, length.out = len)) %>%
          new_den = dnorm(x, mean = 1), 
          exp_x = exp(x))
 
-density_df %>%
+p <- density_df %>%
   ggplot(aes(x, old_den)) + 
   geom_line(alpha = .4) + 
   theme(axis.text = element_blank(),
         panel.grid = element_blank()) +
-  xlab('Fire size') + 
+  xlab('Event size') + 
   ylab('Probability') + 
-  geom_line(aes(y = new_den)) + 
   annotate(x = -2, y = .3, label = '1984', alpha = .4, geom = 'text', 
-           size = 6) + 
+           size = 6)
+p
+```
+
+# 
+
+```{r}
+p + 
+  geom_line(aes(y = new_den)) + 
   annotate(x = 3, y = .3, label = '2015', geom = 'text', 
            size = 6)
 ```
+
+
+# Two ideas
+
+1. Changing size distributions
+2. More ignitions $\rightarrow$ more extremes
 
 
 #
@@ -112,7 +125,7 @@ sampling_plot <- function(n = 5, seed) {
     geom_line(alpha = .4) + 
     theme(axis.text = element_blank(),
           panel.grid = element_blank()) +
-    xlab('Fire size') + 
+    xlab('Event size') + 
     ylab('Probability') +
     geom_vline(xintercept = max(samples$x), color = 'red') + 
     geom_rug(data = samples, inherit.aes = FALSE, aes(x), sides = 'b') + 
@@ -120,7 +133,7 @@ sampling_plot <- function(n = 5, seed) {
   p
 }
 
-seed <- 12
+seed <- 2
 sampling_plot(n = 5, seed)
 ```
 
@@ -160,7 +173,7 @@ sampling_plot(n = 500, seed)
 sampling_plot(n = 1000, seed)
 ```
 
-# The number of fires is stochastic
+# 
 
 ```{r}
 e_nb <- 2
@@ -174,7 +187,7 @@ p2 <- num_dist %>%
     geom_linerange(aes(ymin = 0, ymax = pr_y)) +
     theme(axis.text = element_blank(),
           panel.grid = element_blank()) +
-    xlab('Number of fires') + 
+    xlab('Number of events') + 
     ylab('')
 
 p2 + 
@@ -189,7 +202,7 @@ p1 <- density_df %>%
     geom_line() + 
     theme(axis.text = element_blank(),
           panel.grid = element_blank()) +
-    xlab('Fire size') + 
+    xlab('Event size') + 
     ylab('')
 
 
@@ -404,7 +417,7 @@ burn_area_partials %>%
 
 92\% interval coverage
 
-# Middle Rockies 
+# Arizona/New Mexico Mountains
 
 ```{r, fig.width = 6, fig.height = 4}
 plot_jpeg = function(url) {
@@ -417,7 +430,7 @@ plot_jpeg = function(url) {
   rasterImage(jpg,1,1,res[1],res[2])
 }
 
-plot_jpeg("https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Yellowstone_Lower_Fall.jpg/1280px-Yellowstone_Lower_Fall.jpg")
+plot_jpeg('https://upload.wikimedia.org/wikipedia/commons/f/f4/SUPERSTITIONS_AZ15.jpg')
 ```
 
 # 
@@ -435,7 +448,7 @@ er_hum_ts <- function(ecoregion) {
     geom_line() + 
     xlab('') + 
     ylab('Humidity') + 
-    ylim(0, 100)
+    ylim(5, 60)
   
   p2 <- ts %>%
     ggplot(aes(ym, exp(median) + min_size, fill = train)) + 
@@ -449,7 +462,7 @@ er_hum_ts <- function(ecoregion) {
   p1 / p2  
 }
 
-er_hum_ts('Middle Rockies')
+er_hum_ts("Arizona/New Mexico Mountains")
 ```
 
 # Atlantic Coastal Pine Barrens
@@ -536,10 +549,8 @@ plot_data %>%
 
 ```{r, fig.width = 4, fig.height = 3, warning=FALSE}
 interval_df <- read_csv('../data/processed/mev_intervals.csv')
-to_plot <- c("Middle Rockies", 
-             "Atlantic Coastal Pine Barrens", 
-             "Northwestern Great Plains", 
-             "Ozark Highlands")
+to_plot <- c("Arizona/New Mexico Mountains", 
+             "Atlantic Coastal Pine Barrens")
 interval_df %>%
   filter(NA_L3NAME %in% to_plot) %>%
   group_by(NA_L3NAME) %>%
@@ -554,7 +565,8 @@ interval_df %>%
   scale_y_log10() +
   theme_minimal() +
   facet_wrap(~ fct_reorder(l3_er, rmin),
-             labeller = labeller(.rows = label_wrap_gen(23))) +
+             labeller = labeller(.rows = label_wrap_gen(23)), 
+             ncol = 1) +
   geom_point(aes(y = empirical_max), size = .5) +
   xlab('') +
   ylab('Maximum fire size (acres)') +
@@ -594,3 +606,4 @@ case_study_plot$plot_data %>%
                                                   'orange',
                                                   'lightblue'), .7)))
 ```
+
