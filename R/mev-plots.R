@@ -2,6 +2,7 @@ library(tidyverse)
 library(patchwork)
 library(assertthat)
 library(sf)
+library(ggridges)
 
 st_covs <- read_rds('data/processed/st_covs.rds')
 cutoff_year <- read_rds('data/processed/cutoff_year.rds')
@@ -74,40 +75,35 @@ gc()
 
 
 # Simulating maxima from posterior predictive dist ------------------------
+pr_zero <- test_preds %>%
+  group_by(ym, NA_L3NAME) %>%
+  summarize(pr_zero = mean(n_event == 0))
+
 
 max_df <- test_preds %>%
   # filter out zero event records (don't contribute to max)
   filter(n_event > 0) %>%
   rowwise() %>%
-  mutate(max_area = max(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
+  mutate(max_size = max(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size), 
+         pr_over_million = mean(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size >= 1e6)) %>%
   ungroup
-  
-max_summary <- max_df %>%
-  group_by(NA_L3NAME, iter) %>%
-  summarize(max_area = max(max_area)) %>% # max over timesteps
+
+zero_df <- test_preds %>%
+  filter(n_event == 0) %>%
+  mutate(pr_over_million = 0, 
+         max_size = min_size)
+
+mill_df <- max_df %>%
+  full_join(zero_df)
+
+mill_summ <- mill_df %>%
+  group_by(NA_L3NAME, iter) %>% # average over timesteps
+  summarize(any_million_acre_events = any(max_size > 1e6)) %>%
   ungroup %>%
   group_by(NA_L3NAME) %>%
-  summarize(med = median(max_area), 
-            lo = quantile(max_area, .025), 
-            hi = quantile(max_area, .975), 
-            vlo = quantile(max_area, .005), 
-            vhi = quantile(max_area, .995))
+  summarize(pr_million_acre_event = mean(any_million_acre_events))
+write_rds(mill_summ, path = 'data/processed/mill_summ.rds')
 
-true_max <- holdout_burns %>%
-  group_by(NA_L3NAME) %>%
-  summarize(max = max(R_ACRES))
-
-true_max %>%
-  full_join(max_summary) %>%
-  ggplot(aes(max, med)) + 
-  geom_point() + 
-  scale_x_log10() + 
-  scale_y_log10() + 
-  geom_abline(slope = 1, yintercept = 0, linetype = 'dashed') + 
-  xlab('Observed maximum') + 
-  ylab('Predicted maximum') + 
-  geom_linerange(aes(ymin = lo, ymax = hi), alpha = .2) + 
-  theme_minimal()
 
 # Generate derived parameters about the distribution of maxima ----------------
 nmax_q <- function(p, n, mu, sigma) {
