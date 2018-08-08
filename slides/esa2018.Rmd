@@ -693,6 +693,8 @@ point_plot <- mill_summ %>%
 map_plot
 ```
 
+Overall: $\approx$ 35\% chance
+
 # Million acre event probabilities
 
 ```{r, fig.width = 4.5}

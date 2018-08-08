@@ -104,6 +104,12 @@ mill_summ <- mill_df %>%
   summarize(pr_million_acre_event = mean(any_million_acre_events))
 write_rds(mill_summ, path = 'data/processed/mill_summ.rds')
 
+overall_summ <- mill_df %>%
+  group_by(iter) %>% # any million acre events in any location, any timestep
+  summarize(any_million_acre_events = any(max_size > 1e6)) %>%
+  ungroup %>%
+  summarize(pr_million_acre_event = mean(any_million_acre_events))
+
 
 # Generate derived parameters about the distribution of maxima ----------------
 nmax_q <- function(p, n, mu, sigma) {
