@@ -68,7 +68,7 @@ if (!file.exists('max-plot.png')) {
 
 \begin{center}
 
-\includegraphics{max-plot}
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{max-plot}
 
 \end{center}
 
@@ -273,7 +273,7 @@ if (!file.exists('fire-map.png')) {
 
 \begin{center}
 
-\includegraphics{fire-map}
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{fire-map}
 
 \end{center}
 
@@ -330,7 +330,7 @@ generate_f <- function(weights) {
 
 set.seed(123456)
 er1_w <- rnorm(m)
-er2_w <- er1_w + rnorm(m, mean = 0, sd = .4)
+er2_w <- er1_w + rnorm(m, mean = 0, sd = .2)
 er3_w <- rnorm(m)
 
 f1 <- generate_f(er1_w) %>%
@@ -383,7 +383,31 @@ f1 %>%
   scale_color_gdocs()
 ```
 
-# What we found
+# 
+
+\Huge{Model comparisons}
+
+# Burn area model comparisons
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/ppc-density-funs}
+
+\end{center}
+
+
+# Count model comparisons
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/ppc-counts}
+
+\end{center}
+
+
+#
+
+\Huge{What we found: fire size}
 
 # Dry conditions $\rightarrow$ larger fires
 
@@ -407,12 +431,13 @@ max_df <- read_rds('../test_preds.rds') %>%
             n = n()) %>%
   left_join(select(st_covs, NA_L3NAME, ym, rmin, tmmx, tmmx, vs, prev_12mo_precip, housing_density))
 
-burn_area_partials %>%
+humidity_area_plot <- burn_area_partials %>%
   ggplot(aes(rmin, med, group = NA_L3NAME)) + 
   geom_line(alpha = .1) + 
   geom_hline(yintercept = 0, linetype = 'dashed') + 
   xlab('Humidity') + 
   ylab('Effect on fire size')
+humidity_area_plot
 ```
 
 92\% interval coverage
@@ -430,7 +455,7 @@ plot_jpeg = function(url) {
   rasterImage(jpg,1,1,res[1],res[2])
 }
 
-plot_jpeg('https://upload.wikimedia.org/wikipedia/commons/f/f4/SUPERSTITIONS_AZ15.jpg')
+plot_jpeg('https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/SUPERSTITIONS_AZ15.jpg/600px-SUPERSTITIONS_AZ15.jpg')
 ```
 
 # 
@@ -468,7 +493,7 @@ er_hum_ts("Arizona/New Mexico Mountains")
 # Atlantic Coastal Pine Barrens
 
 ```{r, fig.width = 6, fig.height = 4}
-plot_jpeg("https://upload.wikimedia.org/wikipedia/commons/6/6d/Mullica_River_5.jpg")
+plot_jpeg("https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/Mullica_River_5.jpg/640px-Mullica_River_5.jpg")
 ```
 
 # 
@@ -477,16 +502,21 @@ plot_jpeg("https://upload.wikimedia.org/wikipedia/commons/6/6d/Mullica_River_5.j
 er_hum_ts('Atlantic Coastal Pine Barrens')
 ```
 
+#
+
+\Huge{What we found: fire counts}
+
 # Dry conditions $\rightarrow$ more fires
 
 ```{r}
-plot_data %>%
+humidity_count_plot <- plot_data %>%
   filter(covariate == 'rmin') %>%
   ggplot(aes(covariate_value, med, group = NA_L3NAME)) + 
   geom_hline(yintercept = 0, linetype = 'dashed') + 
   geom_line(alpha = .1) + 
   xlab('Humidity') + 
   ylab('Effect on number of fires')
+humidity_count_plot
 ```
 
 99\% interval coverage
@@ -496,13 +526,14 @@ plot_data %>%
 #
 
 ```{r}
-plot_data %>%
+temp_count_plot <- plot_data %>%
   filter(covariate == 'tmmx') %>%
   ggplot(aes(covariate_value, med, group = NA_L3NAME)) + 
   geom_hline(yintercept = 0, linetype = 'dashed') + 
   geom_line(alpha = .1) + 
   xlab('Temperature (C)') + 
   ylab('Effect on number of fires')
+temp_count_plot
 ```
 
 # Great Plains
@@ -538,6 +569,24 @@ plot_data %>%
   scale_color_manual(values = c(scales::alpha(1, .1), 
                                 'dodgerblue'))
 ```
+
+# Northwestern forested mountains
+
+```{r}
+plot_data %>%
+  filter(covariate == 'tmmx') %>%
+  mutate(highlight = NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
+  ggplot(aes(covariate_value, med, group = NA_L3NAME, 
+             color = highlight)) + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_line() + 
+  xlab('Temperature (C)') + 
+  ylab('Effect on number of fires') + 
+  theme(legend.position = 'none') +
+  scale_color_manual(values = c(scales::alpha(1, .1), 
+                                'dodgerblue'))
+```
+
 
 # Putting it all together
 
@@ -607,3 +656,189 @@ case_study_plot$plot_data %>%
                                                   'lightblue'), .7)))
 ```
 
+# 
+
+```{r, fig.width = 6, fig.height = 5}
+cake_url <- "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Chocolate_Cake_Flourless_%281%29.jpg/1024px-Chocolate_Cake_Flourless_%281%29.jpg"
+plot_jpeg(cake_url)
+```
+
+# Million acre event probabilities
+
+```{r, fig.width = 4.5, fig.height = 4, warning=FALSE}
+mill_summ <- read_rds('../data/processed/mill_summ.rds')
+map_plot <- simple_ecoregions %>%
+  left_join(mill_summ) %>%
+  ggplot(aes(fill = pr_million_acre_event)) +
+  geom_sf(size = .1, color = 'white') + 
+  theme_minimal() + 
+  theme(panel.grid.major = element_line(colour = "lightgrey"), 
+        axis.text = element_blank()) + 
+  ggtitle('') + 
+  scale_fill_viridis_c(trans = 'log', 
+                       breaks = c(.001, .01, 
+                                  .04, .07), 
+                       "Probability", 
+                       option = 'C')
+point_plot <- mill_summ %>%
+  arrange(-pr_million_acre_event) %>%
+  top_n(14) %>%
+  mutate(NA_L3NAME = gsub(" and ", " & ", NA_L3NAME)) %>%
+  ggplot(aes(x = pr_million_acre_event, y = reorder(NA_L3NAME, pr_million_acre_event))) + 
+  geom_point() + 
+  geom_segment(aes(x = 0, xend = pr_million_acre_event, yend = reorder(NA_L3NAME, pr_million_acre_event))) + 
+  ylab("") + 
+  xlab("Probability")
+
+map_plot
+```
+
+# Million acre event probabilities
+
+```{r, fig.width = 4.5}
+point_plot
+```
+
+# 
+
+# 
+
+\Huge{Extreme fire risk is doubly nonlinear}
+
+# 
+
+```{r, fig.height = 3.6}
+humidity_area_plot / humidity_count_plot
+```
+
+#
+
+\Huge{Temperature effects vary}
+
+# 
+
+```{r}
+plot_data %>%
+  filter(covariate == 'tmmx') %>%
+  mutate(highlight = NA_L1NAME == 'NORTHWESTERN FORESTED MOUNTAINS') %>%
+  ggplot(aes(covariate_value, med, group = NA_L3NAME, 
+             color = highlight)) + 
+  geom_hline(yintercept = 0, linetype = 'dashed') + 
+  geom_line() + 
+  xlab('Temperature (C)') + 
+  ylab('Effect on number of fires') + 
+  theme(legend.position = 'none') +
+  scale_color_manual(values = c(scales::alpha(1, .1), 
+                                'dodgerblue'))
+```
+
+# 
+
+\Huge{Extremes may be predictable...}
+
+\Huge{\textit{and we can do better!}}
+
+# 
+
+```{r, warning=FALSE}
+
+interval_df %>%
+  filter(NA_L3NAME == "Arizona/New Mexico Mountains") %>%
+  group_by(NA_L3NAME) %>%
+  mutate(total_n = sum(!is.na(empirical_max))) %>%
+  ggplot(aes(x = ym, group = NA_L3NAME)) +
+  geom_ribbon(aes(ymin = m_qlo, ymax = m_qhi),
+              color = NA,
+              fill = 'firebrick', alpha = .7) +
+  geom_ribbon(aes(ymin = m_qvlo, ymax = m_qvhi),
+              color = NA,
+              fill = 'firebrick', alpha = .3) +
+  scale_y_log10() +
+  theme_minimal() +
+  facet_wrap(~ fct_reorder(l3_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(23)), 
+             ncol = 1) +
+  geom_point(aes(y = empirical_max), size = .5) +
+  xlab('') +
+  ylab('Maximum fire size (acres)') +
+  theme(panel.grid.minor = element_blank(), 
+        axis.text.x = element_text(angle = 90))
+```
+
+# Thank you
+
+\begin{center}
+
+\includegraphics[width=.95\textwidth,height=.5\textheight,keepaspectratio]{qr_img} 
+
+\end{center}
+
+github.com/mbjoseph/wildfire-extremes
+
+**Get in touch**
+
+maxwell.b.joseph@colorado.edu
+
+@mxwlj
+
+
+# 
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/spline-concept}
+
+\end{center}
+
+
+# 
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/maps}
+
+\end{center}
+
+
+
+# 
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/burn-area-effs}
+
+\end{center}
+
+
+# 
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/count-partial-effs}
+
+\end{center}
+
+
+# 
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/all-coefs}
+
+\end{center}
+
+# 
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/max-preds-l3}
+
+\end{center}
+
+# 
+
+\begin{center}
+
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/attribution-plot}
+
+\end{center}
