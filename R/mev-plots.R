@@ -119,8 +119,37 @@ nmax_q <- function(p, n, mu, sigma) {
   sigma * sqrt(2) * erf.inv(2 * p^(1/n) - 1) + mu
 }
 
-# log_p: probability (log CDF) of a million acre event 
-# qxx: pred intervals for block maxima, using predicted number events
+
+# just a quick check to make sure this is implemented correctly:
+# points should fall on or very near one to one line
+n_vec <- c(1, 5, 10, 20, 100, 1000)
+ps <- c(.5, .9)
+expand.grid(n = n_vec, 
+                                   iter = 1:10000) %>%
+  as_tibble %>%
+  rowwise %>%
+  mutate(ymax = max(rnorm(n))) %>%
+  ungroup %>%
+  group_by(n) %>%
+  summarize(q5 = median(ymax), 
+            q1 = quantile(ymax, .1), 
+            q9 = quantile(ymax, .9)) %>%
+  gather(quantile, value, -n) %>%
+  mutate(quantile = case_when(
+    .$quantile == "q5" ~ .5, 
+    .$quantile == "q1" ~ .1, 
+    .$quantile == "q9" ~ .9
+  ), 
+  analytic_value = nmax_q(quantile, n, 0, 1)) %>%
+  ggplot(aes(x = analytic_value, y = value)) + 
+  geom_point() + 
+  geom_abline(slope = 1, intercept = 0, linetype = 'dashed') + 
+  xlab("Analytic n-sample maximum quantile") + 
+  ylab("Empirical n-sample maximum quantile")
+
+
+# log_p: CDF of maximum distribution, evaluated at an exceedance of one million - 1e3
+# (the probability that the maximum is less than one million acres)
 test_preds <- test_preds %>%
   mutate(log_p = n_event * pnorm(log(1e6 - 1e3), mean = ln_mu, sd = ln_scale, log.p = TRUE))
 
@@ -129,40 +158,30 @@ pred_df <- expand.grid(x = 1e6 - min_size,
                        id = holdout_ids,
                        iter = 1:max(test_preds$iter))
 
-
 exceedance_df <- test_preds %>%
   filter(id %in% holdout_ids) %>%
   full_join(pred_df)
  
 overall_million <- exceedance_df %>%
-  # find the cdf for monthly maxima
-  mutate(log_p = n_event * pnorm(log(x),
-                                 mean = ln_mu,
-                                 sd = ln_scale,
-                                 log.p = TRUE)) %>%
   left_join(select(st_covs, id, year, rmin)) %>%
   group_by(iter, x) %>%
-  # sum to get the joint probability across all time steps
-  summarize(total_p = sum(log_p),
-            total_events = sum(n_event)) %>%
+  # sum over ecoregions and timesteps to get the joint probability that all 
+  # maxima are less than one million across all time steps
+  summarize(total_p = sum(log_p)) %>%
   ungroup()
 
-# probability of a million+ acre fire
+# probability of a million+ acre fire is the complement of the log probability
+# that all block maxima are less than one million
 overall_million %>%
   summarize(med = median(1 - exp(total_p)),
             lo = quantile(1 - exp(total_p), .025),
-            hi =quantile(1 - exp(total_p), .975)) %>%
+            hi = quantile(1 - exp(total_p), .975)) %>%
   write_csv('data/processed/million-acre-prob.csv')
 
 # probabilities of million acre fires for each ecoregion month
 million_er_mon <- exceedance_df %>%
-  # find the cdf for monthly maxima
-  mutate(log_p = n_event * pnorm(log(x),
-                                 mean = ln_mu,
-                                 sd = ln_scale,
-                                 log.p = TRUE)) %>%
   group_by(x, NA_L3NAME, ym) %>%
-  # sum to get the joint probability across all time steps
+  # summarize posterior probability of million acre fires over post. draws
   summarize(med = median(1 - exp(log_p)),
             lo = quantile(1 - exp(log_p), .025),
             hi = quantile(1 - exp(log_p), .975), 
@@ -173,27 +192,43 @@ million_er_mon <- exceedance_df %>%
 million_er_mon %>%
   write_csv('data/processed/million-er-mon.csv')
 
-# Million acre probability by ecoregion
-# probabilities of million acre fires for each ecoregion month
-million_er <- exceedance_df %>%
-  # find the cdf for monthly maxima
-  mutate(log_p = n_event * pnorm(log(x),
-                                 mean = ln_mu,
-                                 sd = ln_scale,
-                                 log.p = TRUE)) %>%
-  group_by(x, NA_L3NAME, iter) %>%
-  # sum to get the joint probability across all time steps
+# Million acre probability by ym
+ym_million_prob <- bind_cols(zinb_preds, ln_mu) %>%
+  left_join(ln_sigma) %>%
+  select(-ends_with('1')) %>%
+  left_join(select(st_covs, id, year)) %>%
+  mutate(log_p = n_event * pnorm(log(1e6 - 1e3), mean = ln_mu, sd = ln_scale, log.p = TRUE)) %>%
+  group_by(iter, ym) %>%
   summarize(total_p = sum(log_p)) %>%
-  ungroup %>%
-  group_by(x, NA_L3NAME) %>%
-  summarize(med = median(1 - exp(total_p))) %>%
-  ungroup()
+  mutate(pr_million = 1 - exp(total_p))
 
-er_shp <- read_sf('data/raw/us_eco_l3/us_eco_l3.shp') %>%
-  mutate(NA_L3NAME = ifelse(NA_L3NAME == "Chihuahuan Desert", 
-                            "Chihuahuan Deserts", NA_L3NAME)) %>%
-  left_join(million_er)
+ym_million_prob %>%
+  ggplot(aes(x = pr_million, 
+             y = factor(ym, levels = rev(unique(ym_million_prob$ym))))) + 
+  geom_density_ridges(rel_min_height = .01) + 
+  theme_minimal() + 
+  xlim(0, .15) + 
+  ylab("") + 
+  xlab("Probability of million acre event")
 
+ym_million_prob %>%
+  group_by(ym) %>%
+  summarize(med = median(pr_million), 
+            lo = quantile(pr_million, .1), 
+            hi = quantile(pr_million, .9)) %>%
+  mutate(test_set = ifelse(ym >= 2010, 'test', 'train')) %>%
+  ggplot(aes(x = ym, y = med, fill = test_set)) + 
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = .5) +
+  geom_line(rel_min_height = .01) + 
+  theme_minimal() + 
+  ylab("Million acre wildfire probability") + 
+  xlab("") + 
+  scale_fill_manual(values = c('red', 'black')) + 
+  theme(panel.grid.minor = element_blank(), 
+        legend.position = 'none') + 
+  annotate(geom = 'text', x = 2007, y = .15, label = 'Train') + 
+  annotate(geom = 'text', x = 2013, y = .15, label = 'Test', color = 'red')
+ggsave('fig/million-acre-probs.png', width = 4, height = 3)
 
 
 # Evaluate interval coverage ----------------------------------------------

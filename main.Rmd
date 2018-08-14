@@ -18,20 +18,35 @@ library(kableExtra)
 library(assertthat)
 ```
 
-```{r load-count-test-intervals, message=FALSE, warning=FALSE}
+```{r load-count-test-intervals, message=FALSE, warning=FALSE, results='hide'}
 count_test_intervals <- read_csv('data/processed/count_test_intervals.csv')
+
+area_coverage <- read_csv('data/processed/area_coverage.csv') %>%
+  filter(model == 'ba_lognormal_fit.rds') %>%
+  arrange(idx)
+
+holdout_burns <- read_rds('data/processed/holdout_burns.rds') %>%
+  as_tibble()
+
+assert_that(all(area_coverage$NA_L3NAME == holdout_burns$NA_L3NAME))
+
+burn_area_coverage <- holdout_burns %>%
+  mutate(idx = 1:n()) %>%
+  full_join(area_coverage)
 ```
 
 \begin{abstract}
 Wildfires are becoming more frequent in parts of the globe, but predicting where and when extreme events occur remains difficult. 
-To explain and predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire occurrence record with meteorological and housing data in spatiotemporal Bayesian models with spatially varying nonlinear effects. 
+To predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire occurrence record with meteorological and housing data in spatiotemporal Bayesian models with spatially varying nonlinear effects. 
 We compared models with different distributions for the number and sizes of large fires. 
 A zero-inflated negative binomial model for fire counts and a lognormal model for burn areas provided the best performance.
-We find that dryness and air temperature strongly regulate wildfire risk, with precipitation, and housing density playing weaker roles.
-Statistically, most of the variability in the chance of an extreme wildfire results from changes in fire frequency that influence sampling from the tails of fire size distributions, rather than changes in the underlying distributions of expected fire sizes. 
-Meteorologically, extreme events occur when conditions are hot and dry, but the effect of air temperature is spatially variable. 
-This model attains `r 100 * round(mean(count_test_intervals$in_interval), 3)`\% interval coverage for the number of fires in a withheld data set over a five-year prediction time horizon. 
-We argue that recent wildfire extremes need not be surprising, and future extremes might be predictable if accurate meteorological forecasts are available to drive models of fire occurrence and size.
+This model attains `r 100 * round(mean(count_test_intervals$in_interval), 2)`\% interval coverage for the number of fires and `r 100 * round(mean(burn_area_coverage$true_in_interval), 2)`\% coverage for fire sizes over a five-year withheld data set. 
+Dryness and air temperature strongly regulate wildfire risk, with precipitation and housing density playing weaker roles.
+Meteorologically, extreme events occur when conditions are hot and dry, but the effect of air temperature differs among ecoregions. 
+Variability in the chance of an extreme wildfire results from changes in fire frequency that influence sampling from the tails of fire size distributions, and changes in fire size distributions. 
+We argue that recent wildfire extremes that have burned hundreds of thousands of acres should not be surprising, and that the contiguous United States may be on the verge of experiencing even larger (million acre) wildfire extremes.
+
+\bigskip \noindent \textbf{Key words}: fire; wildfire; Bayesian; spatiotemporal; extremes; climate.
 \end{abstract}
 
 \linenumbers
@@ -79,11 +94,6 @@ The MTBS data contain fires greater than 1000 acres in the western U.S. and grea
 For consistency across the U.S., we discarded all records in the MTBS data less than 1000 acres, retaining `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events (Figure \ref{study-region}A). 
 Each event in the MTBS data has a discovery date, spatial point location, and final size.
 
-\begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/maps.png}
-\caption{A. Fire ignition locations are shown as points across the study region. Colors in panels B, C, and D show level 1, 2, and 3 ecoregions respectively.}
-\label{study-region}
-\end{figure}
 
 To explain fire size and occurrence, we used a combination of meteorological variables including humidity, air temperature, precipitation, and wind speed. 
 These variables were selected on the basis of previous work, and also with an aim to capture directly the effects of easily interpretable meteorological quantities. 
@@ -146,11 +156,6 @@ We used B-splines to account for nonlinearity (Figure \ref{spline-concept}) and 
 First, we constructed univariate B-splines for log housing density, wind speed, same month precipitation, previous 12 month precipitation, air temperature, and humidity, with five degrees of freedom (including an intercept) for each variable.
 This step generated 30 basis vectors (five for each of six variables). 
 
-\begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/spline-concept.png}
-\caption{Conceptual figure to illustrate the use of B-splines to construct nonlinear functions. In the left panel, five B-spline vectors are shown, which map values of an input variable (on the x-axis) to a value on the y-axis. The middle panel shows the same B-spline vectors, but weighted (multiplied) by real numbers, with the weights illustrated as annotations. These weighted B-spline vectors are summed to produce the values of a nonlinear function (right panel).}
-\label{spline-concept} 
-\end{figure}
 
 
 ```{r}
@@ -184,7 +189,7 @@ Details of these priors and the resulting joint distributions are provided in th
 We used the posterior predictive distribution to check each model and make inference on extremes. 
 The posterior predictive distribution provides a distribution for replications of observed data ($y^{\textnormal{rep}}$), and predictions of future data [@gelman2013bayesian]. 
 Conceptually, for a "good" model, $y^{\textnormal{rep}}$ should be similar to observed training data $y$, and future predictions should be similar to future data. 
-Distributions over both quantities can be obtained by conditioning $y$ and marginalizing over model parameters $\theta$, e.g., $[y^{\textnormal{rep}} | y] = \int [y^{\textnormal{rep}} | \theta] [\theta | y] d\theta$.
+Distributions over both quantities can be obtained by conditioning $y$ and marginalizing over model parameters $\theta$, e.g., $[y^{\textnormal{rep}} | y] = \int [y^{\textnormal{rep}} | \theta] [\theta | y] d\theta$. 
 
 Posterior predictive distributions facilitate model checks that compare predicted and observed test statistics [@gelman1996posterior].
 To evaluate whether a model captures tail behavior, one can compare an empirical maximum ($T(y) = \textnormal{max}(y)$) to the predicted distribution of maxima $T(y^{\textnormal{rep}})$. 
@@ -192,7 +197,11 @@ We also include predictive checks for the proportion of zero counts, and totals 
 Posterior predictive inference for maxima is similar in spirit to the MEV approach. 
 Both obtain a distribution over maxima by marginalizing over unknowns including the number of events, size of each event, and parameters of their distributions [@marani2015metastatistical].
 However, a Bayesian approach explicitly conditions on the observed data to obtain a posterior distribution of parameters.
-Seeing this connection is useful in the context of including priors and propagating uncertainty to derived parameters, including total burn areas and probabilities of million acre wildfires.
+
+Seeing this connection is useful in the context of including priors and propagating uncertainty to derived parameters.
+Concretely, for any ecoregion $s$ and timestep $t$, if we define a particular maximum fire size conditional on a fire having occurred as $z_{s, t}$, and let $Z_{s, t}$ represent the random variable of maximum fire size, then the cumulative distribution function (CDF) for $z_{s, t}$ is given by $\text{Pr}(Z_{s, t} \leq z_{s, t}) = \text{F}(y_{(s, t)})^{n_{s, t}}$, where $\text{F}(y_{(s, t)})$ is the CDF of fire size, and $n_{s, t}$ is the number of wildfire events. 
+The CDF for $z_{s, t}$ can be inverted to produce a quantile function that permits computation of prediction intervals for maximum fire sizes, conditional on fires having occurred. 
+Given a collection of posterior draws from a burn area model that parameterize $\text{F}(y_{(s, t)})$, and a collection of posterior draws of $n_{s, t}^{\textnormal{rep}}$ from a wildfire count model, a posterior distribution for the CDF or quantile function of maximum fire size can be generated which combines the outputs of the two models to allow inference on the distribution of extreme values, propagating uncertainty from both the burn area and count model. 
 
 ## Parameter estimation {-}
 
@@ -221,30 +230,10 @@ The zero-inflated negative binomial distribution performed best on the held-out 
 All of the other count models that we considered exhibited lack of fit to at least one of these statistics in posterior predictive checks. 
 Hereafter, we report results from the zero-inflated negative binomial model.
 
-\begin{figure}[htp] 
-\includegraphics[width=\textwidth]{fig/ppc-counts.png}
-\caption{Count predictive checks. Row one shows observed count frequencies as black points and predicted frequencies as lines. Rows two, three, and four show predicted proportions of zeros, maxima, and sums (respectively) in the training and test data, with empirical values as dashed lines. Rows two through four facilitate comparison of performance on training and test sets. Ideally, model predictions cluster around the dashed lines for both the training (x-axis direction) and test (y-axis direction) sets, leading to a tight cluster of points at the intersection of the dashed lines.}
-\label{ppc-counts} 
-\end{figure}
-
-
-```{r count-loglik, message=FALSE} 
-count_loglik <- read_csv('data/processed/count-loglik.csv')
-kable(count_loglik, 
-      caption = 'Performance of count models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.') %>%
-  kable_styling(latex_options = 'striped')
-```
-
 
 ```{r rho-beta, message = FALSE}
 rho_beta <- read_csv('data/processed/rho_beta.csv') %>% unlist
 ```
-
-\begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/count-partial-effs.png}
-\caption{Partial effects on the log-transformed negative binomial mean component of the zero-inflated negative binomial model for each level 3 ecoregion, colored by level 1 ecoregion. Lines are posterior medians. Results are similar for the zero-inflation component.}
-\label{count-partial-effs}
-\end{figure}
 
 Minimum relative humidity and maximum air temperature had the strongest effects on both the zero-inflation component and the expected value of the negative binomial component (Figure \ref{count-partial-effs}, posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)` - `r round(quantile(rho_beta, .975), 3)`). 
 The model uncovered unique effects of meteorological variables at level 1, 2, and 3 ecoregions (Figure \ref{all-coefs}).
@@ -254,11 +243,6 @@ Twelve month total precipitation also had region specific effects in the Mississ
 In contrast, increasing cumulative twelve month precipitation tended to increase risk in desert ecoregions (Figure \ref{count-partial-effs}). 
 Housing density showed a unimodal relationship to expected count (Figure \ref{count-partial-effs}), with lower expected counts in sparsely populated ecoregions, and higher expected counts with moderately populated ecoregions. 
 
-\begin{figure}[ht] 
-\includegraphics[width=.9\textwidth]{fig/all-coefs.png}
-\caption{Caterpillar plots of zero inflated negative binomial model coefficients, $\beta^{(\mu)}$ (left) and $\beta^{(\pi)}$ (right). Horizontal line segments denote 95\% credible intervals. Grey segments indicate coefficients with a less than 87\% posterior probability of being positive or negative, and colored segments indicate coefficients that are probably positive (red) or negative (blue). B-spline vectors are indicated by colons, e.g., \code{Humidity:1} indicates the first basis vector corresponding to humidity. Interactions between variables \code{a} and \code{b} are represented as \code{Intxn(a x b)}. Level 1 ecoregions are represented by \code{L1 ecoregion name}, and \code{L2} and \code{L3} indicate level 2 and 3 ecoregions.}
-\label{all-coefs} 
-\end{figure}
 
 ```{r count-interval-coverage, message = FALSE, warning=FALSE}
 count_test_intervals <- read_csv('data/processed/count_test_intervals.csv')
@@ -301,19 +285,6 @@ For nearly half of the level 3 ecoregions (`r total_count_coverage$n_100_pct` of
 
 ## Wildfire burned areas {-}
 
-```{r ba-loglik, message=FALSE} 
-burn_area_loglik <- read_csv('data/processed/burn-area-loglik.csv')
-kable(burn_area_loglik, 
-      caption = 'Performance of burn area models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.') %>%
-  kable_styling(latex_options = 'striped')
-```
-
-\begin{figure}[htp] 
-\includegraphics[width=\textwidth]{fig/ppc-density-funs.png}
-\caption{Predictive checks for burn area models. The top row shows predicted density in color and empirical density for the training set in black, which reveals overall lack of fit for the gamma and Weibull models. Row two shows the complementary cumulative distribution function (CCDF) at the tails, with 95\% and 50\% prediction intervals shown in color and observed data as black points, which shows that the Generalized Pareto distribution predicts values that are too extreme. The third and fourth rows show checks for maximum and total burn areas in the training and test set, with observed values as dashed lines and posterior draws as colored points. These final two rows facilitate checks for summary statistics on both the training and test set, with the ideal model generating predictions (colored points) clustered close to where the dashed lines intersect.}
-\label{ppc-density-funs}
-\end{figure}
-
 The lognormal distribution performed best on the test set (Table \@ref(tab:ba-loglik)), and captured tail-behavior better than other burn area distributions (Figure \ref{ppc-density-funs}).
 The GPD model was too heavy-tailed to adequately capture the pattern in the empirical data, predicting fires far larger than those observed in the training and test sets (Figure \ref{ppc-density-funs}). 
 The tapered Pareto distribution was too light-tailed (Figure \ref{ppc-density-funs}).
@@ -333,26 +304,8 @@ This nonlinear effect can be observed in Figure \ref{burn-area-effs}B as an incr
 This leads to a seasonality gradient among ecoregions of expected fire sizes, with little or no seasonal signal in typically humid ecoregions such as Marine West Coast Forests of the Pacific Northwest, and seasonal oscillations in ecoregions that have periodic fluctuations between dry and humid conditions such as the Temperate Sierras (Figure \ref{burn-area-effs}C).
 There was not strong evidence that meteorological variables had spatially variable effects on expected wildfire burn area. 
 
-\begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/burn-area-effs.png}
-\caption{\textbf{A}. Estimated posterior medians and 95\% credible intervals for each of the 3,473 coefficients associated with expected burn area. Only one coefficient - the first basis vector for humidity - had a 95\% credible interval that excluded zero, shown in red. This effect is visualized in \textbf{B}. Partial effects of mean daily minimum humidity for each level 3 ecoregion, with posterior medians drawn as lines, and the 95\% credible intervals as ribbons. \textbf{C}. Monthly time series of expected fire sizes for every level 3 ecoregion, faceted and colored by level 1 ecoregions sorted by mean humidity. Lines are posterior medians and ribbons are 95\% credible intervals.}
-\label{burn-area-effs} 
-\end{figure}
 
 ```{r, message = FALSE, results='hide'}
-area_coverage <- read_csv('data/processed/area_coverage.csv') %>%
-  filter(model == 'ba_lognormal_fit.rds') %>%
-  arrange(idx)
-
-holdout_burns <- read_rds('data/processed/holdout_burns.rds') %>%
-  as_tibble()
-
-assert_that(all(area_coverage$NA_L3NAME == holdout_burns$NA_L3NAME))
-
-burn_area_coverage <- holdout_burns %>%
-  mutate(idx = 1:n()) %>%
-  full_join(area_coverage)
-
 worst_area_coverage <- burn_area_coverage %>%
   group_by(NA_L3NAME) %>%
   summarize(coverage = mean(true_in_interval), 
@@ -410,18 +363,17 @@ million_er_mon <- read_csv('data/processed/million-er-mon.csv') %>%
 ```
 
 By combining the output of the event count and burn area models, we derived posterior prediction intervals for the size of the largest fire in a month for each region (the "burn area maximum"), integrating over uncertainty in the number of fires, as well as the lognormal mean and standard deviation for burn area.
+We evaluated the posterior distribution for the quantile function of the n-sample maximum of a lognormal distribution ($\exp(\mu + \sigma \sqrt{2}\text{erf}^{-1}(2 P^{1/n} - 1))$, where $\text{erf}^{-1}$ is the inverse error function, and $P$ is a probability) to generate prediction intervals for maximum fire sizes by month and ecoregion, conditional on one or more fires having occurred. 
 In the holdout period from 2010 to 2015, a 99\% prediction interval achieved `r 100 * round(mean(mev_intervals$in_interval), 3)`\% interval coverage, with `r 100 * round(mean(mev_intervals$empirical_max > mev_intervals$m_qhi), 3)`\% of the burn area maxima (`r sum(mev_intervals$empirical_max > mev_intervals$m_qhi)` fire events) being larger than predicted (Figure \ref{max-preds-l3}). 
 The model predicted the total area burned over the entire contiguous United States in test period from 2010 to 2015 to be `r format(median(predicted_totals$predicted_total_area), big.mark = ',', scientific = FALSE)` (95\% CI: (`r format(quantile(predicted_totals$predicted_total_area, .025), big.mark = ',', scientific = FALSE)` - `r format(quantile(predicted_totals$predicted_total_area, .975), big.mark = ',', scientific = FALSE)`) and the actual value was `r format(unique(predicted_totals$actual_total_area), big.mark = ',', scientific = FALSE)`. 
-While fires over a million acres in size have happened historically, all fires in the training and test sets were below one million acres. 
-If we extrapolate, the probability that at least one fire in the contiguous U.S. exceeded one million acres in the period from 2010 to 2015 was estimated to be between `r round(million_acres$lo, 3)` and `r round(million_acres$hi, 3)` (95\% CI), with a posterior median of `r round(million_acres$med, 3)`. 
+
+While fires over a million acres in size have happened historically in the contiguous U.S. [@pernin1971great], all fires in the training and test sets were below one million acres. 
+If we extrapolate, the probability that at least one fire exceeded one million acres in the period from 2010 to 2015 was estimated to be between `r round(million_acres$lo, 3)` and `r round(million_acres$hi, 3)` (95\% CI), with a posterior median of `r round(million_acres$med, 3)`. 
 The highest estimated probability for a million acre event was `r round(million_er_mon$med[1], 3)` (posterior median), with a 95\% CI of (`r round(million_er_mon$lo[1], 3)`, `r round(million_er_mon$hi[1], 3)`) seen for the `r million_er_mon$NA_L3NAME[1]` ecoregion in `r month.name[million_er_mon$month[1]]` `r million_er_mon$year[1]`. 
 The second highest probability for a million acre event was `r round(million_er_mon$med[2], 3)` (posterior median), with a 95\% CI of (`r round(million_er_mon$lo[2], 3)`, `r round(million_er_mon$hi[2], 3)`) seen for the `r million_er_mon$NA_L3NAME[2]` ecoregion in `r month.name[million_er_mon$month[2]]` `r million_er_mon$year[2]`. 
+Aggregating spatially, we estimated monthly probabilities of a million acre wildfire. 
+These probabilities show clear seasonal signals corresponding to peak fire season, with a noticable shift toward higher, broader peaks beginning in the 21st century (Figure \ref{million-acre-probs}).
 
-\begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/max-preds-l3.png}
-\caption{Posterior 99\% (light red) and 95\% (dark red) prediction intervals for the burn area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with wildfires in more than 20 months. Empirical maxima are shown as black dots.}
-\label{max-preds-l3}
-\end{figure}
 
 ## Error analysis case study: the 2011 Wallow Fire {-}
 
@@ -438,12 +390,6 @@ The Wallow Fire was accidentally ignited on May 29, 2011 by two campers in the L
 It burned through the month of June and into early July. 
 The model underpredicted the total burn area of the Wallow Fire. 
 Integrating over uncertainty in the predicted number of fires and expected fire size, the 99\% credible interval for the maximum fire size for May 2011 was (`r round(wallow_may_df$m_qvlo) %>% format(big.mark = ',', scientific = FALSE)` - `r round(wallow_may_df$m_qvhi) %>% format(big.mark = ',', scientific = FALSE)`) acres, but the Wallow Fire is recorded as 563,655 acres in the MTBS data. 
-
-\begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/attribution-plot.png}
-\caption{Posterior median contribution of each input variable to the linear predictor function of model components for the Arizona/New Mexico Mountains level 3 ecoregion from 2010-2016. A dotted vertical line marks May 2011, when the Wallow Fire ignited. Vertical positions of colored lines show contributions to the linear predictor function of each model component.}
-\label{attribution-plot}
-\end{figure}
 
 We evaluated the contribution of each covariate to the linear predictor functions of the three model components (lognormal mean for burn areas, negative binomial mean for counts, and the logit probability of the zero-inflation component) to understand why these predictions differed. 
 We defined the contribution of a variable as the dot product of the elements in the design matrix $\matr{X}$ corresponding to a particular driver variable (e.g., humidity), and the estimated coefficients in $\bm{\beta}$ corresponding to that variable.
@@ -497,17 +443,119 @@ Predictive approaches such as this can inform decision-making by placing probabi
 
 We thank Mitzi Morris, Kyle Foreman, Daniel Simpson, Bob Carpenter, and Andrew Gelman for contributing to the implementation of an intrinsic autoregressive spatial prior in Stan.
 
-\nolinenumbers
 
-# References {-}
+# Literature cited {-}
 
 <div id="refs"></div>
 
+\clearpage
+
+# Tables {-}
+
+
+```{r ba-loglik, message=FALSE} 
+burn_area_loglik <- read_csv('data/processed/burn-area-loglik.csv')
+kable(burn_area_loglik, 
+      caption = 'Performance of burn area models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.', 
+      longtable = TRUE) %>%
+  kable_styling(latex_options = 'striped')
+```
+
 \newpage
 
+```{r count-loglik, message=FALSE} 
+count_loglik <- read_csv('data/processed/count-loglik.csv')
+kable(count_loglik, 
+      caption = 'Performance of count models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.', 
+      longtable = TRUE) %>%
+  kable_styling(latex_options = 'striped')
+```
 
+\clearpage
 
-# Supporting Information {-}
+# Figures {-}
+
+\begin{figure}[ht]
+\includegraphics[width=\textwidth]{fig/maps.png}
+\caption{A. Fire ignition locations are shown as points across the study region. Colors in panels B, C, and D show level 1, 2, and 3 ecoregions respectively.}
+\label{study-region}
+\end{figure}
+
+\clearpage
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/spline-concept.png}
+\caption{Conceptual figure to illustrate the use of B-splines to construct nonlinear functions. In the left panel, five B-spline vectors are shown, which map values of an input variable (on the x-axis) to a value on the y-axis. The middle panel shows the same B-spline vectors, but weighted (multiplied) by real numbers, with the weights illustrated as annotations. These weighted B-spline vectors are summed to produce the values of a nonlinear function (right panel).}
+\label{spline-concept} 
+\end{figure}
+
+\clearpage
+
+\begin{figure}[htp] 
+\includegraphics[width=\textwidth]{fig/ppc-counts.png}
+\caption{Count predictive checks. Row one shows observed count frequencies as black points and predicted frequencies as lines. Rows two, three, and four show predicted proportions of zeros, maxima, and sums (respectively) in the training and test data, with empirical values as dashed lines. Rows two through four facilitate comparison of performance on training and test sets. Ideally, model predictions cluster around the dashed lines for both the training (x-axis direction) and test (y-axis direction) sets, leading to a tight cluster of points at the intersection of the dashed lines.}
+\label{ppc-counts} 
+\end{figure}
+
+\clearpage
+
+\begin{figure}[ht]
+\includegraphics[width=\textwidth]{fig/count-partial-effs.png}
+\caption{Partial effects on the log-transformed negative binomial mean component of the zero-inflated negative binomial model for each level 3 ecoregion, colored by level 1 ecoregion. Lines are posterior medians. Results are similar for the zero-inflation component.}
+\label{count-partial-effs}
+\end{figure}
+
+\clearpage
+
+\begin{figure}[ht] 
+\includegraphics[width=.9\textwidth]{fig/all-coefs.png}
+\caption{Caterpillar plots of zero inflated negative binomial model coefficients, $\beta^{(\mu)}$ (left) and $\beta^{(\pi)}$ (right). Horizontal line segments denote 95\% credible intervals. Grey segments indicate coefficients with a less than 87\% posterior probability of being positive or negative, and colored segments indicate coefficients that are probably positive (red) or negative (blue). B-spline vectors are indicated by colons, e.g., \code{Humidity:1} indicates the first basis vector corresponding to humidity. Interactions between variables \code{a} and \code{b} are represented as \code{a x b}. Level 1 ecoregions are represented by \code{L1 ecoregion name}, and \code{L2} and \code{L3} indicate level 2 and 3 ecoregions.}
+\label{all-coefs} 
+\end{figure}
+
+\clearpage
+
+\begin{figure}[htp] 
+\includegraphics[width=\textwidth]{fig/ppc-density-funs.png}
+\caption{Predictive checks for burn area models. The top row shows predicted density in color and empirical density for the training set in black, which reveals overall lack of fit for the gamma and Weibull models. Row two shows the complementary cumulative distribution function (CCDF) at the tails, with 95\% and 50\% prediction intervals shown in color and observed data as black points, which shows that the Generalized Pareto distribution predicts values that are too extreme. The third and fourth rows show checks for maximum and total burn areas in the training and test set, with observed values as dashed lines and posterior draws as colored points. These final two rows facilitate checks for summary statistics on both the training and test set, with the ideal model generating predictions (colored points) clustered close to where the dashed lines intersect.}
+\label{ppc-density-funs}
+\end{figure}
+
+\clearpage
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/burn-area-effs.png}
+\caption{\textbf{A}. Estimated posterior medians and 95\% credible intervals for each of the 3,473 coefficients associated with expected burn area. Only one coefficient - the first basis vector for humidity - had a 95\% credible interval that excluded zero, shown in red. This effect is visualized in \textbf{B}. Partial effects of mean daily minimum humidity for each level 3 ecoregion, with posterior medians drawn as lines, and the 95\% credible intervals as ribbons. \textbf{C}. Monthly time series of expected fire sizes for every level 3 ecoregion, faceted and colored by level 1 ecoregions sorted by mean humidity. Lines are posterior medians and ribbons are 95\% credible intervals.}
+\label{burn-area-effs} 
+\end{figure}
+
+\clearpage
+
+\begin{figure}[ht]
+\includegraphics[width=\textwidth]{fig/max-preds-l3.png}
+\caption{Posterior 99\% (light red) and 95\% (dark red) prediction intervals for the burn area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with wildfires in more than 20 months. Empirical maxima are shown as black dots.}
+\label{max-preds-l3}
+\end{figure}
+
+\clearpage
+
+\begin{figure}[ht]
+\includegraphics[width=\textwidth]{fig/million-acre-probs.png}
+\caption{Estimated monthly posterior probabilities that one or more fire events exceed one million acres. The line represents the posterior median, and shaded region represents an 80\% credible interval. The training period up to 2010 is shown in black, and the test period for which data were withheld during parameter estimation is shown in red.}
+\label{million-acre-probs}
+\end{figure}
+
+\clearpage
+
+\begin{figure}[ht] 
+\includegraphics[width=\textwidth]{fig/attribution-plot.png}
+\caption{Posterior median contribution of each input variable to the linear predictor function of model components for the Arizona/New Mexico Mountains level 3 ecoregion from 2010-2016. A dotted vertical line marks May 2011, when the Wallow Fire ignited. Vertical positions of colored lines show contributions to the linear predictor function of each model component.}
+\label{attribution-plot}
+\end{figure}
+
+\clearpage
+
+# Appendices {-}
 
 \setcounter{figure}{0}
 \renewcommand{\thefigure}{S\arabic{figure}}

@@ -6,7 +6,8 @@ figs = fig/ppc-density-funs.png \
 	fig/count-partial-effs.png fig/attribution-plot.png \
 	fig/max-preds-l3.png \
 	fig/maps.png \
-	fig/spline-concept.png
+	fig/spline-concept.png \
+	fig/million-acre-probs.png
 	
 tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv \
 	data/processed/rho_beta.csv data/processed/count_test_intervals.csv \
@@ -111,7 +112,7 @@ count-preds.rds data/processed/area_df.csv data/processed/count_test_intervals.c
 	zinb_full_fit.rds
 		Rscript --vanilla R/plot-predicted-counts.R
 
-fig/max-preds-l3.png test_preds.rds data/processed/predicted_totals.csv data/processed/million-er-mon.csv data/processed/mev_intervals.csv: count-preds.rds \
+fig/max-preds-l3.png fig/million-acre-probs.png test_preds.rds data/processed/predicted_totals.csv data/processed/million-er-mon.csv data/processed/mev_intervals.csv: count-preds.rds \
 	ba_lognormal_fit.rds R/mev-plots.R
 		Rscript --vanilla R/mev-plots.R
 		
