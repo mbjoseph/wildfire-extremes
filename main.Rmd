@@ -452,20 +452,20 @@ We thank Mitzi Morris, Kyle Foreman, Daniel Simpson, Bob Carpenter, and Andrew G
 # Tables {-}
 
 
-```{r ba-loglik, message=FALSE} 
-burn_area_loglik <- read_csv('data/processed/burn-area-loglik.csv')
-kable(burn_area_loglik, 
-      caption = 'Performance of burn area models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.', 
+```{r count-loglik, message=FALSE} 
+count_loglik <- read_csv('data/processed/count-loglik.csv')
+kable(count_loglik, 
+      caption = 'Performance of count models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.', 
       longtable = TRUE) %>%
   kable_styling(latex_options = 'striped')
 ```
 
 \newpage
 
-```{r count-loglik, message=FALSE} 
-count_loglik <- read_csv('data/processed/count-loglik.csv')
-kable(count_loglik, 
-      caption = 'Performance of count models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.', 
+```{r ba-loglik, message=FALSE} 
+burn_area_loglik <- read_csv('data/processed/burn-area-loglik.csv')
+kable(burn_area_loglik, 
+      caption = 'Performance of burn area models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.', 
       longtable = TRUE) %>%
   kable_styling(latex_options = 'striped')
 ```
