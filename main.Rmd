@@ -37,14 +37,13 @@ burn_area_coverage <- holdout_burns %>%
 
 \begin{abstract}
 Wildfires are becoming more frequent in parts of the globe, but predicting where and when extreme events occur remains difficult. 
-To predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire occurrence record with meteorological and housing data in spatiotemporal Bayesian models with spatially varying nonlinear effects. 
+To predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire record with meteorological and housing data in spatiotemporal Bayesian models with spatially varying nonlinear effects. 
 We compared models with different distributions for the number and sizes of large fires. 
 A zero-inflated negative binomial model for fire counts and a lognormal model for burn areas provided the best performance.
 This model attains `r 100 * round(mean(count_test_intervals$in_interval), 2)`\% interval coverage for the number of fires and `r 100 * round(mean(burn_area_coverage$true_in_interval), 2)`\% coverage for fire sizes over a five-year withheld data set. 
 Dryness and air temperature strongly regulate wildfire risk, with precipitation and housing density playing weaker roles.
-Meteorologically, extreme events occur when conditions are hot and dry, but the effect of air temperature differs among ecoregions. 
-Variability in the chance of an extreme wildfire results from changes in fire frequency that influence sampling from the tails of fire size distributions, and changes in fire size distributions. 
-We argue that recent wildfire extremes that have burned hundreds of thousands of acres should not be surprising, and that the contiguous United States may be on the verge of experiencing even larger (million acre) wildfire extremes.
+Statistically, these drivers affect the chance of an extreme wildfire in two ways: by altering fire size distributions, and by altering fire frequency, which influences sampling from the tails of fire size distributions. 
+We conclude that recent extremes that have burned hundreds of thousands of acres should not be surprising, and that the contiguous United States may be on the verge of experiencing even larger (million acre) wildfire extremes.
 
 \bigskip \noindent \textbf{Key words}: fire; wildfire; Bayesian; spatiotemporal; extremes; climate.
 \end{abstract}
