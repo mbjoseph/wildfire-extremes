@@ -2,7 +2,6 @@ library(tidyverse)
 library(patchwork)
 library(assertthat)
 library(sf)
-library(ggridges)
 
 st_covs <- read_rds('data/processed/st_covs.rds')
 cutoff_year <- read_rds('data/processed/cutoff_year.rds')
@@ -201,15 +200,6 @@ ym_million_prob <- bind_cols(zinb_preds, ln_mu) %>%
   group_by(iter, ym) %>%
   summarize(total_p = sum(log_p)) %>%
   mutate(pr_million = 1 - exp(total_p))
-
-ym_million_prob %>%
-  ggplot(aes(x = pr_million, 
-             y = factor(ym, levels = rev(unique(ym_million_prob$ym))))) + 
-  geom_density_ridges(rel_min_height = .01) + 
-  theme_minimal() + 
-  xlim(0, .15) + 
-  ylab("") + 
-  xlab("Probability of million acre event")
 
 ym_million_prob %>%
   group_by(ym) %>%

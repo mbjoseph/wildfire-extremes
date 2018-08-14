@@ -145,7 +145,7 @@ For the tapered Pareto model, we modeled the shape parameter as $\log(\kappa_i) 
 The lognormal model included covariate dependence via the location parameter: $\mu_i = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$. 
 The gamma model used a log link for the expected value: $\log (E(y_i)) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$. 
 Last, we modeled the Weibull scale parameter as $\log(\sigma_i) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$.
-More detail on the parameterization of each burn area distribution is provided in the Supporting Information. 
+More detail on the parameterization of each burn area distribution is provided in the Appendices. 
 
 
 ### Accounting for nonlinear forcing {-}
@@ -181,7 +181,7 @@ This is consistent with our prior expectation that most of the coefficients asso
 For the zero inflated count models, we used a multivariate horseshoe to allow information sharing between the zero inflated and distribution specific location parameters [@peltola2014hierarchical]. 
 For the remaining count models and all burn area models, this was a univariate horseshoe prior. 
 Spatiotemporal random effects were constructed using a temporally autoregressive, spatially intrinsically autoregressive formulation [@besag1995conditional; @banerjee2014hierarchical]. 
-Details of these priors and the resulting joint distributions are provided in the Supporting Information.
+Details of these priors and the resulting joint distributions are provided in the Appendices.
 
 ## Posterior predictive inference and extremes {-}
 
@@ -200,7 +200,7 @@ However, a Bayesian approach explicitly conditions on the observed data to obtai
 Seeing this connection is useful in the context of including priors and propagating uncertainty to derived parameters.
 Concretely, for any ecoregion $s$ and timestep $t$, if we define a particular maximum fire size conditional on a fire having occurred as $z_{s, t}$, and let $Z_{s, t}$ represent the random variable of maximum fire size, then the cumulative distribution function (CDF) for $z_{s, t}$ is given by $\text{Pr}(Z_{s, t} \leq z_{s, t}) = \text{F}(y_{(s, t)})^{n_{s, t}}$, where $\text{F}(y_{(s, t)})$ is the CDF of fire size, and $n_{s, t}$ is the number of wildfire events. 
 The CDF for $z_{s, t}$ can be inverted to produce a quantile function that permits computation of prediction intervals for maximum fire sizes, conditional on fires having occurred. 
-Given a collection of posterior draws from a burn area model that parameterize $\text{F}(y_{(s, t)})$, and a collection of posterior draws of $n_{s, t}^{\textnormal{rep}}$ from a wildfire count model, a posterior distribution for the CDF or quantile function of maximum fire size can be generated which combines the outputs of the two models to allow inference on the distribution of extreme values, propagating uncertainty from both the burn area and count model. 
+Given a collection of posterior draws from a burn area model that parameterize $\text{F}(y_{(s, t)})$, and a collection of posterior draws of $n_{s, t}^{\textnormal{rep}}$ from the posterior predictive distribution of a wildfire count model, a posterior distribution for the CDF or quantile function of maximum fire size can be generated which combines the two models to facilitate inference on the distribution of extremes. 
 
 ## Parameter estimation {-}
 
@@ -371,7 +371,7 @@ If we extrapolate, the probability that at least one fire exceeded one million a
 The highest estimated probability for a million acre event was `r round(million_er_mon$med[1], 3)` (posterior median), with a 95\% CI of (`r round(million_er_mon$lo[1], 3)`, `r round(million_er_mon$hi[1], 3)`) seen for the `r million_er_mon$NA_L3NAME[1]` ecoregion in `r month.name[million_er_mon$month[1]]` `r million_er_mon$year[1]`. 
 The second highest probability for a million acre event was `r round(million_er_mon$med[2], 3)` (posterior median), with a 95\% CI of (`r round(million_er_mon$lo[2], 3)`, `r round(million_er_mon$hi[2], 3)`) seen for the `r million_er_mon$NA_L3NAME[2]` ecoregion in `r month.name[million_er_mon$month[2]]` `r million_er_mon$year[2]`. 
 Aggregating spatially, we estimated monthly probabilities of a million acre wildfire. 
-These probabilities show clear seasonal signals corresponding to peak fire season, with a noticable shift toward higher, broader peaks beginning in the 21st century (Figure \ref{million-acre-probs}).
+These probabilities show seasonal signals corresponding to peak fire seasons, with a shift toward higher and broader peaks beginning in the 21st century (Figure \ref{million-acre-probs}).
 
 
 ## Error analysis case study: the 2011 Wallow Fire {-}
