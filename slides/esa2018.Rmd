@@ -74,8 +74,7 @@ if (!file.exists('max-plot.png')) {
 
 # Two ideas
 
-1. Changing size distributions
-2. More ignitions $\rightarrow$ more extremes
+\huge{1. Changing size distributions}
 
 # 
 
@@ -111,7 +110,8 @@ p +
 # Two ideas
 
 1. Changing size distributions
-2. More ignitions $\rightarrow$ more extremes
+
+\huge{2. More ignitions $\rightarrow$ more extremes}
 
 
 #
@@ -146,12 +146,6 @@ sampling_plot(n = 10, seed)
 #
 
 ```{r}
-sampling_plot(n = 20, seed)
-```
-
-#
-
-```{r}
 sampling_plot(n = 50, seed)
 ```
 
@@ -161,11 +155,6 @@ sampling_plot(n = 50, seed)
 sampling_plot(n = 100, seed)
 ```
 
-#
-
-```{r}
-sampling_plot(n = 500, seed)
-```
 
 #
 
@@ -235,7 +224,7 @@ p4 <- expand.grid(n = count_vals,
 
 # Our approach
 
-Relate fire size and number to:
+### Model size and counts by:
 
 - meteorological conditions
 - housing density
@@ -277,25 +266,10 @@ if (!file.exists('fire-map.png')) {
 
 \end{center}
 
-#
-
-\begin{center}
-
-\includegraphics[width=.95\textwidth,height=.8\textheight,keepaspectratio]{inputs-models-inference} 
-
-\end{center}
-
 # Bayesian spatiotemporal models
 
 - Spatial splines
 - Time-evolving Markov random fields
-
-\begin{center}
-
-\includegraphics[width=.95\textwidth,height=.5\textheight,keepaspectratio]{qr_img} 
-
-\end{center}
-
 
 
 # Nonlinear effects
@@ -416,20 +390,6 @@ plot_data <- read_rds('../data/processed/plot_data.rds')
 burn_area_partials <- read_rds("../data/processed/burn_area_partials.rds")
 st_covs <- read_rds('../data/processed/st_covs.rds')
 min_size <- 1e3
-max_df <- read_rds('../test_preds.rds') %>%
-  # filter out zero event records (don't contribute to max)
-  filter(n_event > 0) %>%
-  rowwise() %>%
-  mutate(max_area = max(exp(rnorm(n_event, ln_mu, ln_scale)) + min_size)) %>%
-  ungroup %>%
-  group_by(NA_L3NAME, ym) %>%
-  summarize(med = median(max_area), 
-            lo = quantile(max_area, .025), 
-            hi = quantile(max_area, .975), 
-            vlo = quantile(max_area, .005), 
-            vhi = quantile(max_area, .995), 
-            n = n()) %>%
-  left_join(select(st_covs, NA_L3NAME, ym, rmin, tmmx, tmmx, vs, prev_12mo_precip, housing_density))
 
 humidity_area_plot <- burn_area_partials %>%
   ggplot(aes(rmin, med, group = NA_L3NAME)) + 
@@ -767,21 +727,11 @@ interval_df %>%
         axis.text.x = element_text(angle = 90))
 ```
 
-# Thank you
+# 
 
-\begin{center}
+**Check out the code:** github.com/mbjoseph/wildfire-extremes
 
-\includegraphics[width=.95\textwidth,height=.5\textheight,keepaspectratio]{qr_img} 
-
-\end{center}
-
-github.com/mbjoseph/wildfire-extremes
-
-**Get in touch**
-
-maxwell.b.joseph@colorado.edu
-
-@mxwlj
+**Get in touch:** maxwell.b.joseph@colorado.edu, @mxwlj
 
 
 # 
