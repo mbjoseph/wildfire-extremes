@@ -146,7 +146,7 @@ write_attribution_plot <- function(which_ecoregion) {
 }
 
 # choose a case study: why not the biggest fire in the train set?
-max_d <- holdout_burns[which.max(holdout_burns$R_ACRES), ]
+max_d <- holdout_burns[which.max(holdout_burns$Acres), ]
 
 case_study_plot <- write_attribution_plot(max_d$NA_L3NAME)
 

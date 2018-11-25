@@ -3,6 +3,7 @@ library(rgdal)
 library(sf)
 library(zoo)
 library(assertthat)
+library(lubridate)
 
 
 aea_proj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=37.5 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
@@ -19,15 +20,13 @@ ecoregions <- ecoregions %>%
 
 
 # Read fire data ----------------------
-mtbs <- st_read('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_20170501.shp') %>%
-  filter(!(STATE %in% c("Alaska", "Hawaii", "Puerto Rico")),
-         R_ACRES > 1e3, # consistent cutoff for west and east
-         Fire_Type == 'WF') %>%
+mtbs <- st_read('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_DD.shp') %>%
+  filter(Lat < 49.38, Lat > 24.39, Long > -124.849, Long < -66.88, 
+         Acres > 1e3, Fire_Type == 'WF') %>%
   st_transform(st_crs(ecoregions)) %>%
-  mutate(ym = as.yearmon(paste(FIRE_YEAR, sprintf("%02d", FIRE_MON),
-                               sep = "-")))
-
-
+  mutate(ym = as.yearmon(Ig_Date), 
+         FIRE_YEAR = year(Ig_Date), 
+         FIRE_MON = month(Ig_Date))
 
 
 # match each ignition to an ecoregion
