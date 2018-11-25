@@ -400,7 +400,7 @@ Evidently, conditions in May that drove (under)predictions of maximum burn area 
 
 Temporal mismatch aside, meteorological conditions local to the Wallow Fire differed from the monthly regional means (Figure \ref{wallow-conditions}). 
 In particular, wind speeds in the Wallow Fire vicinity exceeded the regional monthly mean values on the date of ignition and in the weeks following ignition. 
-Similarly, over the majority of the duration of the Wallow Fire, local daily conditions were drier and hotter on average than regional mean monthly conditions in May, which were used to drive the statistical model. 
+Over the majority of the duration of the Wallow Fire, local daily conditions were drier and hotter on average than regional mean monthly conditions in May, which were used to drive the statistical model. 
 This local variability is not represented in the regional models developed here. 
 The failure of the model to correctly predict the size of the Wallow fire suggests potential avenues for improvement, discussed below. 
 
