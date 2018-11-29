@@ -417,6 +417,16 @@ But, even if one had a perfect forecast, novel conditions present a challenge fo
 For example, the High Plains ecoregion had its highest monthly precipitation, lowest 12 month running precipitation, driest, hottest, and windiest conditions in the test set period, so that the range of environmental conditions in the training data did not encompass the range of future conditions. 
 Extrapolating beyond the range of training inputs is generally difficult, but the hierarchical spatial effect specification used here allows partial pooling among climatically similar ecoregions that can inform such predictions, unlike models fit separately to disjoint spatial regions. 
 
+Similar issues could arise when making predictions for observed but rare meteorological conditions. 
+For example, mean daily minimum humidity values over 60% accounted for just `r round(mean(train_counts$rmin > 60) * 100, 2)`\% of the ecoregion-months in the training data, and `r sum(train_counts$n_fire[train_counts$rmin > 60])` fires occurred in such months. 
+As a consequence, there is relatively little data that can be used to inform the model for such conditions, and the prior distribution which shrinks coefficients toward zero may dominate the likelihood in the posterior distribution. 
+In this case, the posterior distribution for the last basis coefficient for the partial effect of humidity is likely to be close to zero. 
+This could explain why the estimated partial effect of humidity on the expected counts was less negative at the upper end of the observed humidity range, although previous work has found similarly nonlinear partial effects [@preisler2004probability]. 
+The count model performed extremely well in this range, with `r round(mean(count_test_intervals$in_interval[count_test_intervals$rmin > 60]) * 100, 2)`\% interval coverage for the `r sum(count_test_intervals$rmin > 60)` ecoregion-months with mean daily minimum humidity values greater than 60\% in the withheld test data. 
+The model nearly always predicted zero counts with high confidence when conditions were this humid: `r sum(count_test_intervals$hi[count_test_intervals$rmin > 60] == 0)` of `r sum(count_test_intervals$rmin > 60)` predictions made for such conditions were 95\% credible intervals of (0, 0), and the remaining prediction had a posterior median of zero, along with a 95\% credible interval from 0 to 1.
+Monotonicity constraints could be incorporated into such a model via monotonic spline bases [@ramsay1988monotone], or an ordered prior distribution for basis coefficients [@brezger2008monotonic]. 
+In this case, the count model performs well under humid conditions without monotonicity constraints, and there seems to be little room for performance improvements that might result from such constraints.
+
 Human-caused climate change is expected to increase fire activity in the western U.S. [@rogers2011; @westerling2011climate; @moritz2012climate; @Abatzoglou2016] and elsewhere [@flannigan2009], which when coupled with the nonlinear effect of human-density provides a key inferential wrinkle. 
 While most U.S. ecoregions are increasing in human density over time, some of these ecoregions are in the range of values in which this increases the expected number of large fires, while others are so populated that further increases would reduce the chance of a large fire.
 The hump-shaped effect of human density on the expected number of large fires is likely driven by ignition pressure and fire suppression [@balch2017human].
@@ -441,9 +451,9 @@ Such an approach might be amenable to including information on fuel continuity, 
 
 To the extent that a model reflects the generative process for extreme events, the decomposition of contributions to the model's predictions may provide insight into attribution for meteorological and anthropogenic drivers of extremes. 
 However, a model trained to represent a region-wide distribution of fire sizes will inevitably fail to capture local factors that are relevant to specific events such as the Wallow Fire. 
-If predicting the spread dynamics of particular fire events is a goal, we would advise that process-based models designed to model fire spread are employed rather than regional statistical models such as those developed here. 
+If predicting the spread dynamics of particular fire events is a goal, process-based models designed to model fire spread are likely to be more appropriate than regional statistical models such as those developed here. 
 
-This paper presents and evaluates a statistical approach to explain and predict extreme wildfires that incorporates spatially varying non-linear effects 
+This paper presents and evaluates a statistical approach to explain and predict extreme wildfires that incorporates spatially varying non-linear effects. 
 The model reveals considerable differences in fire dynamics among ecoregions spanning the mountain west to the great plains, deserts, and eastern forests, and suggests a decent chance of very large fires exceeding one million acres in the contiguous U.S. 
 Predictive approaches such as this can inform decision-making by placing probabilistic bounds on the number of wildfires and their sizes, while provide deeper insights into wildfire ecology. 
 
