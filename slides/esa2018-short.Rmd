@@ -1,7 +1,7 @@
 ---
 title: "Understanding and predicting wildfire extremes in the contiguous United States"
-subtitle: "https://github.com/mbjoseph/wildfire-extremes"
-author: "Max Joseph (@mxwlj), Matt Rossi, Nate Mietkiewicz, Adam Mahood, Megan Cattau, Lise St. Denis, Chelsea Nagy, Virginia Iglesias, John Abatzoglou, Jennifer Balch"
+author: "Max Joseph, Matt Rossi, Nate Mietkiewicz, Adam Mahood, Megan Cattau, Lise St. Denis, Chelsea Nagy, Virginia Iglesias, John Abatzoglou, Jennifer Balch"
+fontsize: 14pt
 output:
   beamer_presentation:
     fig_caption: false
@@ -10,14 +10,13 @@ output:
 header-includes: 
 - \usepackage{graphicx}
 - \beamertemplatenavigationsymbolsempty
-- \usefonttheme{professionalfonts}
-- \renewcommand{\familydefault}{\sfdefault}
+- \usefonttheme{structurebold}
 - \usepackage{xcolor}
 - \definecolor{foreground}{RGB}{0,0,0}
 - \definecolor{background}{RGB}{255,255,255}
-- \definecolor{title}{RGB}{0,120,255}
+- \definecolor{title}{RGB}{204,51,153}
 - \definecolor{gray}{RGB}{155,155,155}
-- \definecolor{subtitle}{RGB}{204,0,204}
+- \definecolor{subtitle}{RGB}{255, 153, 0}
 - \definecolor{hilight}{RGB}{102,255,204}
 - \definecolor{vhilight}{RGB}{255,111,207}
 - \setbeamercolor{titlelike}{fg=title}
@@ -73,7 +72,7 @@ if (!file.exists('max-plot.png')) {
 
 # Two ideas
 
-\huge{1. Changing size distributions}
+\huge{1. Shifting distributions}
 
 # 
 
@@ -108,9 +107,9 @@ p +
 
 # Two ideas
 
-1. Changing size distributions
+1. Shifting distributions
 
-\huge{2. More ignitions $\rightarrow$ more extremes}
+\huge{2. More ignitions}
 
 
 #
@@ -229,7 +228,6 @@ p4 <- expand.grid(n = count_vals,
 - housing density
 - ecological context
 
-**Can we predict extremes?**
 
 # The data
 
@@ -356,31 +354,9 @@ f1 %>%
   scale_color_gdocs()
 ```
 
-# 
-
-\Huge{Model comparisons}
-
-# Burn area model comparisons
-
-\begin{center}
-
-\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/ppc-density-funs}
-
-\end{center}
-
-
-# Count model comparisons
-
-\begin{center}
-
-\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{../fig/ppc-counts}
-
-\end{center}
-
-
 #
 
-\Huge{What we found: fire size}
+\Huge{Results: fire size}
 
 # Dry conditions $\rightarrow$ larger fires
 
@@ -463,7 +439,7 @@ er_hum_ts('Atlantic Coastal Pine Barrens')
 
 #
 
-\Huge{What we found: fire counts}
+\Huge{Results: fire counts}
 
 # Dry conditions $\rightarrow$ more fires
 
@@ -617,53 +593,6 @@ case_study_plot$plot_data %>%
 
 # 
 
-```{r, fig.width = 6, fig.height = 5}
-cake_url <- "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Chocolate_Cake_Flourless_%281%29.jpg/1024px-Chocolate_Cake_Flourless_%281%29.jpg"
-plot_jpeg(cake_url)
-```
-
-# Million acre event probabilities
-
-```{r, fig.width = 4.5, fig.height = 4, warning=FALSE}
-mill_summ <- read_rds('../data/processed/mill_summ.rds')
-map_plot <- simple_ecoregions %>%
-  left_join(mill_summ) %>%
-  ggplot(aes(fill = pr_million_acre_event)) +
-  geom_sf(size = .1, color = 'white') + 
-  theme_minimal() + 
-  theme(panel.grid.major = element_line(colour = "lightgrey"), 
-        axis.text = element_blank()) + 
-  ggtitle('') + 
-  scale_fill_viridis_c(trans = 'log', 
-                       breaks = c(.001, .01, 
-                                  .04, .07), 
-                       "Probability", 
-                       option = 'C')
-point_plot <- mill_summ %>%
-  arrange(-pr_million_acre_event) %>%
-  top_n(14) %>%
-  mutate(NA_L3NAME = gsub(" and ", " & ", NA_L3NAME)) %>%
-  ggplot(aes(x = pr_million_acre_event, y = reorder(NA_L3NAME, pr_million_acre_event))) + 
-  geom_point() + 
-  geom_segment(aes(x = 0, xend = pr_million_acre_event, yend = reorder(NA_L3NAME, pr_million_acre_event))) + 
-  ylab("") + 
-  xlab("Probability")
-
-map_plot
-```
-
-Overall: $\approx$ 35\% chance
-
-# Million acre event probabilities
-
-```{r, fig.width = 4.5}
-point_plot
-```
-
-# 
-
-# 
-
 \Huge{Extreme fire risk is doubly nonlinear}
 
 # 
@@ -695,9 +624,9 @@ plot_data %>%
 
 # 
 
-\Huge{Extremes may be predictable...}
+\Huge{Extremes may be predictable,}
 
-\Huge{\textit{and we can do better!}}
+\Huge{and we can do better...}
 
 # 
 
@@ -726,7 +655,7 @@ interval_df %>%
         axis.text.x = element_text(angle = 90))
 ```
 
-# 
+# Thank you
 
 **Check out the code:** github.com/mbjoseph/wildfire-extremes
 

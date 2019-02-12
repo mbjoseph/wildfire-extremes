@@ -139,7 +139,6 @@ st_covs$row <- 1:nrow(st_covs)
 mu_df <- post$mu_full %>%
   reshape2::melt(varnames = c('iter', 'row')) %>%
   tbl_df %>%
-  mutate(value = value) %>%
   group_by(row) %>%
   summarize(median = median(value),
             lo = quantile(value, 0.05),
@@ -158,16 +157,16 @@ loc_ts <- mu_df %>%
 
 write_rds(loc_ts, 'data/processed/loc_ts.rds')
 
+hectares_per_acre <- 0.404686
 location_ts_plot <- loc_ts %>%
-#  filter(year < stan_d$cutoff_year) %>%
   group_by(NA_L1NAME) %>%
   mutate(alpha_val = .5 / length(unique(NA_L3NAME))) %>%
-  ggplot(aes(ym, exp(median) + stan_d$min_size,
+  ggplot(aes(ym, (exp(median) + stan_d$min_size) * hectares_per_acre,
              fill = NA_L1NAME,
              group = NA_L3NAME)) +
   theme_minimal() +
-  geom_ribbon(aes(ymin = exp(lo) + stan_d$min_size,
-                  ymax = exp(hi) + stan_d$min_size,
+  geom_ribbon(aes(ymin = (exp(lo) + stan_d$min_size) * hectares_per_acre,
+                  ymax = (exp(hi) + stan_d$min_size) * hectares_per_acre,
                   alpha = alpha_val),
               color = NA) +
   geom_line(size = .2, aes(alpha = alpha_val)) +
@@ -178,7 +177,7 @@ location_ts_plot <- loc_ts %>%
   theme(legend.position = 'none',
         panel.grid.minor = element_blank()) +
   scale_y_log10() +
-  ylab('Expected fire size (acres)') +
+  ylab('Expected fire size (hectares)') +
   facet_wrap(~ NA_L1NAME, nrow = 2,
              labeller = labeller(.rows = label_wrap_gen(23))) +
   ggtitle('C')

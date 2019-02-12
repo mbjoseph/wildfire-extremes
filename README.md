@@ -20,12 +20,12 @@ web browser.
 To launch the container, run the following:
 
 ```bash
-docker run -d -p 8787:8787 mbjoseph/wildfire-extremes
+docker run -e PASSWORD=yourpassword -d -p 8787:8787 mbjoseph/wildfire-extremes
 ```
 
 Then, navigate to port 8787 on a web browser (e.g., `localhost:8787`, or 
 `<Insert EC2 IP addres heres>:8787` if running on AWS) and log in 
-with username `rstudio`, password `rstudio`. 
+with username `rstudio`, and the password you provided in your call to `docker run`. 
 
 ### Optional: creating an RStudio project
 

@@ -1,3 +1,4 @@
+library(lubridate)
 library(tidyverse)
 library(patchwork)
 library(assertthat)
@@ -59,7 +60,7 @@ total_df <- test_preds %>%
 actual_totals <- holdout_burns %>%
   select(-geometry) %>%
   as_tibble %>%
-  summarize(total_area = sum(R_ACRES),
+  summarize(total_area = sum(Acres),
             total_events = n())
 
 total_df %>%
@@ -123,8 +124,7 @@ nmax_q <- function(p, n, mu, sigma) {
 # points should fall on or very near one to one line
 n_vec <- c(1, 5, 10, 20, 100, 1000)
 ps <- c(.5, .9)
-expand.grid(n = n_vec, 
-                                   iter = 1:10000) %>%
+expand.grid(n = n_vec, iter = 1:10000) %>%
   as_tibble %>%
   rowwise %>%
   mutate(ymax = max(rnorm(n))) %>%
@@ -229,7 +229,8 @@ test_preds <- test_preds %>%
          qvlo = min_size + exp(nmax_q(.005, n = n_event, mu = ln_mu, sigma = ln_scale)),
          qvhi = min_size + exp(nmax_q(.995, n = n_event, mu = ln_mu, sigma = ln_scale)), 
          q25 = min_size + exp(nmax_q(.25, n = n_event, mu = ln_mu, sigma = ln_scale)), 
-         q75 = min_size + exp(nmax_q(.75, n = n_event, mu = ln_mu, sigma = ln_scale)))
+         q75 = min_size + exp(nmax_q(.75, n = n_event, mu = ln_mu, sigma = ln_scale)), 
+         q50 = min_size + exp(nmax_q(.5, n = n_event, mu = ln_mu, sigma = ln_scale)))
 write_rds(test_preds, path = 'test_preds.rds')
 
 
@@ -240,6 +241,7 @@ interval_df <- test_preds %>%
   group_by(NA_L3NAME, ym) %>%
   summarize(m_qlo = mean(qlo),
            m_qhi = mean(qhi), 
+           m_med = mean(q50),
            m_qvlo = mean(qvlo), 
            m_qvhi = mean(qvhi))
 
@@ -248,8 +250,10 @@ max_df <- mtbs %>%
   as.data.frame() %>%
   as_tibble %>%
   group_by(NA_L3NAME, ym) %>%
-  summarize(empirical_max = max(R_ACRES)) %>%
+  mutate(empirical_max = max(Acres), 
+         is_empirical_max = Acres == empirical_max) %>%
   ungroup %>%
+  filter(is_empirical_max) %>%
   left_join(distinct(st_covs, NA_L3NAME, NA_L2NAME)) %>%
   group_by(NA_L2NAME) %>%
   mutate(n_events = n())
@@ -271,24 +275,25 @@ interval_df <- interval_df %>%
                         l3_er))
 
 # plot for level 3 ecoregions
+hectares_per_acre <- 0.404686
 interval_df %>%
   group_by(NA_L3NAME) %>%
   mutate(total_n = sum(!is.na(empirical_max))) %>%
-  filter(total_n > 20) %>%
+  filter(total_n > 26) %>%
   ggplot(aes(x = ym, group = NA_L3NAME)) +
-  geom_ribbon(aes(ymin = m_qlo, ymax = m_qhi),
+  geom_ribbon(aes(ymin = m_qlo * hectares_per_acre, ymax = m_qhi * hectares_per_acre),
               color = NA,
               fill = 'firebrick', alpha = .7) +
-  geom_ribbon(aes(ymin = m_qvlo, ymax = m_qvhi),
+  geom_ribbon(aes(ymin = m_qvlo * hectares_per_acre, ymax = m_qvhi * hectares_per_acre),
               color = NA,
               fill = 'firebrick', alpha = .3) +
   scale_y_log10() +
   theme_minimal() +
   facet_wrap(~ fct_reorder(l3_er, rmin),
              labeller = labeller(.rows = label_wrap_gen(23))) +
-  geom_point(aes(y = empirical_max), size = .5) +
+  geom_point(aes(y = empirical_max * hectares_per_acre), size = .5) +
   xlab('') +
-  ylab('Maximum fire size (acres)') +
+  ylab('Maximum fire size (hectares)') +
   theme(panel.grid.minor = element_blank(), 
         axis.text.x = element_text(angle = 90))
 ggsave('fig/max-preds-l3.png', width = 7, height = 4)

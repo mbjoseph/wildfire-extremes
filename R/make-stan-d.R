@@ -201,7 +201,7 @@ stan_d <- list(
   er_idx_full = as.numeric(factor(st_covs$NA_L3NAME)),
   
   n_fire = nrow(train_burns),
-  sizes = train_burns$R_ACRES - min_size,
+  sizes = train_burns$Acres - min_size,
   burn_idx = burn_idx,
   
   n_w = length(sparse_X$w),
@@ -239,7 +239,7 @@ stan_d <- list(
   
   n_holdout_b = length(holdout_b_idx),
   holdout_b_idx = holdout_b_idx,
-  holdout_b = holdout_burns$R_ACRES - min_size,
+  holdout_b = holdout_burns$Acres - min_size,
   
   min_size = min_size,
   
