@@ -11,6 +11,8 @@ model_fits <- list.files(pattern = '*.fit.*\\.rds')
 
 burn_area_fits <- grep(model_fits, pattern = 'ba_', value = TRUE)
 
+hectares_per_acre <- 0.404686
+
 # for each model fit, produce a vector of the holdout log likelihoods
 holdout_ba_loglik <- list()
 train_ba_loglik <- list()
@@ -118,7 +120,7 @@ den_plot <- train_ba_rep %>%
                                                    'Tapered Pareto', 
                                                    'Weibull', 
                                                    'Gamma'))) %>%
-  ggplot(aes(x = value,
+  ggplot(aes(x = value * hectares_per_acre,
              color = Distribution,
              group = interaction(Distribution, iter))) +
   my_theme +
@@ -128,14 +130,14 @@ den_plot <- train_ba_rep %>%
   facet_wrap(~Distribution, nrow = 1) +
   stat_density(geom = 'line', position = 'identity',
                inherit.aes = FALSE,
-               aes(x = actual_sizes),
+               aes(x = actual_sizes * hectares_per_acre),
                data = tibble(actual_sizes = stan_d$sizes)) +
   coord_cartesian(xlim = c(min(stan_d$sizes), 700000)) +
   geom_rug(inherit.aes = FALSE,
            aes(x = actual_sizes),
            data = tibble(actual_sizes = stan_d$sizes),
            alpha = .1) +
-  xlab('Burn area exceedance (area)') +
+  xlab('Burn area exceedance (hectares)') +
   ylab('Density')
 
 # "Survival" plots for top 3 models
@@ -150,6 +152,7 @@ tail_plot <- train_ba_rep %>%
   arrange(iter, model, value) %>%
   mutate(ccdf = seq(n(), 1, -1) / n()) %>%
   filter(ccdf <= .01) %>%
+  mutate(value = value * hectares_per_acre) %>%
   group_by(ccdf, model) %>%
   summarize(lo = quantile(value, .025),
             q25 = quantile(value, .25),
@@ -178,10 +181,10 @@ tail_plot <- train_ba_rep %>%
   scale_x_log10() +
   scale_y_log10() +
   facet_wrap(~Distribution, nrow = 1) +
-  coord_cartesian(xlim = c(1e5, 1e8),
+  coord_cartesian(xlim = c(1e5 * hectares_per_acre, 1e8 * hectares_per_acre),
                   ylim = c(1e-4, .01)) +
-  geom_point(data = obs_ccdf, color = 'black', aes(x = values), shape = 1, size = .5) +
-  xlab('Burn area exceedance (area)') +
+  geom_point(data = obs_ccdf, color = 'black', aes(x = values * hectares_per_acre), shape = 1, size = .5) +
+  xlab('Burn area exceedance (hectares)') +
   ylab('CCDF') +
   theme(
     strip.background = element_blank(),
@@ -229,7 +232,7 @@ max_plot <- train_max %>%
                                                  'Tapered Pareto', 
                                                  'Weibull', 
                                                  'Gamma'))) %>%
-  ggplot(aes(train, test, color = Distribution)) +
+  ggplot(aes(train * hectares_per_acre, test * hectares_per_acre, color = Distribution)) +
   my_theme +
   scale_color_manual('Burn area distribution', values = cols) +
   geom_point(alpha = .4) +
@@ -238,9 +241,9 @@ max_plot <- train_max %>%
   scale_x_log10() +
   scale_y_log10() +
   facet_wrap(~ Distribution, nrow = 1) +
-  geom_vline(aes(xintercept = train),
+  geom_vline(aes(xintercept = train * hectares_per_acre),
              data = actual_maxima, color = 'black', linetype = 'dashed') +
-  geom_hline(aes(yintercept = test),
+  geom_hline(aes(yintercept = test * hectares_per_acre),
              data = actual_maxima, color = 'black', linetype = 'dashed') +
   theme(
     strip.background = element_blank(),
@@ -265,7 +268,7 @@ sum_plot <- train_max %>%
                                                  'Tapered Pareto', 
                                                  'Weibull', 
                                                  'Gamma'))) %>%
-  ggplot(aes(train, test, color = Distribution)) +
+  ggplot(aes(train * hectares_per_acre, test * hectares_per_acre, color = Distribution)) +
   my_theme +
   scale_color_manual('Burn area distribution', values = cols) +
   geom_point(alpha = .4) +
@@ -274,9 +277,9 @@ sum_plot <- train_max %>%
   scale_x_log10() +
   scale_y_log10() +
   facet_wrap(~ Distribution, nrow = 1) +
-  geom_vline(aes(xintercept = train),
+  geom_vline(aes(xintercept = train * hectares_per_acre),
              data = actual_sums, color = 'black', linetype = 'dashed') +
-  geom_hline(aes(yintercept = test),
+  geom_hline(aes(yintercept = test * hectares_per_acre),
              data = actual_sums, color = 'black', linetype = 'dashed') +
   theme(strip.background = element_blank(),
     strip.text.x = element_blank())

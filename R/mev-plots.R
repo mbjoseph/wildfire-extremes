@@ -275,24 +275,25 @@ interval_df <- interval_df %>%
                         l3_er))
 
 # plot for level 3 ecoregions
+hectares_per_acre <- 0.404686
 interval_df %>%
   group_by(NA_L3NAME) %>%
   mutate(total_n = sum(!is.na(empirical_max))) %>%
   filter(total_n > 26) %>%
   ggplot(aes(x = ym, group = NA_L3NAME)) +
-  geom_ribbon(aes(ymin = m_qlo, ymax = m_qhi),
+  geom_ribbon(aes(ymin = m_qlo * hectares_per_acre, ymax = m_qhi * hectares_per_acre),
               color = NA,
               fill = 'firebrick', alpha = .7) +
-  geom_ribbon(aes(ymin = m_qvlo, ymax = m_qvhi),
+  geom_ribbon(aes(ymin = m_qvlo * hectares_per_acre, ymax = m_qvhi * hectares_per_acre),
               color = NA,
               fill = 'firebrick', alpha = .3) +
   scale_y_log10() +
   theme_minimal() +
   facet_wrap(~ fct_reorder(l3_er, rmin),
              labeller = labeller(.rows = label_wrap_gen(23))) +
-  geom_point(aes(y = empirical_max), size = .5) +
+  geom_point(aes(y = empirical_max * hectares_per_acre), size = .5) +
   xlab('') +
-  ylab('Maximum fire size (acres)') +
+  ylab('Maximum fire size (hectares)') +
   theme(panel.grid.minor = element_blank(), 
         axis.text.x = element_text(angle = 90))
 ggsave('fig/max-preds-l3.png', width = 7, height = 4)

@@ -113,6 +113,7 @@ emp_pr <- train_counts %>%
   ungroup %>%
   mutate(pr_value= n_value / sum(n_value))
 
+
 den_plot <- pr_df %>%
   ungroup %>%
   mutate(Distribution = case_when(
@@ -139,7 +140,7 @@ den_plot <- pr_df %>%
   theme(legend.position = 'none',
         panel.grid.minor = element_blank(), 
         axis.text = element_text(size = 7)) +
-  xlab('Counts > 1000 acres') +
+  xlab('Counts > 405 hectares') +
   ylab('Probability')
 
 # proportion of zero observations
