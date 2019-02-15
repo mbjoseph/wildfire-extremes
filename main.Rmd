@@ -45,11 +45,11 @@ Wildfires are becoming more frequent in parts of the globe, but predicting where
 To predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire record with meteorological and housing data in spatiotemporal Bayesian statistical models with spatially varying nonlinear effects. 
 We compared different distributions for the number and sizes of large fires to generate a posterior predictive distribution based on finite sample maxima for extreme events (the largest fires over bounded spatiotemporal domains). 
 A zero-inflated negative binomial model for fire counts and a lognormal model for burned areas provided the best performance.
-This model attains `r 100 * round(mean(count_test_intervals$in_interval), 2)`\% interval coverage for the number of fires and `r 100 * round(mean(burn_area_coverage$true_in_interval), 2)`\% coverage for fire sizes over a five-year withheld data set. 
+This model attains `r 100 * round(mean(count_test_intervals$in_interval), 2)`\% interval coverage for the number of fires and `r 100 * round(mean(burn_area_coverage$true_in_interval), 2)`\% coverage for fire sizes over a six year withheld data set. 
 Dryness and air temperature strongly predict extreme wildfire probabilities.
 Housing density has a hump-shaped relationship with fire occurrence, with more fires occurring at intermediate housing densities. 
 Statistically, these drivers affect the chance of an extreme wildfire in two ways: by altering fire size distributions, and by altering fire frequency, which influences sampling from the tails of fire size distributions. 
-We conclude that recent extremes should not be surprising, and that the contiguous United States may be on the verge of experiencing even larger wildfire extremes.
+We conclude that recent extremes should not be surprising, and that the contiguous United States may be on the verge of even larger wildfire extremes.
 
 \bigskip \noindent \textbf{Key words}: fire; wildfire; Bayesian; spatiotemporal; extremes; climate.
 \end{abstract}
@@ -103,9 +103,8 @@ In the MEV framework, the occurrence and size of future events, and the paramete
 This approach has roots in compound distributions [@dubey1970compound; @wiitala1999assessing], doubly stochastic processes [@cox1980point], superstatistics [@beck2003superstatistics], and the Bayesian posterior predictive distribution [@gelman2013bayesian]. 
 The link to Bayesian inference is particularly useful, as it provides an easy way to propagate uncertainty forward to to predictions of extremes [@coles2003fully].
 
-Here, we extend the finite sample maximum approach to account for non-linear, spatially varying covariate effects with the goal of predicting and explaining extreme wildfire events from a statistical perspective across the contiguous United States.
-We aim to predict occurrence (where and when), and magnitude (burned area) of large wildfires at a monthly time scale and regional spatial scale across the conterminous United States. 
-Such predictions can be used to prioritize reactive fire suppression resources or inform proactive wildfire risk mitigation.
+Here, we extend the finite sample maximum approach to account for non-linear, spatially varying covariate effects with the goal of predicting extreme wildfire events from a statistical perspective across the contiguous United States.
+Specifically, we aim to predict occurrence (where and when), and magnitude (burned area) of large wildfires at a monthly time scale and regional spatial scale across the contiguous United States. 
 
 # Methods {-}
 
@@ -151,7 +150,7 @@ The zero-inflated versions of these distributions include a component to represe
 For spatial units (ecoregions) $s=1, ..., S$ and time steps (months) $t = 1, ..., T$, each model defines a probability mass function for $n_{s, t}$: the number of fires over 405 hectares in ecoregion $s$ and time step $t$. 
 For each of the four count distributions under consideration, location parameters $\mu_{s, t}$ and (for zero-inflated models) structural zero inflation parameters $\pi_{s, t}$ were allowed to vary in space and time.
 We used a log link function to ensure that $\mu_{s, t} > 0$, and a logit link function to ensure that $\pi_{s, t} \in (0, 1)$.
-Concatenating over spatial and temporal units, so that $\bm{\mu} = (\mu_{s=1, t=1}, \mu_{s=2, t=1}, ..., \mu_{s=S, t=1}, \mu_{s=S, t=2}, ..., \mu_{s=S, t=T})$, and similarly for $\bm{\pi}$, we modeled distributional location and (when applicable) zero inflation parameters as: 
+Concatenating over spatial and temporal units, so that $\bm{\mu} = (\mu_{s=1, t=1}, \mu_{s=2, t=1}, ..., \mu_{s=S, t=1}, \mu_{s=S, t=2}, ..., \mu_{s=S, t=T})$, and similarly for $\bm{\pi}$, we modeled location and (when applicable) zero inflation parameters as: 
 
 $$\log(\bm{\mu}) = \alpha^{(\mu)} + \matr{X} \bm{\beta}^{(\mu)} + \bm \phi^{(\mu)} + \log (\bm a),$$
 
@@ -212,22 +211,22 @@ For the remaining count models and all burned area models, this was a univariate
 Spatiotemporal random effects were constructed using a temporally autoregressive, spatially intrinsically autoregressive formulation [@besag1995conditional; @banerjee2014hierarchical]. 
 Details of these priors and the resulting joint distributions are provided in the Appendices.
 
-## Posterior predictive inference and extremes {-}
+## Posterior predictive inference for finite sample maxima {-}
 
 We used the posterior predictive distribution to check each model and make inference on extremes. 
 The posterior predictive distribution provides a distribution for replications of observed data ($y^{\textnormal{rep}}$), and predictions of future data [@gelman2013bayesian]. 
 Conceptually, for a good model, $y^{\textnormal{rep}}$ should be similar to observed training data $y$, and future predictions should be similar to future data. 
-Distributions over both quantities can be obtained by conditioning $y$ and marginalizing over model parameters $\theta$, e.g., $[y^{\textnormal{rep}} | y] = \int [y^{\textnormal{rep}} | \theta] [\theta | y] d\theta$. 
+Distributions over both quantities can be obtained by conditioning on $y$ and marginalizing over model parameters $\theta$, e.g., $[y^{\textnormal{rep}} | y] = \int [y^{\textnormal{rep}} | \theta] [\theta | y] d\theta$. 
 
 Posterior predictive distributions facilitate model checks that compare predicted and observed test statistics [@gelman1996posterior].
-To evaluate whether a model captures tail behavior, one can compare an empirical maximum ($T(y) = \textnormal{max}(y)$) to the predicted distribution of maxima $T(y^{\textnormal{rep}})$. 
+To evaluate whether models captured tail behavior, we compared empirical maxima ($T(y) = \textnormal{max}(y)$) to the predicted distribution of maxima $T(y^{\textnormal{rep}})$. 
 We also include predictive checks for the proportion of zero counts, and totals for count and burned area models.
-Posterior predictive inference for maxima is similar in spirit to the MEV approach. 
+Posterior predictive inference for finite sample maxima is similar in spirit to the MEV approach. 
 Both obtain a distribution over maxima by marginalizing over unknowns including the number of events, size of each event, and parameters of their distributions [@marani2015metastatistical].
 However, a Bayesian approach explicitly conditions on the observed data to obtain a posterior distribution of parameters.
 
 Seeing this connection is useful in the context of including priors and propagating uncertainty to derived parameters.
-Concretely, for any ecoregion $s$ and timestep $t$, if we define a particular maximum fire size conditional on a fire having occurred as $z_{s, t}$, and let $Z_{s, t}$ represent the random variable of maximum fire size, then the cumulative distribution function (CDF) for $z_{s, t}$ is given by $\text{Pr}(Z_{s, t} \leq z_{s, t}) = \text{F}(y_{(s, t)})^{n_{s, t}}$, where $\text{F}(y_{(s, t)})$ is the CDF of fire size, and $n_{s, t}$ is the number of wildfire events. 
+For any ecoregion $s$ and timestep $t$, if we define a particular maximum fire size conditional on a fire having occurred as $z_{s, t}$, and let $Z_{s, t}$ represent the random variable of maximum fire size, then the cumulative distribution function (CDF) for $z_{s, t}$ is given by $\text{Pr}(Z_{s, t} \leq z_{s, t}) = \text{F}(y_{(s, t)})^{n_{s, t}}$, where $\text{F}(y_{(s, t)})$ is the CDF of fire size, and $n_{s, t}$ is the number of wildfire events. 
 Thus, $\text{Pr}(Z_{s, t} \leq z_{s, t})$ is the distribution function for the finite sample maximum.
 The CDF for $z_{s, t}$ can be inverted to produce a quantile function that permits computation of prediction intervals for maximum fire sizes, conditional on fires having occurred. 
 Given a collection of posterior draws from a burned area model that parameterize $\text{F}(y_{(s, t)})$, and a collection of posterior draws of $n_{s, t}^{\textnormal{rep}}$ from the posterior predictive distribution of a wildfire count model, a posterior distribution for the CDF or quantile function of maximum fire size can be generated which combines the two models to facilitate inference on the distribution of extremes. 
@@ -238,7 +237,7 @@ We used a combination of variational approximations and Hamiltonian Monte Carlo 
 A variational approximation [@kucukelbir2015automatic] was used for count models to quickly identify a preferred model. 
 The best performing count model and all burned area models were fit using the No-U-Turn Sampler [@hoffman2014no].
 Models were fit in the Stan probabilistic programming language using the \code{rstan} package [@carpenter2016stan; @rstan]. 
-We ran four chains for 1000 iterations each, and discarded the first 500 iterations as warmup. 
+We ran four chains for 1000 iterations each, discarding the first 500 iterations as warmup. 
 Convergence was assessed using visual inspection of trace plots, with potential scale reduction statistic values $\hat{R} \geq 1.1$ as an indicator convergence failure [@brooks1998general].
 
 ## Implementation {-}
@@ -372,7 +371,7 @@ biggest_discrepancy <- burn_area_coverage %>%
 Overall, 95\% posterior predictive interval coverage in the test set for burned areas was `r 100 * round(mean(burn_area_coverage$true_in_interval), 3)`\%. 
 The lowest test set coverage was `r 100 * round(most_worst$coverage)`\%, for the `r most_worst$NA_L3NAME` L3 ecoregion, followed by `r 100 * round(second_worst$coverage, 1)`\%, for the `r second_worst$NA_L3NAME` L3 ecoregion, though these ecoregions had just `r most_worst$n` and `r second_worst$n` wildfire events in the test set. 
 When observed fire sizes fell outside the 95\% prediction interval, `r 100 * round(smaller_larger_df$p_smaller, 3)`\% of wildfires were smaller than predicted, and `r 100 * round(1 - smaller_larger_df$p_smaller, 3)`\% of wildfires were larger than predicted. 
-The largest discrepancy between the actual size of a wildfire and the predicted 97.5\% posterior quantile was observed with the Wallow Fire in 2011 which burned `r format((round(biggest_discrepancy$true_exceedance) + 1000) * hectares_per_acre, big.mark = ',', scientific = FALSE)` hectares, but the predicted upper limit for size was `r format((round(biggest_discrepancy$hi) + 1000) * hectares_per_acre, big.mark = ',', scientific = FALSE)`.
+The largest discrepancy between the actual size of a wildfire and the predicted 97.5\% posterior quantile was observed with the Wallow Fire in 2011 which burned `r format(round((biggest_discrepancy$true_exceedance + 1000) * hectares_per_acre), big.mark = ',', scientific = FALSE)` hectares, but the predicted upper limit for size was `r format(round((biggest_discrepancy$hi + 1000) * hectares_per_acre), big.mark = ',', scientific = FALSE)`.
 We investigate this discrepancy further in the case study below.
 The lognormal burned area model achieved 100\% interval coverage in `r sum(worst_area_coverage$coverage == 1)` of `r worst_area_coverage %>% nrow` ecoregions that had wildfire events in the test set, accounting for `r 100 * round(sum(worst_area_coverage$area[worst_area_coverage$coverage == 1]) / sum(area_df$area), 3)`\% of the land area of the contiguous U.S.
 
@@ -393,7 +392,7 @@ million_er_mon <- read_csv('data/processed/million-er-mon.csv') %>%
 ```
 
 By combining the output of the event count and burned area models, we derived posterior prediction intervals for the size of the largest fire in a month for each region (the "burned area maximum"), integrating over uncertainty in the number of fires, as well as the lognormal mean and standard deviation for burned area.
-We evaluated the posterior distribution for the quantile function of the n-sample maximum of a lognormal distribution ($\exp(\mu + \sigma \sqrt{2}\text{erf}^{-1}(2 P^{1/n} - 1))$, where $\text{erf}^{-1}$ is the inverse error function, and $P$ is a probability) to generate prediction intervals for maximum fire sizes by month and ecoregion, conditional on one or more fires having occurred. 
+We evaluated the posterior distribution for the quantile function of the finite sample maximum of a lognormal distribution ($\exp(\mu + \sigma \sqrt{2}\text{erf}^{-1}(2 P^{1/n} - 1))$, where $n$ is the number of wildfire events, $\text{erf}^{-1}$ is the inverse error function, and $P$ is a probability) to generate prediction intervals for maximum fire sizes by month and ecoregion, conditional on one or more fires having occurred. 
 In the holdout period from 2010 to 2016, a 99\% prediction interval achieved `r 100 * round(mean(mev_intervals$in_interval), 3)`\% interval coverage, with `r 100 * round(mean(mev_intervals$empirical_max > mev_intervals$m_qhi), 3)`\% of the burned area maxima (`r sum(mev_intervals$empirical_max > mev_intervals$m_qhi)` fire events) being larger than predicted (Figure \ref{max-preds-l3}). 
 As an additional check, we used the posterior distribution of the model to predict the total area burned by wildfires in the test set.
 The model predicted the total area burned over the entire contiguous United States in test period from 2010 to 2016 to be `r format(median(predicted_totals$predicted_total_area), big.mark = ',', scientific = FALSE)` (95\% CI: (`r format(quantile(predicted_totals$predicted_total_area, .025), big.mark = ',', scientific = FALSE)` - `r format(quantile(predicted_totals$predicted_total_area, .975), big.mark = ',', scientific = FALSE)`) and the actual value was `r format(unique(predicted_totals$actual_total_area), big.mark = ',', scientific = FALSE)`. 
@@ -439,8 +438,8 @@ The failure of the model to correctly predict the size of the Wallow fire sugges
 # Discussion {-}
 
 Extreme wildfires are often devastating, but perhaps they need not be surprising. 
-By allowing the non-linear effects of weather and housing density to vary across space, this model achieves good predictive accuracy for fire extremes over a five-year prediction window. 
-This model predicts that extremely large wildfires, perhaps even over one million acres (or 404,686 hectares), have a non-negligible probability of occurrence in the conterminous United States.
+By allowing the non-linear effects of weather and housing density to vary across space, this model achieves good predictive accuracy for fire extremes at a regional scale over a six year prediction window. 
+This model predicts that extremely large wildfires, perhaps even over one million acres (404,686 hectares), have a non-negligible probability of occurrence in the contiguous United States.
 Such predictions can support regional wildfire management and probabilistic hazard assessment. 
 
 Driving a model with meteorological features raises challenges related to predictive uncertainty and covariate shift - a change in the underlying distribution of forcing variables, potentially outside of the historic range. 
@@ -455,12 +454,13 @@ As a consequence, there is relatively little data that can be used to inform the
 In this case, the posterior distribution for the last basis coefficient for the partial effect of humidity is likely to be close to zero. 
 This could explain why the estimated partial effect of humidity on the expected counts was less negative at the upper end of the observed humidity range, although previous work has found similarly nonlinear partial effects [@preisler2004probability]. 
 The count model performed extremely well in this range, with `r round(mean(count_test_intervals$in_interval[count_test_intervals$rmin > 60]) * 100, 2)`\% interval coverage for the `r sum(count_test_intervals$rmin > 60)` ecoregion-months with mean daily minimum humidity values greater than 60\% in the withheld test data. 
-The model nearly always predicted zero counts with high confidence when conditions were this humid: `r sum(count_test_intervals$hi[count_test_intervals$rmin > 60] == 0)` of `r sum(count_test_intervals$rmin > 60)` predictions made for such conditions were 95\% credible intervals of (0, 0), and the remaining prediction had a posterior median of zero, along with a 95\% credible interval from 0 to 1.
-Monotonicity constraints could be incorporated into such a model via monotonic spline bases [@ramsay1988monotone], or an ordered prior distribution for basis coefficients [@brezger2008monotonic]. 
+The model nearly always predicted zero counts with high confidence when conditions were this humid: `r sum(count_test_intervals$hi[count_test_intervals$rmin > 60] == 0)` of `r sum(count_test_intervals$rmin > 60)` predictions made for such conditions were 95\% credible intervals of (0, 0). 
+The remaining prediction had a posterior median of zero, along with a 95\% credible interval from 0 to 1.
+Monotonicity constraints could be incorporated into these models via monotonic spline bases [@ramsay1988monotone], or an ordered prior distribution for basis coefficients [@brezger2008monotonic]. 
 In this case, the count model performs well under humid conditions without monotonicity constraints, and there seems to be little room for performance improvements that might result from such constraints.
 
-Human-caused climate change is expected to increase fire activity in the western U.S. [@rogers2011; @westerling2011climate; @moritz2012climate; @Abatzoglou2016] and elsewhere [@flannigan2009], but the nonlinear effect of human-density could provide additional insight into future expectations. 
-While most U.S. ecoregions are increasing in human density over time, some of these ecoregions are in the range of values in which this increases the expected number of large fires, while others are so populated that further increases would reduce the chance of a large fire.
+Human-caused climate change is expected to increase fire activity in the western U.S. [@rogers2011; @westerling2011climate; @moritz2012climate; @Abatzoglou2016] and elsewhere [@flannigan2009], but the nonlinear effect of housing density could provide additional insight into future expectations. 
+While housing density is increasing over time in most U.S. ecoregions, some of these ecoregions are in the range of values in which this increases the expected number of large fires, while others are so populated that further increases would reduce the chance of a large fire.
 The hump-shaped effect of human density on the expected number of large fires is likely driven by ignition pressure and fire suppression [@balch2017human].
 As human density increases from zero, ignition pressure increases, but eventually landscapes become so urbanized, fragmented, and/or fire-suppressed that wildfire risk decreases [@Syphard2007; @bowman2011human; @Bistinas2013; @Knorr2013; @Mcwethy2013; @Syphard2017; @nagy2018human].
 At intermediate density, wildfire regimes respond to human ignition and altered fuel distributions [@Guyette2002], but these responses depend on environmental context and characteristics of the human population [@Marlon2008; @Li2009]. 
@@ -471,27 +471,28 @@ This work points to promising directions for future predictive efforts.
 Default choices such as Poisson and GPD distributions should be checked against alternative distributions. 
 Further, the predictive skill of this model seems to suggest that ordinary events provide information on extremes, which would not be the case if the generative distribution of extremes was completely unique.
 Previous case studies have identified that extremes or anomalies in climatological drivers play a role in the evolution of extreme wildfires [@peterson20152013], but for this work, monthly averages of climatological drivers over fairly large spatial regions were used, which may smooth over anomalous or extreme conditions. 
-Enhancing the spatiotemporal resolution of predictive models could better represent climatic and social drivers of fire dynamics and provide localized insights into fire dynamics to inform decision-making. 
+Enhancing the spatiotemporal resolution of predictive models could better represent climatic and social drivers and provide localized insights to inform decision-making. 
 This raises computational challenges, but recent advances in distributed probabilistic computing [@tran2017deep], efficient construction of spatiotemporal point processes [@shirota2018scalable], and compact representations of nonlinear spatial interactions [@lee2011p] may provide solutions. 
 
 The Wallow Fire case study reveals at least one limitation of increasing the spatiotemporal resolution. 
 When the model predictions are driven by covariates that are summarized in space and time (e.g. a mean across an ecoregion in a month), summary values may not represent conditions that are most relevant to an event. 
 With a discrete space-time segmentation, events can occur at the boundary of a spatiotemporal unit, e.g., if a fire spreads into an adjacent ecoregion or ignites on the last day of the month. 
 Large wildfires can span months, and a model that only uses conditions upon ignition to predict total burned area can fail to account for conditions that change over the course of the event. 
-Modeling ignitions as a point process in continuous space and time [@brillinger2003risk], and explicitly modeling subsequent fire duration and spatial dynamics could better separate conditions that ignite fires from those that affect spread. 
-Such an approach might be amenable to including information on fuel continuity, which is likely to limit the size of extremely large fires and did not factor into the current models predictions [@rollins2002landscape; @hargrove2000simulating]. 
+Modeling ignitions as a point process in continuous space and time [@brillinger2003risk], and explicitly modeling subsequent fire duration and spread could better separate conditions that ignite fires from those that affect propagation. 
+Such an approach might be amenable to including information on fuel continuity, which is likely to limit the size of extremely large fires and did not factor into the current predictions [@rollins2002landscape; @hargrove2000simulating]. 
 
 To the extent that a model reflects the generative process for extreme events, the decomposition of contributions to the model's predictions may provide insight into attribution for meteorological and anthropogenic drivers of extremes. 
 However, a model trained to represent a region-wide distribution of fire sizes will inevitably fail to capture local factors that are relevant to specific events such as the Wallow Fire. 
-If predicting the spread dynamics of particular fire events is a goal, process-based models designed to model fire spread are likely to be more appropriate than regional statistical models such as those developed here. 
+If predicting the dynamics of particular fire events is a goal, process-based models designed to model fire spread are likely to be more appropriate than regional statistical models such as those developed here. 
 
 This paper presents and evaluates a statistical approach to explain and predict extreme wildfires that incorporates spatially varying non-linear effects. 
-The model reveals considerable differences in fire dynamics among ecoregions spanning the mountain west to the great plains, deserts, and eastern forests, and suggests a non-negligible chance of extreme wildfires larger than those seen in over the past 30 years in the contiguous U.S. 
+The model reveals considerable differences among ecoregions spanning the mountain west to the great plains, deserts, and eastern forests, and suggests a non-negligible chance of extreme wildfires larger than those seen in over the past 30 years in the contiguous U.S. 
 Predictive approaches such as this can inform decision-making by placing probabilistic bounds on the number of wildfires and their sizes, while provide deeper insights into wildfire ecology. 
 
 # Acknowledgments {-}
 
-We thank Mitzi Morris, Kyle Foreman, Daniel Simpson, Bob Carpenter, and Andrew Gelman for contributing to the implementation of an intrinsic autoregressive spatial prior in Stan.
+We thank Mitzi Morris, Kyle Foreman, Daniel Simpson, Bob Carpenter, and Andrew Gelman for contributing to the implementation of an intrinsic autoregressive spatial prior in Stan. 
+We also thank two anonymous reviewers for their thoughtful comments, which greatly improved the paper.
 
 
 # Literature cited {-}
@@ -615,7 +616,7 @@ kable(burn_area_loglik,
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/wallow-local-conditions.png}
-\caption{Daily local meteorological conditions and monthly regional mean conditions for the Wallow Fire. The blue line represents monthly averages computed over the entire Arizona/New Mexico Mountains ecoregion, and red points represent values extracted for "local" 4 km grid cells contained within the final burned area perimeter of the Wallow Fire. Vertical dashed lines indicate the dates of ignition and containment for the Wallow Fire. Units for the y-axis are given in the facet labels.}
+\caption{A. Progression of the Wallow Fire based on perimeter data collected from the GeoMAC database, spanning May 30, 2011 to June 27, 2011. The perimeter at the end of may is outlined in white, with brighter colors indicating later dates. B. Daily local meteorological conditions and monthly regional mean conditions for the Wallow Fire, along with the associated burned area over time. The blue line represents monthly averages of meteorological quantities computed over the entire Arizona/New Mexico Mountains ecoregion, and black points represent values extracted for "local" 4 km grid cells contained within the final burned area perimeter of the Wallow Fire.}
 \label{wallow-conditions}
 \end{figure}
 

@@ -186,7 +186,8 @@ million_er_mon <- exceedance_df %>%
             hi = quantile(1 - exp(log_p), .975), 
             expected_n = mean(n_event)) %>%
   ungroup() %>%
-  left_join(select(st_covs, NA_L3NAME, NA_L2NAME, NA_L1NAME, ym, rmin, month, year))
+  left_join(select(st_covs, NA_L3NAME, NA_L2NAME, NA_L1NAME, ym, rmin, month, year)) %>%
+  arrange(-med)
 
 million_er_mon %>%
   write_csv('data/processed/million-er-mon.csv')

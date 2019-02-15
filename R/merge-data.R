@@ -20,7 +20,7 @@ ecoregions <- ecoregions %>%
 
 
 # Read fire data ----------------------
-mtbs <- st_read('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_DD.shp') %>%
+mtbs <- st_read('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_data/mtbs_fod_pts_DD.shp') %>%
   filter(Lat < 49.38, Lat > 24.39, Long > -124.849, Long < -66.88, 
          Acres > 1e3, Fire_Type == 'WF') %>%
   st_transform(st_crs(ecoregions)) %>%

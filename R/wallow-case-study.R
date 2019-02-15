@@ -126,27 +126,114 @@ annotation_df <- tibble(date = as.Date(c('2011-05-25', '2011-07-13'))) %>%
          value = c(50, 55), 
          label = c('Ignited\nMay 29', 'Contained'))
 
-p2 <- daily_df %>%
+
+
+## Get perimeters for the Wallow Fire from GeoMAC --------------------------------------------
+wallow_shp_dir <- 'data/processed/wallow_shp'
+dir.create(wallow_shp_dir)
+geomac_wallow_prefix <- 'https://rmgsc.cr.usgs.gov/outgoing/GeoMAC/2011_fire_data/Arizona/Wallow/'
+wallow_zips <- c(
+  'az_wallow_20110530_1130_dd83.zip', 
+  'az_wallow_20110531_2332_dd83.zip', 
+  'az_wallow_20110602_0013_dd83.zip',
+  'az_wallow_20110603_0025_dd83.zip',
+  'az_wallow_20110605_2209_dd83.zip',
+  'az_wallow_20110606_2304_dd83.zip',
+  'az_wallow_20110607_2114_dd83.zip',
+  'az_wallow_20110608_2357_dd83.zip',
+  'az_wallow_20110609_2013_dd83.zip',
+  'az_wallow_20110610_2329_dd83.zip',
+  'az_wallow_20110611_2231_dd83.zip',
+  'az_wallow_20110612_2316_dd83.zip',
+  'az_wallow_20110613_2238_dd83.zip',
+  'az_wallow_20110614_2344_dd83.zip',
+  'az_wallow_20110615_2220_dd83.zip', 
+  'az_wallow_20110616_2330_dd83.zip',
+  'az_wallow_20110617_2343_dd83.zip', 
+  'az_wallow_20110618_1257_dd83.zip', 
+  'az_wallow_20110619_2349_dd83.zip',
+  'az_wallow_20110620_2338_dd83.zip',
+  'az_wallow_20110621_2345_dd83.zip',
+  'az_wallow_20110622_2349_dd83.zip',
+  'az_wallow_20110624_0045_dd83.zip',
+  'az_wallow_20110626_2323_dd83.zip',
+  'az_wallow_20110627_2249_dd83.zip'
+)
+for (i in seq_along(wallow_zips)) {
+  destfile <- file.path(wallow_shp_dir, wallow_zips[i])
+  download.file(paste0(geomac_wallow_prefix, wallow_zips[i]), 
+                destfile)
+  unzip(destfile, exdir = wallow_shp_dir)
+  unlink(destfile)
+  if (i == 1) {
+    wallow_perims <- st_read(gsub('\\.zip', '.shp', destfile))
+  } else {
+    wallow_perims <- rbind(wallow_perims, 
+                           st_read(gsub('\\.zip', '.shp', destfile)))
+  }
+}
+wallow_perim_sf <- wallow_perims %>%
+  arrange(-ACRES) %>%
+  mutate(date = as.numeric(as.Date(DATE_, origin = '1960-10-01')), 
+         date = date - min(date)) 
+
+wallow_perim_plot <- wallow_perim_sf %>%
+  ggplot(aes(fill = date)) +
+  geom_sf(size = .1) + 
+  scale_fill_viridis_c(option = 'A', breaks = c(1, 5, 10, 15, 20, 25), 
+                       'Days since ignition') + 
+  geom_sf(data = filter(wallow_perim_sf, DATE_ == as.Date('2011-05-31')), 
+          fill = NA, color = 'white') + 
+  theme_minimal() + 
+  theme(panel.grid.minor = element_blank(), legend.position = 'none',
+        axis.text.x = element_text(angle = 45)) + 
+  annotate('text', x = -109.35, y = 33.7, label = 'May 31', color = 'white') + 
+  xlab('') + 
+  ylab('') + 
+  ggtitle('A')
+wallow_perim_plot
+
+hectares_per_acre <- 0.404686
+wallow_size_df <- wallow_perim_sf %>%
+  as.data.frame %>%
+  select(-geometry) %>%
+  mutate(hectares = ACRES * hectares_per_acre, 
+         date = DATE_, 
+         value = hectares, 
+         name = 'Burned area (hectares)', 
+         pixel = 1, 
+         label = 'Daily local conditions') %>%
+  select(pixel, date, value, name, label)
+
+
+pts_df <- daily_df %>%
   mutate(label = 'Daily local conditions') %>%
+  full_join(wallow_size_df)
+
+p2 <- pts_df %>%
   ggplot(aes(as.Date(date), value)) + 
+  geom_point(aes(color = label), size = 0.6,
+             data = filter(pts_df, name == 'Burned area (hectares)')) + 
+  geom_point(aes(color = label), 
+             size = .6, alpha = .02,
+             data = filter(pts_df, name != 'Burned area (hectares)')) +
   geom_line(data = region_df, 
             aes(group = month, color = label), 
             size = 1) + 
-  geom_point(aes(color = label), alpha = .02, size = .6) + 
   facet_wrap(~name, scales = 'free_y', ncol = 1) + 
   theme_minimal() + 
   xlab('') + 
   ylab('') + 
-  theme(panel.grid.minor = element_blank(), legend.position = 'top') + 
-  geom_vline(aes(xintercept = date), data = start_stop_df, linetype = 'dashed') + 
+  theme(panel.grid.minor = element_blank(), legend.position = 'none') + 
   scale_x_date(date_labels = "%Y-%m-%d") + 
-  geom_text(data = annotation_df, aes(label = label), size = 2.2, 
-            hjust = 'right') + 
-  scale_color_manual(values = c('red', region_color), 
+  scale_color_manual(values = c('black', region_color), 
                      guide = guide_legend(override.aes = list(
                        linetype = c("blank", "solid"),
                        shape = c(19, NA), 
                        alpha = c(1, 1))), 
-                     "")
+                     "") + 
+  ggtitle('B')
 p2
-ggsave('fig/wallow-local-conditions.png', width = 5, height = 5)
+
+wallow_perim_plot + p2 + plot_layout(widths = c(1, 1))
+ggsave('fig/wallow-local-conditions.png', width = 7, height = 5)
