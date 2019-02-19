@@ -40,6 +40,8 @@ burn_area_coverage <- holdout_burns %>%
 hectares_per_acre <- 0.404686
 ```
 
+\linenumbers
+
 \begin{abstract}
 Wildfires are becoming more frequent in parts of the globe, but predicting where and when wildfires occur remains difficult. 
 To predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire record with meteorological and housing data in spatiotemporal Bayesian statistical models with spatially varying nonlinear effects. 
@@ -54,7 +56,6 @@ We conclude that recent extremes should not be surprising, and that the contiguo
 \bigskip \noindent \textbf{Key words}: fire; wildfire; Bayesian; spatiotemporal; extremes; climate.
 \end{abstract}
 
-\linenumbers
 
 
 # Introduction {-}
@@ -63,7 +64,7 @@ Wildfire frequency and burned area has increased over the past couple decades in
 In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] given their impact on human lives and infrastructure [@kochi2010economic; @diaz2012economic]. 
 While case studies of particular extremes provide insight into what caused past events [@peterson20152013; @nauslar20182017], predictions of future extremes at a national level could inform disaster related resource allocation. 
 The term "extreme" has multiple meanings with respect to wildfires [@tedim2018defining], and in this paper we take consider an extreme wildfire to be a fire with the largest burned area over a bounded spatiotemporal domain, i.e., the block maximum within a spatial region and a temporal interval [@coles2001introduction]. 
-For example, the block maxima for widlfires across the contiguous U.S. can be defined on a yearly basis (Figure \ref{max-plot}).
+For example, the block maxima for wildfires across the contiguous U.S. can be defined on a yearly basis (Figure \ref{max-plot}).
 
 ```{r mtbs-time-series, results='hide'}
 mtbs <- read_rds('data/processed/mtbs.rds') %>%
@@ -173,7 +174,7 @@ For the tapered Pareto model, we modeled the shape parameter as $\log(\kappa_i) 
 The lognormal model included covariate dependence via the location parameter: $\mu_i = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$. 
 The gamma model used a log link for the expected value: $\log (E(y_i)) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$. 
 Last, we modeled the Weibull scale parameter as $\log(\sigma_i) = \alpha + \bm{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}$.
-More detail on the parameterization of each burned area distribution is provided in the Appendices. 
+More detail on the parameterization of each burned area distribution is provided in Appendix S2. 
 
 
 ### Accounting for nonlinear forcing {-}
@@ -209,7 +210,7 @@ This is consistent with our prior expectation that most of the coefficients asso
 For the zero inflated count models, we used a multivariate horseshoe to allow information sharing between the zero inflated and distribution specific location parameters [@peltola2014hierarchical]. 
 For the remaining count models and all burned area models, this was a univariate horseshoe prior. 
 Spatiotemporal random effects were constructed using a temporally autoregressive, spatially intrinsically autoregressive formulation [@besag1995conditional; @banerjee2014hierarchical]. 
-Details of these priors and the resulting joint distributions are provided in the Appendices.
+Details of these priors and the resulting joint distributions are provided in Appendix S1 and Appendix S2, respectively.
 
 ## Posterior predictive inference for finite sample maxima {-}
 
@@ -500,6 +501,7 @@ We also thank two anonymous reviewers for their thoughtful comments, which great
 <div id="refs"></div>
 
 \clearpage
+\nolinenumbers
 
 # Tables {-}
 
@@ -508,8 +510,7 @@ We also thank two anonymous reviewers for their thoughtful comments, which great
 count_loglik <- read_csv('data/processed/count-loglik.csv')
 kable(count_loglik, 
       caption = 'Performance of count models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.', 
-      longtable = TRUE) %>%
-  kable_styling(latex_options = 'striped')
+      longtable = TRUE)
 ```
 
 \newpage
@@ -518,468 +519,170 @@ kable(count_loglik,
 burn_area_loglik <- read_csv('data/processed/burn-area-loglik.csv')
 kable(burn_area_loglik, 
       caption = 'Performance of burned area models on the test set in descending order. Posterior means are provided with standard deviations in parentheses.', 
-      longtable = TRUE) %>%
-  kable_styling(latex_options = 'striped')
+      longtable = TRUE)
 ```
+
+\clearpage
+
+# Figure captions {-}
+
+## Figure 1 {-}
+
+Sizes of wildfires over 405 hectares in the contiguous United States, from the Monitoring Trends in Burn Severity multiagency program. Each point represents a fire event, and the largest fires for each year (the block maxima) are shown as solid black points.
+
+## Figure 2 {-}
+
+A. Large wildfire ignition locations are shown as points across the study region. Colors in panels B, C, and D show level 1, 2, and 3 ecoregions respectively.
+
+## Figure 3 {-}
+
+Conceptual figure to illustrate the use of B-splines to construct nonlinear functions. In the left panel, five B-spline vectors are shown, which map values of an input variable (on the x-axis) to a value on the y-axis. The middle panel shows the same B-spline vectors, but weighted (multiplied) by real numbers, with the weights illustrated as annotations. These weighted B-spline vectors are summed to produce the values of a nonlinear function (right panel).
+
+## Figure 4 {-}
+
+Count predictive checks. Row one shows observed count frequencies as black points and predicted frequencies as lines. Rows two, three, and four show predicted proportions of zeros, maxima, and sums (respectively) in the training and test data, with empirical values as dashed lines. Rows two through four facilitate comparison of performance on training and test sets. Ideally, model predictions cluster around the dashed lines for both the training (x-axis direction) and test (y-axis direction) sets, leading to a tight cluster of points at the intersection of the dashed lines.
+
+## Figure 5 {-}
+
+Partial effects on the log-transformed negative binomial mean component of the zero-inflated negative binomial model for each level 3 ecoregion, colored by level 1 ecoregion. Lines are posterior medians. Results are similar for the zero-inflation component.
+
+## Figure 6 {-}
+
+Caterpillar plots of zero inflated negative binomial model coefficients, $\beta^{(\mu)}$ (left) and $\beta^{(\pi)}$ (right). Horizontal line segments denote 95\% credible intervals. Grey segments indicate coefficients with a less than 87\% posterior probability of being positive or negative, and colored segments indicate coefficients that are probably positive (red) or negative (blue). B-spline vectors are indicated by colons, e.g., \code{Humidity:1} indicates the first basis vector corresponding to humidity. Interactions between variables \code{a} and \code{b} are represented as \code{a x b}. Level 1 ecoregions are represented by \code{L1 ecoregion name}, and \code{L2} and \code{L3} indicate level 2 and 3 ecoregions.
+
+## Figure 7 {-}
+
+Predictive checks for burned area models. The top row shows predicted density in color and empirical density for the training set in black, which reveals overall lack of fit for the gamma and Weibull models. Row two shows the complementary cumulative distribution function (CCDF) at the tails, with 95\% and 50\% prediction intervals shown in color and observed data as black points, which shows that the Generalized Pareto distribution predicts values that are too extreme. The third and fourth rows show checks for maximum and total burned areas in the training and test set, with observed values as dashed lines and posterior draws as colored points. These final two rows facilitate checks for summary statistics on both the training and test set, with the ideal model generating predictions (colored points) clustered close to where the dashed lines intersect.
+
+## Figure 8 {-}
+
+\textbf{A}. Estimated posterior medians and 95\% credible intervals for each of the 3,473 coefficients associated with expected burned area. Only one coefficient - the first basis vector for humidity - had a 95\% credible interval that excluded zero, shown in red. This effect is visualized in \textbf{B}. Partial effects of mean daily minimum humidity for each level 3 ecoregion, with posterior medians drawn as lines, and the 95\% credible intervals as ribbons. \textbf{C}. Monthly time series of expected fire sizes for every level 3 ecoregion, faceted and colored by level 1 ecoregions sorted by mean humidity. Lines are posterior medians and ribbons are 95\% credible intervals.
+
+## Figure 9 {-}
+
+Posterior 99\% (light red) and 95\% (dark red) prediction intervals for the burned area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with wildfires in more than 20 months. Empirical maxima are shown as black dots.
+
+## Figure 10 {-}
+
+Estimated monthly posterior probabilities that one or more fire events exceed one million acres (404,686 hectares). The line represents the posterior median, and shaded region represents an 80\% credible interval. The training period up to 2010 is shown in black, and the test period for which data were withheld during parameter estimation is shown in red.
+
+## Figure 11 {-}
+
+Posterior median contribution of each input variable to the linear predictor function of model components for the Arizona/New Mexico Mountains level 3 ecoregion from 2010-2016. A dotted vertical line marks May 2011, when the Wallow Fire ignited. Vertical positions of colored lines show contributions to the linear predictor function of each model component.
+
+## Figure 12 {-}
+
+A. Progression of the Wallow Fire based on perimeter data collected from the GeoMAC database, spanning May 30, 2011 to June 27, 2011. The perimeter at the end of may is outlined in white, with brighter colors indicating later dates. B. Daily local meteorological conditions and monthly regional mean conditions for the Wallow Fire, along with the associated burned area over time. The blue line represents monthly averages of meteorological quantities computed over the entire Arizona/New Mexico Mountains ecoregion, and black points represent values extracted for "local" 4 km grid cells contained within the final burned area perimeter of the Wallow Fire.
+
 
 \clearpage
 
 # Figures {-}
 
+## Figure 1 {-}
+
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/max-plot.png}
-\caption{Sizes of wildfires over 405 hectares in the contiguous United States, from the Monitoring Trends in Burn Severity multiagency program. Each point represents a fire event, and the largest fires for each year (the block maxima) are shown as solid black points.}
 \label{max-plot}
 \end{figure}
 
 \clearpage
 
+## Figure 2 {-}
+
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/maps.png}
-\caption{A. Large wildfire ignition locations are shown as points across the study region. Colors in panels B, C, and D show level 1, 2, and 3 ecoregions respectively.}
 \label{study-region}
 \end{figure}
 
 \clearpage
 
+## Figure 3 {-}
+
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/spline-concept.png}
-\caption{Conceptual figure to illustrate the use of B-splines to construct nonlinear functions. In the left panel, five B-spline vectors are shown, which map values of an input variable (on the x-axis) to a value on the y-axis. The middle panel shows the same B-spline vectors, but weighted (multiplied) by real numbers, with the weights illustrated as annotations. These weighted B-spline vectors are summed to produce the values of a nonlinear function (right panel).}
 \label{spline-concept} 
 \end{figure}
 
 \clearpage
 
+## Figure 4 {-}
+
 \begin{figure}[htp] 
 \includegraphics[width=\textwidth]{fig/ppc-counts.png}
-\caption{Count predictive checks. Row one shows observed count frequencies as black points and predicted frequencies as lines. Rows two, three, and four show predicted proportions of zeros, maxima, and sums (respectively) in the training and test data, with empirical values as dashed lines. Rows two through four facilitate comparison of performance on training and test sets. Ideally, model predictions cluster around the dashed lines for both the training (x-axis direction) and test (y-axis direction) sets, leading to a tight cluster of points at the intersection of the dashed lines.}
 \label{ppc-counts} 
 \end{figure}
 
 \clearpage
 
+## Figure 5 {-}
+
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/count-partial-effs.png}
-\caption{Partial effects on the log-transformed negative binomial mean component of the zero-inflated negative binomial model for each level 3 ecoregion, colored by level 1 ecoregion. Lines are posterior medians. Results are similar for the zero-inflation component.}
 \label{count-partial-effs}
 \end{figure}
 
 \clearpage
 
+## Figure 6 {-}
+
 \begin{figure}[ht] 
 \includegraphics[width=.9\textwidth]{fig/all-coefs.png}
-\caption{Caterpillar plots of zero inflated negative binomial model coefficients, $\beta^{(\mu)}$ (left) and $\beta^{(\pi)}$ (right). Horizontal line segments denote 95\% credible intervals. Grey segments indicate coefficients with a less than 87\% posterior probability of being positive or negative, and colored segments indicate coefficients that are probably positive (red) or negative (blue). B-spline vectors are indicated by colons, e.g., \code{Humidity:1} indicates the first basis vector corresponding to humidity. Interactions between variables \code{a} and \code{b} are represented as \code{a x b}. Level 1 ecoregions are represented by \code{L1 ecoregion name}, and \code{L2} and \code{L3} indicate level 2 and 3 ecoregions.}
 \label{all-coefs} 
 \end{figure}
 
 \clearpage
 
+## Figure 7 {-}
+
 \begin{figure}[htp] 
 \includegraphics[width=\textwidth]{fig/ppc-density-funs.png}
-\caption{Predictive checks for burned area models. The top row shows predicted density in color and empirical density for the training set in black, which reveals overall lack of fit for the gamma and Weibull models. Row two shows the complementary cumulative distribution function (CCDF) at the tails, with 95\% and 50\% prediction intervals shown in color and observed data as black points, which shows that the Generalized Pareto distribution predicts values that are too extreme. The third and fourth rows show checks for maximum and total burned areas in the training and test set, with observed values as dashed lines and posterior draws as colored points. These final two rows facilitate checks for summary statistics on both the training and test set, with the ideal model generating predictions (colored points) clustered close to where the dashed lines intersect.}
 \label{ppc-density-funs}
 \end{figure}
 
 \clearpage
 
+## Figure 8 {-}
+
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/burn-area-effs.png}
-\caption{\textbf{A}. Estimated posterior medians and 95\% credible intervals for each of the 3,473 coefficients associated with expected burned area. Only one coefficient - the first basis vector for humidity - had a 95\% credible interval that excluded zero, shown in red. This effect is visualized in \textbf{B}. Partial effects of mean daily minimum humidity for each level 3 ecoregion, with posterior medians drawn as lines, and the 95\% credible intervals as ribbons. \textbf{C}. Monthly time series of expected fire sizes for every level 3 ecoregion, faceted and colored by level 1 ecoregions sorted by mean humidity. Lines are posterior medians and ribbons are 95\% credible intervals.}
-\label{burn-area-effs} 
+\label{burn-area-effs}
 \end{figure}
 
 \clearpage
 
+## Figure 9 {-}
+
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/max-preds-l3.png}
-\caption{Posterior 99\% (light red) and 95\% (dark red) prediction intervals for the burned area of the largest fire event by month and level 3 ecoregion in the test set, shown for ecoregions with wildfires in more than 20 months. Empirical maxima are shown as black dots.}
 \label{max-preds-l3}
 \end{figure}
 
 \clearpage
 
+## Figure 10 {-}
+
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/million-acre-probs.png}
-\caption{Estimated monthly posterior probabilities that one or more fire events exceed one million acres (404,686 hectares). The line represents the posterior median, and shaded region represents an 80\% credible interval. The training period up to 2010 is shown in black, and the test period for which data were withheld during parameter estimation is shown in red.}
 \label{million-acre-probs}
 \end{figure}
 
 \clearpage
 
+## Figure 11 {-}
+
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/attribution-plot.png}
-\caption{Posterior median contribution of each input variable to the linear predictor function of model components for the Arizona/New Mexico Mountains level 3 ecoregion from 2010-2016. A dotted vertical line marks May 2011, when the Wallow Fire ignited. Vertical positions of colored lines show contributions to the linear predictor function of each model component.}
 \label{attribution-plot}
 \end{figure}
 
 \clearpage
 
+## Figure 12 {-}
+
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/wallow-local-conditions.png}
-\caption{A. Progression of the Wallow Fire based on perimeter data collected from the GeoMAC database, spanning May 30, 2011 to June 27, 2011. The perimeter at the end of may is outlined in white, with brighter colors indicating later dates. B. Daily local meteorological conditions and monthly regional mean conditions for the Wallow Fire, along with the associated burned area over time. The blue line represents monthly averages of meteorological quantities computed over the entire Arizona/New Mexico Mountains ecoregion, and black points represent values extracted for "local" 4 km grid cells contained within the final burned area perimeter of the Wallow Fire.}
 \label{wallow-conditions}
 \end{figure}
 
 \clearpage
-
-# Appendices {-}
-
-\setcounter{figure}{0}
-\renewcommand{\thefigure}{S\arabic{figure}}
-\setcounter{table}{0}
-\renewcommand{\thetable}{S\arabic{table}}
-
-## Prior specifications {-}
-
-Prior distributions were chosen to regularize coefficients on the distribution specific means $\beta^{(\mu)}$ and structural zero parameters $\beta^{(\pi)}$. 
-We used a regularized horseshoe prior on these coefficients, which shrinks irrelevant coefficients towards zero, while regularizing nonzero coefficients [@piironen2017sparsity]. 
-For zero-inflated models, we used a multivariate version of the regularized horseshoe [@peltola2014hierarchical]:
-
-$$\begin{pmatrix}
-           \beta^{(\mu)}_j \\
-           \beta^{(\pi)}_j
-         \end{pmatrix} 
-\sim 
-\textnormal{N}
-\Bigg(
-\bm 0, 
-\begin{pmatrix} 
-  \tau^2_1 \tilde{\lambda}^2_{1, j} & 
-    \rho \tau_1 \tau_2 \tilde{\lambda}_{1, j} \tilde{\lambda}_{2, j} \\
-  \rho \tau_1 \tau_2 \tilde{\lambda}_{1, j} \tilde{\lambda}_{2, j} & 
-    \tau^2_2 \tilde{\lambda}^2_{2, j}
-\end{pmatrix}
-\Bigg),$$
-
-$$\tilde{\lambda}^2_{m, j} = \dfrac{c_m^2 \lambda_{j}^2}{c_m^2 + \tau_m^2 \lambda_{j}^2},$$
-
-for each response dimension $m= 1, 2$ and coefficient $j = 1, ..., p$.
-Here $\rho$ is a correlation parameter, $\tau_1$ and $\tau_2$ are global variance hyperparameters, $c_1$ and $c_2$ are hyperparameters that determine the amount of shrinkage on the largest coefficients, and $\lambda_{j}$ is a local scale parameter drawn from a half-Cauchy distribution that control the amount of shrinkage applied to coefficient $j$ [@piironen2017sparsity].
-With this prior specification, information can be shared across the two response dimensions through the correlation parameter $\rho$, and/or through the local scale parameters $\lambda_j$. 
-For count models without structural zeros (the Poisson and negative binomial models), this multivariate prior simplifies to a univariate regularized horseshoe prior. 
-
-Spatiotemporal random effects were constructed using a temporally autoregressive, spatially intrinsically autoregressive formulation [@besag1995conditional; @banerjee2014hierarchical]. 
-Temporarily suppressing the superscript that indicates whether the effects are on $\mu$ or $\pi$, and denoting column $t$ from an $S \times T$ $\matr{\Phi}$ as $\bm{\phi}_t$ we have:
-
-$$\bm{\phi}_{t=1} \sim \textnormal{N}(\bm{0}, (\tau^{(\phi)}(\matr{D} - \matr{W}))^{-1})$$
-
-$$\bm{\phi}_{t} \sim \textnormal{N}(\eta \bm{\phi}_{t - 1}, (\tau^{(\phi)}(\matr{D} - \matr{W}))^{-1}), \quad t = 2, ..., T$$
-
-where $\eta$ is a temporal dependence parameter, $\tau^{(\phi)}$ is a precision parameter, $\matr D$ is an $S \times S$ diagonal matrix with entries corresponding to the number of spatial neighbors for each spatial unit, and $\matr W$ is an $S \times S$ spatial adjacency matrix with nonzero elements only when spatial unit $i$ is a neighbor of spatial unit $j$ ($w_{i, j} = 1$ if $i$ is a neighbor of $j$, and $w_{i, j} = 0$ otherwise, including $w_{i, i} = 0$ for all $i$). 
-$\tau^{(\phi)}$ is a precision parameter. 
-We imposed a soft identifiability constraint that places high prior mass near $\sum_{s = 1}^S \phi^*_{t, s} = 0$ for all $t$.
-
-We applied a univariate regularized horseshoe prior to all $\beta$ coefficients in burned area models [@piironen2017sparsity]:
-
-$$ \beta_j
-\sim 
-\textnormal{N}
-\big(
-0, 
-\tau^2 \tilde{\lambda}^2_{j}
-\big), 
-\quad
-\tilde{\lambda}^2_{j} = \dfrac{c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2},$$
-
-Spatiotemporal random effects were constructed in the same way as for the count models.
-
-\newpage
-
-## Joint distributions {-}
-
-Here we provide the unnormalized posterior densities for each model.
-Square brackets represent a probability mass or density function. 
-Parameterizations for model likelihoods are provided first, followed by the factorization of the joint distribution, with explicit priors.
-
-
-### Poisson wildfire count model {-}
-
-We used the following parameterization of the Poisson distribution: 
-
-$$[n | \mu] = \dfrac{\mu^ne^{-\mu}}{n!},$$ 
-where $\mu$ is the mean and variance.
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau \mid \matr{N}] \propto \\
-&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \phi_{s, t}] \times \\
-&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
-&& \prod_{j = 1}^p [\beta_j^{(\mu)} | \lambda_j, c, \tau] [\lambda_j] \times \\
-&& [\sigma^{(\phi)}] [\eta] [c] [\tau] [\alpha^{(\mu)}] \\
-\end{flalign*}
-
-\begin{flalign*}
-&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{Poisson}(n_{s, t} | \textnormal{exp}(\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi_{s, t})) \times \\
-&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j^{(\mu)} | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&& \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \\ 
-&& \textnormal{Normal}^+(\tau | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2).
-\end{flalign*}
-
-\newpage
-
-### Negative binomial wildfire count model {-}
-
-We used the following parameterization of the negative binomial distribution: 
-$$[n | \mu, \delta] = \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta,$$ 
-
-where $\mu$ is the mean, and $\delta$ is a dispersion parameter.
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau, \delta \mid \matr{N}] \propto \\
-&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \phi_{s, t}, \delta] \times \\
-&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
-&& \prod_{j = 1}^p [\beta_j^{(\mu)} | \lambda_j, c, \tau] [\lambda_j] \times \\ 
-&& [\sigma^{(\phi)}] [\eta] [c][\tau] [\alpha^{(\mu)}] [\delta] \\
-\end{flalign*}
-
-\begin{flalign*}
-&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{Negative Binomial}(n_{s, t} | \textnormal{exp}(\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi_{s, t}), \delta) \times \\
-&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j^{(\mu)} | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&& \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \\ 
-&& \textnormal{Normal}^+(\tau | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}^+(\delta | 0, 5^2).
-\end{flalign*}
-
-\newpage
-
-### Zero-inflated Poisson wildfire count model {-}
-
-We used the following parameterization of the zero-inflated Poisson distribution: 
-
-$$[n | \mu, \pi] = I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{-\mu}}{n!},$$
-where $\mu$ is the Poisson mean, and $1-\pi$ is the probability of an extra zero.
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
- \bm{\phi}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}, 
- \bm{\phi}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}, 
- \bm{\lambda}, c, \tau, \rho \mid \matr{N}] \propto \\
-&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, \phi_{s, t}^{(\mu)}, \phi_{s, t}^{(\pi)}] \times \\
-&& [\bm{\phi}_1^{(\mu)} | \sigma^{(\phi, \mu)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\mu)} | \bm{\phi}_{t - 1}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}] \times \\
-&& [\bm{\phi}_1^{(\pi)} | \sigma^{(\phi, \pi)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\pi)} | \bm{\phi}_{t - 1}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}] \times \\
-&& \prod_{j = 1}^p [\beta_j^{(\mu)}, \beta_j^{(\pi)} | \lambda_j, c, \tau, \rho] [\lambda_j] \times \\
-&& [\sigma^{(\phi, \mu)}] [\sigma^{(\phi, \pi)}] [\eta^{(\mu)}] [\eta^{(\pi)}]
-[\alpha^{(\mu)}] [\alpha^{(\pi)}] [\rho] \prod_{m = 1}^2 [c_m] [\tau_m] \\
-\end{flalign*}
-
-\begin{flalign*}
-&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{ZIP}(n_{s, t} | e^{\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi^{(\mu)}_{s, t}}, \textnormal{logit}^{-1}(\alpha^{(\pi)} + \matr{X}_{(s, t)} \bm{\beta}^{(\pi)} + \phi^{(\pi)}_{s, t})) \times \\
-&& \textnormal{Normal}(\bm{\phi}^{(\mu)}_1 | \bm{0}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\mu)}_{t} | \eta^{(\mu)} \bm{\phi}^{(\mu)}_{t - 1}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \textnormal{Normal}(\bm{\phi}^{(\pi)}_1 | \bm{0}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\pi)}_{t} | \eta^{(\pi)} \bm{\phi}^{(\pi)}_{t - 1}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{N}
-\Bigg(\begin{pmatrix}
-           \beta^{(\mu)}_j \\
-           \beta^{(\pi)}_j
-         \end{pmatrix} \Big{|} \,
-\bm 0, 
-\begin{pmatrix} 
-  \tau^2_1 \frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2} & 
-    \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} \\
-  \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} & 
-    \tau^2_2 \frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}
-\end{pmatrix}
-\Bigg) \times \\
-&& \prod_{j = 1}^p \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&&\textnormal{Normal}^+(\sigma^{(\phi, \mu)} | 0, 1^2) \times \textnormal{Normal}^+(\sigma^{(\phi, \pi)} | 0, 1^2) \times \\
-&& \textnormal{Beta}(\eta^{(\mu)} | 1, 1) \times \textnormal{Beta}(\eta^{(\pi)} | 1, 1) \times \\
-&& \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\pi)} | 0, 5^2) \times \textnormal{LKJ}(\rho | 3) \times \\
-&& \prod_{m = 1}^2 \textnormal{Inv-Gamma}(c_m^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau_m | 0, 5^2).
-\end{flalign*}
-
-\newpage 
-
-### Zero-inflated negative binomial wildfire count model {-}
-
-We used the following parameterization of the zero-inflated negative binomial distribution: 
-$$[n|\mu, \delta, \pi] = I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \big)^\delta) + I_{n > 0} \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta,$$ 
-where $\mu$ is the negative binomial mean, $\delta$ is the negative binomial dispersion, and , and $1-\pi$ is the probability of an extra zero.
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
- \bm{\phi}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}, 
- \bm{\phi}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}, 
- \bm{\lambda}, c, \tau, \rho, \delta \mid \matr{N}] \propto \\
-&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, \phi_{s, t}^{(\mu)}, \phi_{s, t}^{(\pi)}, \delta] \times \\
-&& [\bm{\phi}_1^{(\mu)} | \sigma^{(\phi, \mu)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\mu)} | \bm{\phi}_{t - 1}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}] \times \\
-&& [\bm{\phi}_1^{(\pi)} | \sigma^{(\phi, \pi)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\pi)} | \bm{\phi}_{t - 1}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}] \times \\
-&& \prod_{j = 1}^p [\beta_j^{(\mu)}, \beta_j^{(\pi)} | \lambda_j, c, \tau, \rho] [\lambda_j] \times \\
-&& [\sigma^{(\phi, \mu)}] [\sigma^{(\phi, \pi)}] [\eta^{(\mu)}] [\eta^{(\pi)}]
-[\alpha^{(\mu)}] [\alpha^{(\pi)}] [\rho] [\delta] \prod_{m = 1}^2 [c_m] [\tau_m].
-\end{flalign*}
-
-\begin{flalign*}
-&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{ZINB}(n_{s, t} | e^{\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi^{(\mu)}_{s, t}}, \delta, \textnormal{logit}^{-1}(\alpha^{(\pi)} + \matr{X}_{(s, t)} \bm{\beta}^{(\pi)} + \phi^{(\pi)}_{s, t})) \times \\
-&& \textnormal{Normal}(\bm{\phi}^{(\mu)}_1 | \bm{0}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\mu)}_{t} | \eta^{(\mu)} \bm{\phi}^{(\mu)}_{t - 1}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \textnormal{Normal}(\bm{\phi}^{(\pi)}_1 | \bm{0}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\pi)}_{t} | \eta^{(\pi)} \bm{\phi}^{(\pi)}_{t - 1}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{N}
-\Bigg(\begin{pmatrix}
-           \beta^{(\mu)}_j \\
-           \beta^{(\pi)}_j
-         \end{pmatrix} \Big{|} \,
-\bm 0, 
-\begin{pmatrix} 
-  \tau^2_1 \frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2} & 
-    \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} \\
-  \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} & 
-    \tau^2_2 \frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}
-\end{pmatrix}
-\Bigg) \times \\
-&& \prod_{j = 1}^p \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&&\textnormal{Normal}^+(\sigma^{(\phi, \mu)} | 0, 1^2) \times \textnormal{Normal}^+(\sigma^{(\phi, \pi)} | 0, 1^2) \times \\
-&& \textnormal{Beta}(\eta^{(\mu)} | 1, 1) \times \textnormal{Beta}(\eta^{(\pi)} | 1, 1) \times \\
-&& \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\pi)} | 0, 5^2) \times \textnormal{LKJ}(\rho | 3)  \times \textnormal{Normal}^+(\delta | 0, 5^2) \times \\
-&& \prod_{m = 1}^2 \textnormal{Inv-Gamma}(c_m^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau_m | 0, 5^2).
-\end{flalign*}
-
-\newpage 
-
-### Generalized Pareto/Lomax burned area model {-}
-
-We used the following parameterization of the GPD/Lomax distribution: 
-$$[y|\sigma, \kappa] = \dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big) ^ {- (\kappa + 1)\kappa^{-1}},$$ 
-where $\kappa$ is a shape parameter and $\sigma$ is a scale parameter. 
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa^{(L)}, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
-&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \bm{\beta}, \alpha, \phi_{s_i, t_i}, \kappa^{(L)}]  \times \\
-&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
-&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\ 
-&& [\alpha] [c] [\tau] [\kappa^{(L)}] [\eta] [\sigma^{(\phi)}]
-\end{flalign*}
-
-\begin{flalign*}
-&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Lomax}(y_i | \kappa^{(L)}, e^{\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}}) \times \\
-&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \\
-&& \textnormal{Normal}^+(\kappa^{(L)} | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
-\end{flalign*}
-
-\newpage
-
-### Tapered Pareto burned area model {-}
-
-We used the following parameterization of the tapered Pareto distribution: 
-$$[y|\kappa, \nu] = \Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{exp} (-x / \nu),$$ 
-where $\kappa$ is a shape parameter and $\nu$ a taper parameter.
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \nu, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
-&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \bm{\beta}, \alpha, \phi_{s_i, t_i}, \nu] \times \\
-&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
-&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
-&& [\alpha] [c] [\tau] [\nu] [\eta] [\sigma^{(\phi)}]
-\end{flalign*}
-
-\begin{flalign*}
-&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Tapered Pareto}(y_i | e^{\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}}, \nu) \times \\
-&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
-&& \textnormal{Cauchy}^+(\nu | 0, 1) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
-\end{flalign*}
-
-\newpage
-
-
-### Lognormal burned area model {-}
-
-We used the following parameterization of the lognormal distribution: 
-$$[y | \mu, \sigma] = \dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{exp}\Big( -\dfrac{(\log (y) - \mu)^2}{2 \sigma^2} \Big),$$
-where $\mu$ and $\sigma$ are location and scale parameters, respectively.
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \sigma, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
-&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \sigma] \times \\
-&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
-&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
-&& [\alpha] [c] [\tau] [\sigma] [\eta] [\sigma^{(\phi)}]
-\end{flalign*}
-
-\begin{flalign*}
-&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Lognormal}(y_i | \alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}, \sigma) \times \\
-&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
-&& \textnormal{Normal}^+(\sigma | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
-\end{flalign*}
-
-\newpage
-
-### Gamma burned area model {-}
-
-We used the following parameterization of the gamma distribution: 
-$$[y | \kappa, \sigma] = \dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} \textnormal{exp}(-y / \sigma),$$ 
-where $\kappa$ is a shape parameter and $\sigma$ a scale parameter.
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
-&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \kappa] \times \\
-&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
-&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
-&& [\alpha] [c] [\tau] [\kappa] [\eta] [\sigma^{(\phi)}]
-\end{flalign*}
-
-\begin{flalign*}
-&& = \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Gamma}(y_i | \kappa, \kappa / \textnormal{exp}(\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i})) \times \\
-&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
-&& \textnormal{Normal}^+(\kappa | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
-\end{flalign*}
-
-\newpage
-
-### Weibull burned area model {-}
-
-We used the following parameterization of the Weibull distribution: 
-$$[y | \kappa, \sigma] = \dfrac{\kappa}{\sigma} \Big( \dfrac{y}{\sigma} \Big)^{\kappa - 1} \textnormal{exp} \Big( - \Big(\dfrac{y}{\sigma} \Big)^\alpha \Big),$$ 
-where $\kappa$ is a shape parameter and $\sigma$ is a scale parameter.
-
-The unnormalized posterior density of this model is:
-
-\begin{flalign*}
-&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \lambda, c, \tau \mid \bm{y}] \propto \\
-&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \kappa] \times \\
-&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
-&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
-&& [\alpha] [c] [\tau] [\kappa] [\eta] [\sigma^{(\phi)}]
-\end{flalign*}
-
-\begin{flalign*}
-&& = \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Weibull}(y_i | \kappa, \textnormal{exp}(\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i})) \times \\
-&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
-&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
-&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
-&& \textnormal{Normal}^+(\kappa | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
-\end{flalign*}
-
-\newpage
-

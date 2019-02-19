@@ -17,10 +17,16 @@ tables = data/processed/burn-area-loglik.csv data/processed/count-loglik.csv \
 	data/processed/burn-area-beta.csv \
 	data/processed/million-er-mon.csv
 
-all: main.pdf
+all: main.pdf appendix-s1.pdf appendix-s2.pdf
 
 main.pdf: $(figs) $(tables) main.Rmd library.bib header.sty
 		Rscript -e "rmarkdown::render('main.Rmd')"
+		
+appendix-s1.pdf: appendix-s1.Rmd header.sty
+		Rscript -e "rmarkdown::render('appendix-s1.Rmd')"
+		
+appendix-s2.pdf: appendix-s2.Rmd header.sty
+		Rscript -e "rmarkdown::render('appendix-s2.Rmd')"
 
 data/processed/stan_d.rds data/processed/mtbs.rds data/processed/ecoregions.rds: R/make-stan-d.R \
 	$(data-dir)/ecoregion_summaries.csv \
@@ -144,4 +150,3 @@ clean:
 		rm -r data/raw/us_eco_l3
 		rm -r us_pbg00_2007.gdb
 		rm -r data/processed/climate-data
-	

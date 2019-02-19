@@ -1,0 +1,69 @@
+---
+title: 'Spatiotemporal prediction of wildfire extremes with Bayesian finite sample maxima'
+subtitle: 'Appendix S1: Prior specifications'
+bibliography: library.bib
+output:
+    bookdown::pdf_document2:
+      keep_tex: true
+      toc: no
+      includes:
+          in_header: header.sty
+fontsize: 12pt
+---
+
+Prior distributions were chosen to regularize coefficients on the distribution specific means $\beta^{(\mu)}$ and structural zero parameters $\beta^{(\pi)}$. 
+We used a regularized horseshoe prior on these coefficients, which shrinks irrelevant coefficients towards zero, while regularizing nonzero coefficients [@piironen2017sparsity]. 
+For zero-inflated models, we used a multivariate version of the regularized horseshoe [@peltola2014hierarchical]:
+
+$$\begin{pmatrix}
+           \beta^{(\mu)}_j \\
+           \beta^{(\pi)}_j
+         \end{pmatrix} 
+\sim 
+\textnormal{N}
+\Bigg(
+\bm 0, 
+\begin{pmatrix} 
+  \tau^2_1 \tilde{\lambda}^2_{1, j} & 
+    \rho \tau_1 \tau_2 \tilde{\lambda}_{1, j} \tilde{\lambda}_{2, j} \\
+  \rho \tau_1 \tau_2 \tilde{\lambda}_{1, j} \tilde{\lambda}_{2, j} & 
+    \tau^2_2 \tilde{\lambda}^2_{2, j}
+\end{pmatrix}
+\Bigg),$$
+
+$$\tilde{\lambda}^2_{m, j} = \dfrac{c_m^2 \lambda_{j}^2}{c_m^2 + \tau_m^2 \lambda_{j}^2},$$
+
+for each response dimension $m= 1, 2$ and coefficient $j = 1, ..., p$.
+Here $\rho$ is a correlation parameter, $\tau_1$ and $\tau_2$ are global variance hyperparameters, $c_1$ and $c_2$ are hyperparameters that determine the amount of shrinkage on the largest coefficients, and $\lambda_{j}$ is a local scale parameter drawn from a half-Cauchy distribution that control the amount of shrinkage applied to coefficient $j$ [@piironen2017sparsity].
+With this prior specification, information can be shared across the two response dimensions through the correlation parameter $\rho$, and/or through the local scale parameters $\lambda_j$. 
+For count models without structural zeros (the Poisson and negative binomial models), this multivariate prior simplifies to a univariate regularized horseshoe prior. 
+
+Spatiotemporal random effects were constructed using a temporally autoregressive, spatially intrinsically autoregressive formulation [@besag1995conditional; @banerjee2014hierarchical]. 
+Temporarily suppressing the superscript that indicates whether the effects are on $\mu$ or $\pi$, and denoting column $t$ from an $S \times T$ $\matr{\Phi}$ as $\bm{\phi}_t$ we have:
+
+$$\bm{\phi}_{t=1} \sim \textnormal{N}(\bm{0}, (\tau^{(\phi)}(\matr{D} - \matr{W}))^{-1})$$
+
+$$\bm{\phi}_{t} \sim \textnormal{N}(\eta \bm{\phi}_{t - 1}, (\tau^{(\phi)}(\matr{D} - \matr{W}))^{-1}), \quad t = 2, ..., T$$
+
+where $\eta$ is a temporal dependence parameter, $\tau^{(\phi)}$ is a precision parameter, $\matr D$ is an $S \times S$ diagonal matrix with entries corresponding to the number of spatial neighbors for each spatial unit, and $\matr W$ is an $S \times S$ spatial adjacency matrix with nonzero elements only when spatial unit $i$ is a neighbor of spatial unit $j$ ($w_{i, j} = 1$ if $i$ is a neighbor of $j$, and $w_{i, j} = 0$ otherwise, including $w_{i, i} = 0$ for all $i$). 
+$\tau^{(\phi)}$ is a precision parameter. 
+We imposed a soft identifiability constraint that places high prior mass near $\sum_{s = 1}^S \phi^*_{t, s} = 0$ for all $t$.
+
+We applied a univariate regularized horseshoe prior to all $\beta$ coefficients in burned area models [@piironen2017sparsity]:
+
+$$ \beta_j
+\sim 
+\textnormal{N}
+\big(
+0, 
+\tau^2 \tilde{\lambda}^2_{j}
+\big), 
+\quad
+\tilde{\lambda}^2_{j} = \dfrac{c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2},$$
+
+Spatiotemporal random effects were constructed in the same way as for the count models.
+
+# Literature cited {-}
+
+<div id="refs"></div>
+

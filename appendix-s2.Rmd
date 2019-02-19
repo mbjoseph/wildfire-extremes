@@ -1,0 +1,306 @@
+---
+title: 'Spatiotemporal prediction of wildfire extremes with Bayesian finite sample maxima'
+subtitle: 'Appendix S2: Joint distributions'
+bibliography: library.bib
+output:
+    bookdown::pdf_document2:
+      keep_tex: true
+      toc: no
+      includes:
+          in_header: header.sty
+fontsize: 12pt
+---
+
+Here we provide the unnormalized posterior densities for each model.
+Square brackets represent a probability mass or density function. 
+Parameterizations for model likelihoods are provided first, followed by the factorization of the joint distribution, with explicit priors.
+
+
+### Poisson wildfire count model {-}
+
+We used the following parameterization of the Poisson distribution: 
+
+$$[n | \mu] = \dfrac{\mu^ne^{-\mu}}{n!},$$ 
+where $\mu$ is the mean and variance.
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau \mid \matr{N}] \propto \\
+&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \phi_{s, t}] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j^{(\mu)} | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\sigma^{(\phi)}] [\eta] [c] [\tau] [\alpha^{(\mu)}] \\
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{Poisson}(n_{s, t} | \textnormal{exp}(\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi_{s, t})) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j^{(\mu)} | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \\ 
+&& \textnormal{Normal}^+(\tau | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2).
+\end{flalign*}
+
+\newpage
+
+### Negative binomial wildfire count model {-}
+
+We used the following parameterization of the negative binomial distribution: 
+$$[n | \mu, \delta] = \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta,$$ 
+
+where $\mu$ is the mean, and $\delta$ is a dispersion parameter.
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\phi}, \sigma^{(\phi)}, \eta, \bm{\lambda}, c, \tau, \delta \mid \matr{N}] \propto \\
+&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \phi_{s, t}, \delta] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j^{(\mu)} | \lambda_j, c, \tau] [\lambda_j] \times \\ 
+&& [\sigma^{(\phi)}] [\eta] [c][\tau] [\alpha^{(\mu)}] [\delta] \\
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{Negative Binomial}(n_{s, t} | \textnormal{exp}(\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi_{s, t}), \delta) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j^{(\mu)} | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \\ 
+&& \textnormal{Normal}^+(\tau | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}^+(\delta | 0, 5^2).
+\end{flalign*}
+
+\newpage
+
+### Zero-inflated Poisson wildfire count model {-}
+
+We used the following parameterization of the zero-inflated Poisson distribution: 
+
+$$[n | \mu, \pi] = I_{n=0} (1-\pi + \pi e ^{-\mu}) + I_{n > 0} \pi \frac{\mu^ne^{-\mu}}{n!},$$
+where $\mu$ is the Poisson mean, and $1-\pi$ is the probability of an extra zero.
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
+ \bm{\phi}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}, 
+ \bm{\phi}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}, 
+ \bm{\lambda}, c, \tau, \rho \mid \matr{N}] \propto \\
+&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, \phi_{s, t}^{(\mu)}, \phi_{s, t}^{(\pi)}] \times \\
+&& [\bm{\phi}_1^{(\mu)} | \sigma^{(\phi, \mu)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\mu)} | \bm{\phi}_{t - 1}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}] \times \\
+&& [\bm{\phi}_1^{(\pi)} | \sigma^{(\phi, \pi)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\pi)} | \bm{\phi}_{t - 1}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}] \times \\
+&& \prod_{j = 1}^p [\beta_j^{(\mu)}, \beta_j^{(\pi)} | \lambda_j, c, \tau, \rho] [\lambda_j] \times \\
+&& [\sigma^{(\phi, \mu)}] [\sigma^{(\phi, \pi)}] [\eta^{(\mu)}] [\eta^{(\pi)}]
+[\alpha^{(\mu)}] [\alpha^{(\pi)}] [\rho] \prod_{m = 1}^2 [c_m] [\tau_m] \\
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{ZIP}(n_{s, t} | e^{\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi^{(\mu)}_{s, t}}, \textnormal{logit}^{-1}(\alpha^{(\pi)} + \matr{X}_{(s, t)} \bm{\beta}^{(\pi)} + \phi^{(\pi)}_{s, t})) \times \\
+&& \textnormal{Normal}(\bm{\phi}^{(\mu)}_1 | \bm{0}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\mu)}_{t} | \eta^{(\mu)} \bm{\phi}^{(\mu)}_{t - 1}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \textnormal{Normal}(\bm{\phi}^{(\pi)}_1 | \bm{0}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\pi)}_{t} | \eta^{(\pi)} \bm{\phi}^{(\pi)}_{t - 1}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{N}
+\Bigg(\begin{pmatrix}
+           \beta^{(\mu)}_j \\
+           \beta^{(\pi)}_j
+         \end{pmatrix} \Big{|} \,
+\bm 0, 
+\begin{pmatrix} 
+  \tau^2_1 \frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2} & 
+    \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} \\
+  \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} & 
+    \tau^2_2 \frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}
+\end{pmatrix}
+\Bigg) \times \\
+&& \prod_{j = 1}^p \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&&\textnormal{Normal}^+(\sigma^{(\phi, \mu)} | 0, 1^2) \times \textnormal{Normal}^+(\sigma^{(\phi, \pi)} | 0, 1^2) \times \\
+&& \textnormal{Beta}(\eta^{(\mu)} | 1, 1) \times \textnormal{Beta}(\eta^{(\pi)} | 1, 1) \times \\
+&& \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\pi)} | 0, 5^2) \times \textnormal{LKJ}(\rho | 3) \times \\
+&& \prod_{m = 1}^2 \textnormal{Inv-Gamma}(c_m^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau_m | 0, 5^2).
+\end{flalign*}
+
+\newpage 
+
+### Zero-inflated negative binomial wildfire count model {-}
+
+We used the following parameterization of the zero-inflated negative binomial distribution: 
+$$[n|\mu, \delta, \pi] = I_{n=0} (1-\pi + \pi \big( \frac{\delta}{\mu + \delta} \big)^\delta) + I_{n > 0} \binom{n + \delta - 1}{n} \big( \frac{\mu}{\mu + \delta} \big)^n \big( \frac{\delta}{\mu + \delta} \big)^\delta,$$ 
+where $\mu$ is the negative binomial mean, $\delta$ is the negative binomial dispersion, and , and $1-\pi$ is the probability of an extra zero.
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, 
+ \bm{\phi}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}, 
+ \bm{\phi}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}, 
+ \bm{\lambda}, c, \tau, \rho, \delta \mid \matr{N}] \propto \\
+&& \prod_{s = 1}^S \prod_{t = 1}^T [n_{s, t} | \bm{\beta}^{(\mu)}, \alpha^{(\mu)}, \bm{\beta}^{(\pi)}, \alpha^{(\pi)}, \phi_{s, t}^{(\mu)}, \phi_{s, t}^{(\pi)}, \delta] \times \\
+&& [\bm{\phi}_1^{(\mu)} | \sigma^{(\phi, \mu)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\mu)} | \bm{\phi}_{t - 1}^{(\mu)}, \sigma^{(\phi, \mu)}, \eta^{(\mu)}] \times \\
+&& [\bm{\phi}_1^{(\pi)} | \sigma^{(\phi, \pi)}] \prod_{t = 2}^T [\bm{\phi}_t^{(\pi)} | \bm{\phi}_{t - 1}^{(\pi)}, \sigma^{(\phi, \pi)}, \eta^{(\pi)}] \times \\
+&& \prod_{j = 1}^p [\beta_j^{(\mu)}, \beta_j^{(\pi)} | \lambda_j, c, \tau, \rho] [\lambda_j] \times \\
+&& [\sigma^{(\phi, \mu)}] [\sigma^{(\phi, \pi)}] [\eta^{(\mu)}] [\eta^{(\pi)}]
+[\alpha^{(\mu)}] [\alpha^{(\pi)}] [\rho] [\delta] \prod_{m = 1}^2 [c_m] [\tau_m].
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{s = 1}^S \prod_{t = 1}^T \textnormal{ZINB}(n_{s, t} | e^{\alpha^{(\mu)} + \matr{X}_{(s, t)} \bm{\beta}^{(\mu)} + \phi^{(\mu)}_{s, t}}, \delta, \textnormal{logit}^{-1}(\alpha^{(\pi)} + \matr{X}_{(s, t)} \bm{\beta}^{(\pi)} + \phi^{(\pi)}_{s, t})) \times \\
+&& \textnormal{Normal}(\bm{\phi}^{(\mu)}_1 | \bm{0}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\mu)}_{t} | \eta^{(\mu)} \bm{\phi}^{(\mu)}_{t - 1}, ((\sigma^{(\phi, \mu)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \textnormal{Normal}(\bm{\phi}^{(\pi)}_1 | \bm{0}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}^{(\pi)}_{t} | \eta^{(\pi)} \bm{\phi}^{(\pi)}_{t - 1}, ((\sigma^{(\phi, \pi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{N}
+\Bigg(\begin{pmatrix}
+           \beta^{(\mu)}_j \\
+           \beta^{(\pi)}_j
+         \end{pmatrix} \Big{|} \,
+\bm 0, 
+\begin{pmatrix} 
+  \tau^2_1 \frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2} & 
+    \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} \\
+  \rho \tau_1 \tau_2 \sqrt{\frac{c_1^2 \lambda_{j}^2}{c_1^2 + \tau_1^2 \lambda_{j}^2}} \sqrt{\frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}} & 
+    \tau^2_2 \frac{c_2^2 \lambda_{j}^2}{c_2^2 + \tau_2^2 \lambda_{j}^2}
+\end{pmatrix}
+\Bigg) \times \\
+&& \prod_{j = 1}^p \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&&\textnormal{Normal}^+(\sigma^{(\phi, \mu)} | 0, 1^2) \times \textnormal{Normal}^+(\sigma^{(\phi, \pi)} | 0, 1^2) \times \\
+&& \textnormal{Beta}(\eta^{(\mu)} | 1, 1) \times \textnormal{Beta}(\eta^{(\pi)} | 1, 1) \times \\
+&& \textnormal{Normal}(\alpha^{(\mu)} | 0, 5^2) \times \textnormal{Normal}(\alpha^{(\pi)} | 0, 5^2) \times \textnormal{LKJ}(\rho | 3)  \times \textnormal{Normal}^+(\delta | 0, 5^2) \times \\
+&& \prod_{m = 1}^2 \textnormal{Inv-Gamma}(c_m^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau_m | 0, 5^2).
+\end{flalign*}
+
+\newpage 
+
+### Generalized Pareto/Lomax burned area model {-}
+
+We used the following parameterization of the GPD/Lomax distribution: 
+$$[y|\sigma, \kappa] = \dfrac{1}{\sigma} \Big( \dfrac{\kappa y}{\sigma} + 1 \Big) ^ {- (\kappa + 1)\kappa^{-1}},$$ 
+where $\kappa$ is a shape parameter and $\sigma$ is a scale parameter. 
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa^{(L)}, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \bm{\beta}, \alpha, \phi_{s_i, t_i}, \kappa^{(L)}]  \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\ 
+&& [\alpha] [c] [\tau] [\kappa^{(L)}] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Lomax}(y_i | \kappa^{(L)}, e^{\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}}) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \\
+&& \textnormal{Normal}^+(\kappa^{(L)} | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+### Tapered Pareto burned area model {-}
+
+We used the following parameterization of the tapered Pareto distribution: 
+$$[y|\kappa, \nu] = \Big( \dfrac{\kappa}{y} + \dfrac{1}{\nu} \Big) \textnormal{exp} (-x / \nu),$$ 
+where $\kappa$ is a shape parameter and $\nu$ a taper parameter.
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \nu, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \bm{\beta}, \alpha, \phi_{s_i, t_i}, \nu] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\alpha] [c] [\tau] [\nu] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Tapered Pareto}(y_i | e^{\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}}, \nu) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
+&& \textnormal{Cauchy}^+(\nu | 0, 1) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+
+### Lognormal burned area model {-}
+
+We used the following parameterization of the lognormal distribution: 
+$$[y | \mu, \sigma] = \dfrac{1}{y} \dfrac{1}{\sigma \sqrt[]{2 \pi}} \textnormal{exp}\Big( -\dfrac{(\log (y) - \mu)^2}{2 \sigma^2} \Big),$$
+where $\mu$ and $\sigma$ are location and scale parameters, respectively.
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \sigma, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \sigma] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\alpha] [c] [\tau] [\sigma] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&&= \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Lognormal}(y_i | \alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i}, \sigma) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
+&& \textnormal{Normal}^+(\sigma | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+### Gamma burned area model {-}
+
+We used the following parameterization of the gamma distribution: 
+$$[y | \kappa, \sigma] = \dfrac{1}{\Gamma (\kappa) \sigma^\kappa} y^{\kappa - 1} \textnormal{exp}(-y / \sigma),$$ 
+where $\kappa$ is a shape parameter and $\sigma$ a scale parameter.
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \bm{\lambda}, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \kappa] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\alpha] [c] [\tau] [\kappa] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Gamma}(y_i | \kappa, \kappa / \textnormal{exp}(\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i})) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
+&& \textnormal{Normal}^+(\kappa | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
+
+\newpage
+
+### Weibull burned area model {-}
+
+We used the following parameterization of the Weibull distribution: 
+$$[y | \kappa, \sigma] = \dfrac{\kappa}{\sigma} \Big( \dfrac{y}{\sigma} \Big)^{\kappa - 1} \textnormal{exp} \Big( - \Big(\dfrac{y}{\sigma} \Big)^\alpha \Big),$$ 
+where $\kappa$ is a shape parameter and $\sigma$ is a scale parameter.
+
+The unnormalized posterior density of this model is:
+
+\begin{flalign*}
+&& [\bm{\beta}, \alpha, \bm{\phi}, \sigma^{(\phi)}, \eta, \kappa, \lambda, c, \tau \mid \bm{y}] \propto \\
+&& \prod_{i = 1}^{n_{\textnormal{tot}}} [y_i | \beta, \alpha, \phi_{s_i, t_i}, \kappa] \times \\
+&& [\bm{\phi}_1 | \sigma^{(\phi)}] \prod_{t = 2}^T [\bm{\phi}_t | \bm{\phi}_{t - 1}, \sigma^{(\phi)}, \eta] \times \\
+&& \prod_{j = 1}^p [\beta_j | \lambda_j, c, \tau] [\lambda_j] \times \\
+&& [\alpha] [c] [\tau] [\kappa] [\eta] [\sigma^{(\phi)}]
+\end{flalign*}
+
+\begin{flalign*}
+&& = \prod_{i = 1}^{n_{\textnormal{tot}}} \textnormal{Weibull}(y_i | \kappa, \textnormal{exp}(\alpha + \matr{X}_{(s_i, t_i)} \bm{\beta} + \phi_{s_i, t_i})) \times \\
+&& \textnormal{Normal}(\bm{\phi}_1 | \bm{0}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{t = 2}^T \textnormal{Normal}(\bm{\phi}_{t} | \eta \bm{\phi}_{t - 1}, ((\sigma^{(\phi)})^{-2} (\matr{D} - \matr{W}))^{-1}) \times \\
+&& \prod_{j = 1}^p \textnormal{Normal}\bigg(\beta_j | 0, \frac{\tau^2 c^2 \lambda_{j}^2}{c^2 + \tau^2 \lambda_{j}^2}\bigg) \times \textnormal{Cauchy}^+(\lambda_{j} | 0, 1) \times \\
+&& \textnormal{Normal}(\alpha | 0, 5^2) \times \textnormal{Inv-Gamma}(c^2 | 2.5, 10) \times \textnormal{Normal}^+(\tau | 0, 5^2) \times \\
+&& \textnormal{Normal}^+(\kappa | 0, 5^2) \times \textnormal{Beta}(\eta | 1, 1) \times \textnormal{Normal}^+(\sigma^{(\phi)} | 0, 1^2).
+\end{flalign*}
