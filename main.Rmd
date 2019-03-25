@@ -56,7 +56,7 @@ We conclude that recent extremes should not be surprising, and that the contiguo
 
 \bigskip \noindent \textbf{Key words}: fire; wildfire; Bayesian; spatiotemporal; extremes; climate.
 
-\bigskip \noindent \textbf{Running Head:}: Extreme wildfires in the contiguous U.S.
+\noindent \textbf{Running Head:}: Extreme wildfires in the contiguous U.S.
 
 \end{abstract}
 
@@ -67,7 +67,7 @@ Wildfire frequency and burned area has increased over the past couple decades in
 In addition to the ecological and smoke impacts associated with increased burned area, there has been an increasing interest in extreme wildfires [@williams2013exploring] given their impact on human lives and infrastructure [@kochi2010economic; @diaz2012economic]. 
 While case studies of particular extremes provide insight into what caused past events [@peterson20152013; @nauslar20182017], predictions of future extremes at a national level could inform disaster related resource allocation. 
 The term "extreme" has multiple meanings with respect to wildfires [@tedim2018defining], and in this paper we take consider an extreme wildfire to be a fire with the largest burned area over a bounded spatiotemporal domain, i.e., the block maximum within a spatial region and a temporal interval [@coles2001introduction]. 
-For example, the block maxima for wildfires across the contiguous U.S. can be defined on a yearly basis (Figure \ref{max-plot}).
+For example, the block maxima for wildfires across the contiguous U.S. can be defined on a yearly basis (Figure \ref{fig1}).
 
 ```{r mtbs-time-series, results='hide'}
 mtbs <- read_rds('data/processed/mtbs.rds') %>%
@@ -123,7 +123,7 @@ n_fires_total <- sum(count_df$n_fire)
 
 We acquired wildfire event data for the contiguous United States from the Monitoring Trends in Burn Severity (MTBS, www.mtbs.gov) program [@eidenshink20071145801], which includes spatiotemporal information on the occurrence of wildfires in the United States from 1984 to 2016. 
 The MTBS data contain fires greater than 1000 acres ($\approx$ 405 hectares) in the western U.S. and greater than 500 acres ($\approx$ 202 hectares) in the eastern U.S. 
-For consistency across the U.S., we discarded all records in the MTBS data less than 1000 acres, retaining `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events (Figure \ref{study-region}A). 
+For consistency across the U.S., we discarded all records in the MTBS data less than 1000 acres, retaining `r format(n_fires_total, big.mark = ',', scientific = FALSE)` fire events (Figure \ref{fig2}A). 
 Each event in the MTBS data has a discovery date, spatial point location, and final size.
 
 To explain fire size and occurrence, we used a combination of meteorological variables including humidity, air temperature, precipitation, and wind speed. 
@@ -183,7 +183,7 @@ More detail on the parameterization of each burned area distribution is provided
 ### Accounting for nonlinear forcing {-}
 
 The design matrix $\matr{X}$ was constructed to allow for spatially varying nonlinear effects of housing density and meteorological drivers. 
-We used B-splines to account for nonlinearity (Figure \ref{spline-concept}) and allowed the coefficients for each basis vector to vary spatially [@wood2017]. 
+We used B-splines to account for nonlinearity (Figure \ref{fig3}) and allowed the coefficients for each basis vector to vary spatially [@wood2017]. 
 First, we constructed univariate B-splines for log housing density, wind speed, same month precipitation, previous 12 month precipitation, air temperature, and humidity, with five degrees of freedom (including an intercept) for each variable.
 This step generated 30 basis vectors (five for each of six variables). 
 
@@ -196,7 +196,7 @@ X_pct_zero <- mean(X == 0)
 ```
 
 To allow for spatial variation in these nonlinear effects, we added interaction effects between each of the basis vectors and ecoregions [@brezger2006generalized; @kneib2009variable].
-The hierarchical nesting of ecoregion designations (Figure \ref{study-region}B-D) lends itself to such interactions. 
+The hierarchical nesting of ecoregion designations (Figure \ref{fig2}B-D) lends itself to such interactions. 
 Conceptually, coefficients in a level 3 ecoregion may be related to coefficients in the level 2 ecoregion containing the level 3 region, the level 1 ecoregion containing the level 2 region, and a global effect. 
 The coefficient associated with a basis vector for any level 3 ecoregion is treated as a sum of a global effect, a level 1 ecoregion adjustment, a level 2 ecoregion adjustment, and a level 3 ecogregion adjustment. 
 Thus, for every univariate basis vector, we included interaction effects with ecoregion at each of the three ecoregion levels.
@@ -258,7 +258,7 @@ All code to reproduce the analysis is available on GitHub at https://github.com/
 
 ## Wildfire occurrence {-}
 
-The zero-inflated negative binomial distribution performed best on the held-out test set (Table \@ref(tab:count-loglik)), and was able to recover the proportion of zeros, count maxima, and count totals in posterior predictive checks for both the training and test data (Figure \ref{ppc-counts}). 
+The zero-inflated negative binomial distribution performed best on the held-out test set (Table \@ref(tab:count-loglik)), and was able to recover the proportion of zeros, count maxima, and count totals in posterior predictive checks for both the training and test data (Figure \ref{fig4}). 
 All of the other count models that we considered exhibited lack of fit to at least one of these statistics in posterior predictive checks. 
 Hereafter, we report results from the zero-inflated negative binomial model.
 
@@ -267,13 +267,13 @@ Hereafter, we report results from the zero-inflated negative binomial model.
 rho_beta <- read_csv('data/processed/rho_beta.csv') %>% unlist
 ```
 
-Minimum relative humidity and maximum air temperature had the strongest effects on both the zero-inflation component and the expected value of the negative binomial component (Figure \ref{count-partial-effs}, posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)` - `r round(quantile(rho_beta, .975), 3)`). 
-The model uncovered unique effects of meteorological variables at level 1, 2, and 3 ecoregions (Figure \ref{all-coefs}).
+Minimum relative humidity and maximum air temperature had the strongest effects on both the zero-inflation component and the expected value of the negative binomial component (Figure \ref{fig5}, posterior median for $\rho$: `r round(median(rho_beta), 3)`, 95\% credible interval (CI): `r round(quantile(rho_beta, .025), 3)` - `r round(quantile(rho_beta, .975), 3)`). 
+The model uncovered unique effects of meteorological variables at level 1, 2, and 3 ecoregions (Figure \ref{fig6}).
 For example, a positive interaction effect between the second air temperature basis vector and the L1 Great Plains ecoregions indicates that the expected number of wildfires in plains ecoregions with cold conditions is high relative to other ecoregions. 
-The Ozark/Ouachita-Appalachian forest and Ozark Highlands were also identified as having region-specific temperature effects (Figure \ref{all-coefs}). 
-Twelve month total precipitation also had region specific effects in the Mississippi Alluvial and Southeast Coastal Plains ecoregion, where it was associated with lower expected fire counts (Figure \ref{all-coefs}).
-In contrast, increasing cumulative twelve month precipitation was associated with higher counts in desert ecoregions (Figure \ref{count-partial-effs}). 
-Housing density showed a unimodal relationship to expected count (Figure \ref{count-partial-effs}), with lower expected counts in sparsely populated ecoregions, and higher expected counts with moderately populated ecoregions. 
+The Ozark/Ouachita-Appalachian forest and Ozark Highlands were also identified as having region-specific temperature effects (Figure \ref{fig6}). 
+Twelve month total precipitation also had region specific effects in the Mississippi Alluvial and Southeast Coastal Plains ecoregion, where it was associated with lower expected fire counts (Figure \ref{fig6}).
+In contrast, increasing cumulative twelve month precipitation was associated with higher counts in desert ecoregions (Figure \ref{fig5}). 
+Housing density showed a unimodal relationship to expected count (Figure \ref{fig5}), with lower expected counts in sparsely populated ecoregions, and higher expected counts with moderately populated ecoregions. 
 
 
 ```{r count-interval-coverage, message = FALSE, warning=FALSE}
@@ -317,11 +317,11 @@ For nearly half of the level 3 ecoregions (`r total_count_coverage$n_100_pct` of
 
 ## Wildfire burned areas {-}
 
-The lognormal distribution performed best on the test set (Table \@ref(tab:ba-loglik)), and captured tail-behavior better than other burned area distributions (Figure \ref{ppc-density-funs}).
-The GPD model was too heavy-tailed to adequately capture the pattern in the empirical data, predicting fires far larger than those observed in the training and test sets (Figure \ref{ppc-density-funs}). 
-The tapered Pareto distribution was too light-tailed (Figure \ref{ppc-density-funs}).
+The lognormal distribution performed best on the test set (Table \@ref(tab:ba-loglik)), and captured tail-behavior better than other burned area distributions (Figure \ref{fig7}).
+The GPD model was too heavy-tailed to adequately capture the pattern in the empirical data, predicting fires far larger than those observed in the training and test sets (Figure \ref{fig7}). 
+The tapered Pareto distribution was too light-tailed (Figure \ref{fig7}).
 The gamma and Weibull models performed very poorly overall on the test set  (Table \@ref(tab:ba-loglik)), apparently due to a lack of congruence between the shapes of these distributions and the actual burned area distribution. 
-Despite a poor fit to the bulk of the wildfire burned area distribution, both performed adequately in the upper tails (Figure \ref{ppc-density-funs}).
+Despite a poor fit to the bulk of the wildfire burned area distribution, both performed adequately in the upper tails (Figure \ref{fig7}).
 Hereafter we present results for the lognormal model, which had the highest test set log likelihood and captured tail behavior of the empirical fire size distribution.
 
 ```{r burn-area-beta, message = FALSE, results='hide'}
@@ -331,10 +331,10 @@ hum_1_effect <- filter(burn_area_beta, nonzero)
 assert_that(nrow(hum_1_effect) == 1)
 ```
 
-Relative humidity was the primary driver of expected burned area for a fire event (Figure \ref{burn-area-effs}A). 
+Relative humidity was the primary driver of expected burned area for a fire event (Figure \ref{fig8}A). 
 The first basis vector for mean daily minimum relative humidity was the only coefficient with a 95\% credible interval that did not include zero (posterior median: `r hum_1_effect$median %>% round(2)`, 95\% CI: (`r hum_1_effect$lo %>% round(2)` - `r hum_1_effect$hi %>% round(2)`)). 
-This nonlinear effect can be observed in Figure \ref{burn-area-effs}B as an increase in the expected burned area below 20\% mean daily minimum humidity. 
-This leads to a seasonality gradient among ecoregions of expected fire sizes, with little or no seasonal signal in typically humid ecoregions such as Marine West Coast Forests of the Pacific Northwest, and seasonal oscillations in ecoregions that have periodic fluctuations between dry and humid conditions such as the Temperate Sierras (Figure \ref{burn-area-effs}C).
+This nonlinear effect can be observed in Figure \ref{fig8}B as an increase in the expected burned area below 20\% mean daily minimum humidity. 
+This leads to a seasonality gradient among ecoregions of expected fire sizes, with little or no seasonal signal in typically humid ecoregions such as Marine West Coast Forests of the Pacific Northwest, and seasonal oscillations in ecoregions that have periodic fluctuations between dry and humid conditions such as the Temperate Sierras (Figure \ref{fig8}C).
 There was not strong evidence that meteorological variables had spatially variable effects on expected wildfire burned area. 
 
 
@@ -397,7 +397,7 @@ million_er_mon <- read_csv('data/processed/million-er-mon.csv') %>%
 
 By combining the output of the event count and burned area models, we derived posterior prediction intervals for the size of the largest fire in a month for each region (the "burned area maximum"), integrating over uncertainty in the number of fires, as well as the lognormal mean and standard deviation for burned area.
 We evaluated the posterior distribution for the quantile function of the finite sample maximum of a lognormal distribution ($\exp(\mu + \sigma \sqrt{2}\text{erf}^{-1}(2 P^{1/n} - 1))$, where $n$ is the number of wildfire events, $\text{erf}^{-1}$ is the inverse error function, and $P$ is a probability) to generate prediction intervals for maximum fire sizes by month and ecoregion, conditional on one or more fires having occurred. 
-In the holdout period from 2010 to 2016, a 99\% prediction interval achieved `r 100 * round(mean(mev_intervals$in_interval), 3)`\% interval coverage, with `r 100 * round(mean(mev_intervals$empirical_max > mev_intervals$m_qhi), 3)`\% of the burned area maxima (`r sum(mev_intervals$empirical_max > mev_intervals$m_qhi)` fire events) being larger than predicted (Figure \ref{max-preds-l3}). 
+In the holdout period from 2010 to 2016, a 99\% prediction interval achieved `r 100 * round(mean(mev_intervals$in_interval), 3)`\% interval coverage, with `r 100 * round(mean(mev_intervals$empirical_max > mev_intervals$m_qhi), 3)`\% of the burned area maxima (`r sum(mev_intervals$empirical_max > mev_intervals$m_qhi)` fire events) being larger than predicted (Figure \ref{fig9}). 
 As an additional check, we used the posterior distribution of the model to predict the total area burned by wildfires in the test set.
 The model predicted the total area burned over the entire contiguous United States in test period from 2010 to 2016 to be `r format(median(predicted_totals$predicted_total_area), big.mark = ',', scientific = FALSE)` (95\% CI: (`r format(quantile(predicted_totals$predicted_total_area, .025), big.mark = ',', scientific = FALSE)` - `r format(quantile(predicted_totals$predicted_total_area, .975), big.mark = ',', scientific = FALSE)`) and the actual value was `r format(unique(predicted_totals$actual_total_area), big.mark = ',', scientific = FALSE)`. 
 
@@ -406,7 +406,7 @@ If we extrapolate, the probability of at least one fire this large in the period
 The highest probability for such an event was `r round(million_er_mon$med[1], 3)` (posterior median), with a 95\% CI of (`r round(million_er_mon$lo[1], 3)`, `r round(million_er_mon$hi[1], 3)`) seen for the `r million_er_mon$NA_L3NAME[1]` ecoregion in `r month.name[million_er_mon$month[1]]` `r million_er_mon$year[1]`. 
 The second highest probability was `r round(million_er_mon$med[2], 3)` (posterior median), with a 95\% CI of (`r round(million_er_mon$lo[2], 3)`, `r round(million_er_mon$hi[2], 3)`) seen for the `r million_er_mon$NA_L3NAME[2]` ecoregion in `r month.name[million_er_mon$month[2]]` `r million_er_mon$year[2]`. 
 Aggregating spatially, we estimated monthly probabilities of a million acre wildfire. 
-These probabilities show seasonal signals corresponding to peak fire seasons, with a shift toward higher and broader peaks beginning in the 21st century (Figure \ref{million-acre-probs}).
+These probabilities show seasonal signals corresponding to peak fire seasons, with a shift toward higher and broader peaks beginning in the 21st century (Figure \ref{fig10}).
 
 
 ## Error analysis case study: the 2011 Wallow Fire {-}
@@ -428,12 +428,12 @@ Integrating over uncertainty in the predicted number of fires and expected fire 
 We evaluated the contribution of each covariate to the linear predictor functions of the three model components (lognormal mean for burned areas, negative binomial mean for counts, and the logit probability of the zero-inflation component) to understand why these predictions differed. 
 We defined the contribution of a variable as the dot product of the elements in the design matrix $\matr{X}$ corresponding to a particular driver variable (e.g., humidity), and the estimated coefficients in $\bm{\beta}$ corresponding to that variable.
 This provides a quantitative measure of how each input variable contributes to the linear predictor for an ecoregion, and incorporates the overall, level 1, level 2, and level 3 ecoregion adjustments on these effects. 
-Humidity is the primary driver of variation in the model's predictions overall, and June 2011 - the month after ignition - favored more large fires, with drier, hotter conditions (Figure \ref{attribution-plot}). 
+Humidity is the primary driver of variation in the model's predictions overall, and June 2011 - the month after ignition - favored more large fires, with drier, hotter conditions (Figure \ref{fig11}). 
 The 99\% credible interval for June 2011 was (`r round(wallow_jun_df$m_qvlo * hectares_per_acre) %>% format(big.mark = ',', scientific = FALSE)` - `r round(wallow_jun_df$m_qvhi * hectares_per_acre) %>% format(big.mark = ',', scientific = FALSE)`) hectares, which contains the true value. 
 Had the Wallow Fire ignited two days later, the true final size would have been contained in the prediction interval. 
 Evidently, conditions in May that drove (under)predictions of maximum burned area were not representative of the conditions over most of the Wallow Fire's duration. 
 
-Temporal mismatch aside, meteorological conditions local to the Wallow Fire differed from the monthly regional means (Figure \ref{wallow-conditions}). 
+Temporal mismatch aside, meteorological conditions local to the Wallow Fire differed from the monthly regional means (Figure \ref{fig12}). 
 In particular, wind speeds in the Wallow Fire vicinity exceeded the regional monthly mean values on the date of ignition and in the weeks following ignition. 
 Over the majority of the duration of the Wallow Fire (May 29 to July 8), local daily conditions were drier and hotter on average than regional mean monthly conditions in May, which were used to drive the statistical model. 
 This local variability is not represented in the regional models developed here. 
@@ -582,110 +582,98 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 
 # Figures {-}
 
-## Figure 1 {-}
-
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/figure_1.pdf}
-\label{max-plot}
+\caption{}
+\label{fig1}
 \end{figure}
 
 \clearpage
-
-## Figure 2 {-}
 
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/figure_2.pdf}
-\label{study-region}
+\caption{}
+\label{fig2}
 \end{figure}
 
 \clearpage
-
-## Figure 3 {-}
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/figure_3.pdf}
-\label{spline-concept} 
+\caption{}
+\label{fig3} 
 \end{figure}
 
 \clearpage
-
-## Figure 4 {-}
 
 \begin{figure}[htp] 
 \includegraphics[width=\textwidth]{fig/figure_4.pdf}
-\label{ppc-counts} 
+\caption{}
+\label{fig4} 
 \end{figure}
 
 \clearpage
-
-## Figure 5 {-}
 
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/figure_5.pdf}
-\label{count-partial-effs}
+\caption{}
+\label{fig5}
 \end{figure}
 
 \clearpage
-
-## Figure 6 {-}
 
 \begin{figure}[ht] 
 \includegraphics[width=.9\textwidth]{fig/figure_6.pdf}
-\label{all-coefs} 
+\caption{}
+\label{fig6} 
 \end{figure}
 
 \clearpage
-
-## Figure 7 {-}
 
 \begin{figure}[htp] 
 \includegraphics[width=\textwidth]{fig/figure_7.pdf}
-\label{ppc-density-funs}
+\caption{}
+\label{fig7}
 \end{figure}
 
 \clearpage
-
-## Figure 8 {-}
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/figure_8.pdf}
-\label{burn-area-effs}
+\caption{}
+\label{fig8}
 \end{figure}
 
 \clearpage
-
-## Figure 9 {-}
 
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/figure_9.pdf}
-\label{max-preds-l3}
+\caption{}
+\label{fig9}
 \end{figure}
 
 \clearpage
-
-## Figure 10 {-}
 
 \begin{figure}[ht]
 \includegraphics[width=\textwidth]{fig/figure_10.pdf}
-\label{million-acre-probs}
+\caption{}
+\label{fig10}
 \end{figure}
 
 \clearpage
-
-## Figure 11 {-}
 
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/figure_11.pdf}
-\label{attribution-plot}
+\caption{}
+\label{fig11}
 \end{figure}
 
 \clearpage
 
-## Figure 12 {-}
-
 \begin{figure}[ht] 
 \includegraphics[width=\textwidth]{fig/figure_12.pdf}
-\label{wallow-conditions}
+\caption{}
+\label{fig12}
 \end{figure}
 
 \clearpage
