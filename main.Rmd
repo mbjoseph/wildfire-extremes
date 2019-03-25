@@ -1,5 +1,5 @@
 ---
-title: "Spatiotemporal prediction of wildfire extremes with Bayesian finite sample maxima"
+title: "Spatiotemporal prediction of wildfire size extremes with Bayesian finite sample maxima"
 bibliography: library.bib
 output:
     bookdown::pdf_document2:
@@ -43,6 +43,7 @@ hectares_per_acre <- 0.404686
 \linenumbers
 
 \begin{abstract}
+\onehalfspacing
 Wildfires are becoming more frequent in parts of the globe, but predicting where and when wildfires occur remains difficult. 
 To predict wildfire extremes across the contiguous United States, we integrate a 30 year wildfire record with meteorological and housing data in spatiotemporal Bayesian statistical models with spatially varying nonlinear effects. 
 We compared different distributions for the number and sizes of large fires to generate a posterior predictive distribution based on finite sample maxima for extreme events (the largest fires over bounded spatiotemporal domains). 
@@ -54,8 +55,10 @@ Statistically, these drivers affect the chance of an extreme wildfire in two way
 We conclude that recent extremes should not be surprising, and that the contiguous United States may be on the verge of even larger wildfire extremes.
 
 \bigskip \noindent \textbf{Key words}: fire; wildfire; Bayesian; spatiotemporal; extremes; climate.
-\end{abstract}
 
+\bigskip \noindent \textbf{Running Head:}: Extreme wildfires in the contiguous U.S.
+
+\end{abstract}
 
 
 # Introduction {-}
@@ -86,7 +89,7 @@ max_plot <- annual_maxima %>%
   xlab('Ignition date') + 
   ylab('Fire size (hectares)') + 
   scale_x_date(date_breaks = '5 years', date_labels = "%Y")
-ggsave('fig/max-plot.png', plot = max_plot, width = 4.5, height = 2)
+ggsave('fig/figure_1.pdf', plot = max_plot, width = 4.5, height = 2)
 ```
 
 Factors driving wildfire extremes vary in space and time [@barbero2014modeling], but it is unclear how best to account for this in a predictive model. 
@@ -582,7 +585,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 1 {-}
 
 \begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/max-plot.png}
+\includegraphics[width=\textwidth]{fig/figure_1.pdf}
 \label{max-plot}
 \end{figure}
 
@@ -591,7 +594,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 2 {-}
 
 \begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/maps.png}
+\includegraphics[width=\textwidth]{fig/figure_2.pdf}
 \label{study-region}
 \end{figure}
 
@@ -600,7 +603,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 3 {-}
 
 \begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/spline-concept.png}
+\includegraphics[width=\textwidth]{fig/figure_3.pdf}
 \label{spline-concept} 
 \end{figure}
 
@@ -609,7 +612,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 4 {-}
 
 \begin{figure}[htp] 
-\includegraphics[width=\textwidth]{fig/ppc-counts.png}
+\includegraphics[width=\textwidth]{fig/figure_4.pdf}
 \label{ppc-counts} 
 \end{figure}
 
@@ -618,7 +621,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 5 {-}
 
 \begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/count-partial-effs.png}
+\includegraphics[width=\textwidth]{fig/figure_5.pdf}
 \label{count-partial-effs}
 \end{figure}
 
@@ -627,7 +630,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 6 {-}
 
 \begin{figure}[ht] 
-\includegraphics[width=.9\textwidth]{fig/all-coefs.png}
+\includegraphics[width=.9\textwidth]{fig/figure_6.pdf}
 \label{all-coefs} 
 \end{figure}
 
@@ -636,7 +639,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 7 {-}
 
 \begin{figure}[htp] 
-\includegraphics[width=\textwidth]{fig/ppc-density-funs.png}
+\includegraphics[width=\textwidth]{fig/figure_7.pdf}
 \label{ppc-density-funs}
 \end{figure}
 
@@ -645,7 +648,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 8 {-}
 
 \begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/burn-area-effs.png}
+\includegraphics[width=\textwidth]{fig/figure_8.pdf}
 \label{burn-area-effs}
 \end{figure}
 
@@ -654,7 +657,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 9 {-}
 
 \begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/max-preds-l3.png}
+\includegraphics[width=\textwidth]{fig/figure_9.pdf}
 \label{max-preds-l3}
 \end{figure}
 
@@ -663,7 +666,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 10 {-}
 
 \begin{figure}[ht]
-\includegraphics[width=\textwidth]{fig/million-acre-probs.png}
+\includegraphics[width=\textwidth]{fig/figure_10.pdf}
 \label{million-acre-probs}
 \end{figure}
 
@@ -672,7 +675,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 11 {-}
 
 \begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/attribution-plot.png}
+\includegraphics[width=\textwidth]{fig/figure_11.pdf}
 \label{attribution-plot}
 \end{figure}
 
@@ -681,7 +684,7 @@ A. Progression of the Wallow Fire based on perimeter data collected from the Geo
 ## Figure 12 {-}
 
 \begin{figure}[ht] 
-\includegraphics[width=\textwidth]{fig/wallow-local-conditions.png}
+\includegraphics[width=\textwidth]{fig/figure_12.pdf}
 \label{wallow-conditions}
 \end{figure}
 

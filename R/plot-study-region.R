@@ -48,4 +48,4 @@ fire_map <- ecoregions %>%
   ggtitle('A')
 
 p <- (fire_map  + l1_map) / (l2_map + l3_map)
-ggsave(filename = 'fig/maps.png', plot = p, width = 10, height = 7)
+ggsave(filename = 'fig/figure_2.pdf', plot = p, width = 10, height = 7)

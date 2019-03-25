@@ -219,7 +219,7 @@ ym_million_prob %>%
         legend.position = 'none') + 
   annotate(geom = 'text', x = 2007, y = .15, label = 'Train') + 
   annotate(geom = 'text', x = 2013, y = .15, label = 'Test', color = 'red')
-ggsave('fig/million-acre-probs.png', width = 4, height = 3)
+ggsave('fig/figure_10.pdf', width = 4, height = 3)
 
 
 # Evaluate interval coverage ----------------------------------------------
@@ -297,7 +297,7 @@ interval_df %>%
   ylab('Maximum fire size (hectares)') +
   theme(panel.grid.minor = element_blank(), 
         axis.text.x = element_text(angle = 90))
-ggsave('fig/max-preds-l3.png', width = 7, height = 4)
+ggsave('fig/figure_9.pdf', width = 7, height = 4)
 
 # get overall interval coverage stats for block maxima
 write_csv(interval_df, 'data/processed/mev_intervals.csv')

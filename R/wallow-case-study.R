@@ -236,4 +236,4 @@ p2 <- pts_df %>%
 p2
 
 wallow_perim_plot + p2 + plot_layout(widths = c(1, 1))
-ggsave('fig/wallow-local-conditions.png', width = 7, height = 5)
+ggsave('fig/figure_12.pdf', width = 7, height = 5)

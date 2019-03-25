@@ -1,5 +1,5 @@
 ---
-title: 'Spatiotemporal prediction of wildfire extremes with Bayesian finite sample maxima'
+title: 'Spatiotemporal prediction of wildfire size extremes with Bayesian finite sample maxima'
 subtitle: 'Appendix S2: Joint distributions'
 bibliography: library.bib
 output:

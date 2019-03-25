@@ -87,7 +87,7 @@ coefplot <- coef_d %>%
   theme(legend.position = 'none') +
   geom_text_repel(aes(label = ifelse(nonzero, variable, '')),
                   color = 'black', size = 2)
-ggsave('fig/all-coefs.png', plot = coefplot, width = 6, height = 3.5)
+ggsave('fig/figure_6.pdf', plot = coefplot, width = 6, height = 3.5)
 
 
 # Partial effect plots ----------------------------------------------------
@@ -187,7 +187,7 @@ p <- plot_data %>%
   legend.position = 'bottom') + 
   scale_y_continuous(breaks = c(-3, 0, 3))
 p
-ggsave('fig/count-partial-effs.png', plot = p, width = 6, height = 4)
+ggsave('fig/figure_5.pdf', plot = p, width = 6, height = 4)
 
 
 

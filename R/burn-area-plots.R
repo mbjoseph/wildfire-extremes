@@ -185,4 +185,4 @@ location_ts_plot
 
 q <- (coefplot + p) / location_ts_plot + plot_layout(heights = c(.6, 1), ncol = 1)
 q
-ggsave('fig/burn-area-effs.png', plot = q, width = 8.5, height = 5)
+ggsave('fig/figure_8.pdf', plot = q, width = 8.5, height = 5)

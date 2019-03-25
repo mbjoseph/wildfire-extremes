@@ -89,4 +89,5 @@ function_plot <- function_val %>%
 
 p <- unweight_plot + weight_plot + function_plot
 p
-ggsave(filename = 'fig/spline-concept.png', plot = p, width = 6, height = 2)
+
+ggsave(filename = 'fig/figure_3.pdf', plot = p, width = 6, height = 2)

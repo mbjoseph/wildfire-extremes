@@ -262,4 +262,4 @@ sum_plot <- ppc_counts %>%
 
 cowplot::plot_grid(den_plot, zero_plot, max_plot, sum_plot, 
                    ncol = 1, rel_heights = c(1.3, 1, 1, 1))
-ggsave('fig/ppc-counts.png', width = 6, height = 4.5)
+ggsave('fig/figure_4.pdf', width = 6, height = 4.5)

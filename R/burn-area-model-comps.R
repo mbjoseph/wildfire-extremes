@@ -286,7 +286,7 @@ sum_plot <- train_max %>%
 
 cowplot::plot_grid(den_plot, tail_plot, max_plot, sum_plot, 
                    nrow = 4, rel_heights = c(1.3, 1, 1, 1))
-ggsave(filename = 'fig/ppc-density-funs.png', width = 6, height = 4.25)
+ggsave(filename = 'fig/figure_7.pdf', width = 6, height = 4.25)
 
 
 

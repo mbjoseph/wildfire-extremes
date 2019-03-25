@@ -153,6 +153,6 @@ case_study_plot <- write_attribution_plot(max_d$NA_L3NAME)
 p1 <- case_study_plot$plot +
   geom_vline(aes(xintercept = ym), data = max_d, lty = 'dotted')
 p1
-ggsave(filename = 'fig/attribution-plot.png', plot = p1,
+ggsave(filename = 'fig/figure_11.pdf', plot = p1,
        width = 7, height = 4)
 write_rds(case_study_plot, 'data/processed/case-study-plot.rds')
