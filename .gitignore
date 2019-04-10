@@ -1,7 +1,7 @@
 *.Rproj
 gif
 *.mpeg
-*.png
+./*.png
 # History files
 .Rhistory
 .Rapp.history
@@ -44,3 +44,5 @@ slides/very-simple-ecoregions*
 appendix-s1.tex
 appendix-s2.tex
 tex_src.zip
+*.zip
+*.log
