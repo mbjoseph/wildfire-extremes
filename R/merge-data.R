@@ -70,7 +70,6 @@ assert_that(all(ecoregions$NA_L3NAME %in% count_df$NA_L3NAME))
 # load covariate data and link to count data frame
 ecoregion_summaries <- read_csv('data/processed/ecoregion_summaries.csv') %>%
   mutate(year = ifelse(is.na(year), 2000, year),
-         year = parse_number(year),
          ym = as.yearmon(paste(year,
                  sprintf("%02d", month),
                  sep = "-"))) %>%

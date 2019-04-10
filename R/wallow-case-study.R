@@ -192,6 +192,7 @@ wallow_perim_plot <- wallow_perim_sf %>%
   ylab('') + 
   ggtitle('A')
 wallow_perim_plot
+write_rds(wallow_perim_plot, 'poster/2019-open-house/Figures/wallow_perim.rds')
 
 hectares_per_acre <- 0.404686
 wallow_size_df <- wallow_perim_sf %>%
