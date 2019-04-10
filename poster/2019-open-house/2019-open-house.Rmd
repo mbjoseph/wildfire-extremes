@@ -9,7 +9,7 @@ font_size: "30pt" #please see github.com/brentthorne/posterdown for compatible o
 
 #---TITLE BOX OPTIONS---#
 #ESSENTIALS
-title: 'Spatiotemporal prediction of wildfire size extremes with Bayesian finite sample maxima'
+title: 'Predicting wildfire extremes with Bayesian finite sample maxima'
 author: "Max Joseph^1^ Matt Rossi^1^ Nate Mietkiewicz^1^ Adam Mahood^1^ Megan Cattau^1^ Lise St. Denis^1^ Chelsea Nagy^1^ Virginia Iglesias^1^ John Abatzoglou^2^ Jennifer Balch^1^"
 affiliation: "^1^Earth Lab, University of Colorado Boulder; ^2^Department of Geography, University of Idaho"
 #STYLE & FORMATTING
@@ -37,8 +37,8 @@ logoright_yshift: '1in'
 body_bgcol: "ffffff" #colour of the poster main background
 body_textsize: "normalsize"    # Size of the main poster body text
 body_textcol: "000000" # Colour of main text in the body of poster
-column_numbers: 4 # Number of columns that the poster has
-column_margins: "0.5in" # Margin spacing for columns
+column_numbers: 3 # Number of columns that the poster has
+column_margins: "1in" # Margin spacing for columns
 columnline_col: "008080" #colour 
 columnline_width: "0pt" #width of line between each column
 #SECTION TITLE STYLING
@@ -63,7 +63,36 @@ output: posterdown::posterdown_latex
 ---
 
 ```{r, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, results = 'asis',fig.height = 3.5, fig.width = 4.5, out.width = "100%", warning = FALSE, fig.align = 'center', message = FALSE, dev='cairo_pdf')
+knitr::opts_chunk$set(echo = FALSE, results = 'asis',
+                      fig.height = 2, fig.width = 4.5, out.width = "100%", 
+                      warning = FALSE, fig.align = 'center', message = FALSE, 
+                      dev='cairo_pdf')
+
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(assertthat)
+library(patchwork)
+
+theme_set(theme_minimal() + 
+            theme(panel.grid.minor = element_blank()))
+
+count_test_intervals <- read_csv('../../data/processed/count_test_intervals.csv')
+
+area_coverage <- read_csv('../../data/processed/area_coverage.csv') %>%
+  filter(model == '../../ba_lognormal_fit.rds') %>%
+  arrange(idx)
+
+holdout_burns <- read_rds('../../data/processed/holdout_burns.rds') %>%
+  as_tibble()
+
+assert_that(all(area_coverage$NA_L3NAME == holdout_burns$NA_L3NAME))
+
+burn_area_coverage <- holdout_burns %>%
+  mutate(idx = 1:n()) %>%
+  full_join(area_coverage)
+
+hectares_per_acre <- 0.404686
 ```
 
 <!--
@@ -71,122 +100,231 @@ Bellow you will find typical RMarkdown syntax which should fill in the columns f
 ENJOY! XD
 -->
 
-# The largest fires are getting larger
+# The largest wildfires are getting larger
 
-In past decades, the size of the largest fire each year shows an increasing trend.
+```{r plot_maxima, message=FALSE, fig.height=2}
+mtbs <- read_rds('../../data/processed/mtbs.rds') %>%
+  mutate(train = FIRE_YEAR < 2010)
 
-![](../../fig/figure_1.pdf)
+annual_maxima <- mtbs %>%
+  group_by(FIRE_YEAR) %>%
+  mutate(max_size = max(Acres), 
+         max_hectares = max_size * hectares_per_acre) %>%
+  filter(Acres == max_size)
 
-# This can happen for two reasons
-
-## Fire size distributions are shifting
-
-## More ignitions make rare events more likely
-
-Here is a map made to show the study site using `ggplot2`, `ggspatial`, and `sf` and you can even reference this with a hyperlink, this will take you to **Figure \ref{mymapfig}**. Lorem ipsum dolor sit amet, [@middleton_geological_nodate] consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-\vspace{1cm}
-
-
-# We built models of ignitions and fire sizes
-
-1. Easy to use reproducible poster design. 
-2. Integration with `RMarkdown`.
-3. Easy transition from `posterdown` to `thesisdown` or `rticles`
-
-\lipsum[2]
-
-# We can predict 75\% of extreme wildfires
-
-This package uses the same workflow approach as the `RMarkdown` you know and love. Basically it goes from RMarkdown > Knitr > Markdown > Pandoc > Latex > PDF.
-
-# We should expect even more extreme wildfires
-
-Usually you want to have a nice table displaying some important results that you have calcualated. In posterdown this is as easy as using the `kable` table formatting you are probably use to as per typical `RMarkdown` formatting. I suggesting checking out the `kableExtra` package and its in depth documentation on customizing these tables found [here](https://haozhu233.github.io/kableExtra/awesome_table_in_pdf.pdf).
-
-\vspace{1cm}
-
-```{r}
-library(kableExtra)
-library(ggplot2)
-
-data("iris")
-
-kable(iris[1:4,],align = "c", caption = "Tables are a breeze with Kable and Kable extra package!", booktabs = TRUE) %>% 
-  kable_styling(latex_options = c("striped","HOLD_position"),full_width = TRUE, font_size = 25)
-
+max_plot <- annual_maxima %>%
+  ggplot(aes(Ig_Date, max_hectares)) + 
+  geom_point(data = mtbs, aes(y = Acres * hectares_per_acre), alpha = .01) +
+  geom_point() + 
+  scale_y_log10() + 
+  xlab('Ignition date') + 
+  ylab('Fire size (hectares)') + 
+  scale_x_date(date_breaks = '5 years', date_labels = "%Y")
+max_plot
 ```
 
-\vspace{2cm}
+# This might happen for two reasons
 
-```{r, out.width='100%', fig.height=4.5, fig.cap='Using ggplot and patchwork to generate a layout of multiple plots in one figure. The iris dataset was used to generate (a) a line graph, (b) a scatterplot, and (c) a boxplot all together!'}
+\large{\textbf{1. Changing distributions}}
 
+Fire size distributions may be changing over time. 
+
+```{r size_dist, fig.height = 2}
+len <- 100
+density_df <- tibble(x = seq(-4, 5, length.out = len)) %>%
+  mutate(old_den = dnorm(x), 
+         new_den = dnorm(x, mean = 1), 
+         exp_x = exp(x))
+
+p <- density_df %>%
+  ggplot(aes(x, old_den)) + 
+  geom_line(alpha = .4) + 
+  theme(axis.text = element_blank(),
+        panel.grid = element_blank()) +
+  xlab('Event size') + 
+  ylab('Probability') + 
+  annotate(x = -2, y = .3, label = '1984', alpha = .4, geom = 'text', 
+           size = 6)
+p + 
+  geom_line(aes(y = new_den)) + 
+  annotate(x = 3, y = .3, label = '2016', geom = 'text', 
+           size = 6)
+```
+
+\large{\textbf{2. Tail sampling}}
+
+More ignitions make rare events more likely.
+
+```{r sampling_dist}
+sampling_plot <- function(n = 5, seed) {
+  set.seed(seed)
+  samples <- tibble(x = rnorm(n))
+  p <- density_df %>%
+    ggplot(aes(x, old_den)) + 
+    geom_line(alpha = .4) + 
+    theme(axis.text = element_blank(),
+          panel.grid = element_blank()) +
+    xlab('Event size') + 
+    ylab('Probability') +
+    geom_vline(xintercept = max(samples$x), color = 'red') + 
+    geom_rug(data = samples, inherit.aes = FALSE, aes(x), sides = 'b') + 
+    ggtitle(paste('n =', n))
+  p
+}
+
+seed <- 2
+
+p1 <- sampling_plot(n = 10, seed)
+p2 <- sampling_plot(n = 100, seed)
+p1 + p2
+```
+
+# Theoretical background
+
+We extended the metastatistical extreme values approach [@marani2015metastatistical] to the spatiotemporal domain, and linked it to the Bayesian **posterior predictive distribution** of finite sample maxima. 
+In this framework, all unknowns (including future predictions) are treated as random variables. 
+
+
+# The data
+
+We used wildfire data from the Monitoring Trends in Burn Severity project, modeled at the Environmental Protection Agency level 3 ecoregion level for each month since 1984 [@eidenshink20071145801].
+
+```{r plot_map, fig.width = 7, fig.height = 10}
+library(sf)
 library(tidyverse)
+library(RColorBrewer)
 library(patchwork)
-library(ggthemes)
 
-theme_set(theme_gray() + theme_tufte() + theme(legend.position = "none"))
+ecoregions <- read_rds('../../data/processed/ecoregions.rds')
 
-base <- ggplot(iris, aes(x = Sepal.Length, y = Sepal.Width, colour = Species))
-  
-p_point <- base + geom_point()
-p_line  <- base + geom_line() 
-p_area  <- base + geom_area()
-p_box1  <- ggplot(iris) + geom_boxplot(aes(x = Species, y = Sepal.Length, fill = Species))
-p_box2  <- ggplot(iris) + geom_boxplot(aes(x = Species, y = Sepal.Width, fill = Species))
+if (!file.exists('very-simple-ecoregions.shp')) {
+  system("ogr2ogr -progress -simplify 200 very-simple-ecoregions.shp ../../data/raw/us_eco_l3/us_eco_l3.shp")
+}
 
-p_line + 
-  {p_point + p_box1} +
-  plot_layout(ncol = 1) + plot_annotation(tag_levels = "a", tag_prefix = "(",tag_suffix = ")")
+simple_ecoregions <- read_sf('very-simple-ecoregions.shp')
 
+simple_ecoregions %>%
+  ggplot() +
+  geom_sf(size = .5, fill = 'white') + 
+  geom_sf(data = mtbs, size = .1,
+          inherit.aes = FALSE, color = 'red', alpha = .2) +
+  theme_minimal() + 
+  theme(panel.grid.major = element_line(colour = "lightgrey"), 
+        legend.position = 'none', 
+        axis.text = element_blank()) + 
+  ggtitle('')
+```
+
+# The model
+
+We developed spatiotemporal Bayesian count and size models with **spatial splines** and **time evolving Markov random fields**.
+We used climate and housing covariates, evaluating predictive performance with a train/test split. 
+
+
+```{r conceptual-figure, fig.height = 3}
+e_nb <- 2
+s_nb <- 2
+
+num_dist <- tibble(x = 0:30) %>%
+  mutate(pr_y = dnbinom(x, mu = e_nb, size = s_nb))
+
+
+p1 <- density_df %>%
+    ggplot(aes(x, old_den)) + 
+    geom_line() + 
+    theme(axis.text = element_blank(),
+          panel.grid = element_blank()) +
+    xlab('Event size') + 
+    ylab('')
+
+p2 <- num_dist %>%
+    ggplot(aes(x, pr_y)) + 
+    geom_point() + 
+    geom_linerange(aes(ymin = 0, ymax = pr_y)) +
+    theme(axis.text = element_blank(),
+          panel.grid = element_blank()) +
+    xlab('Number of events') + 
+    ylab('')
+
+
+arrow_df <- data.frame(x = c(0),
+                       xend = c(0),
+                       y = c(1), 
+                       yend = c(0))
+
+p3 <- ggplot(arrow_df, aes(x, y)) + 
+  geom_segment(aes(xend = xend, yend = yend), 
+               arrow = arrow()) + 
+  theme_void()
+
+n_count <- 100
+count_vals <- rnbinom(n_count, mu = e_nb, size = s_nb)
+p4 <- expand.grid(n = count_vals,
+            x = density_df$x) %>%
+  as_tibble %>%
+  mutate(id = rep(1:n_count, times = nrow(density_df)), 
+         max_den = n * pnorm(x)^(n - 1) * dnorm(x)) %>%
+  ggplot(aes(x, max_den, group = id)) + 
+  geom_line(alpha = .1) + 
+  xlab('Maximum size') + 
+  ylab('') + 
+  theme(axis.text = element_blank(),
+      panel.grid = element_blank())
+
+(p1 / p2) + p3 + p4
+```
+
+# The code
+
+The entire analysis and manuscript is reproducible and bundled up in a Docker container. 
+To reproduce or extend this work, please fork us on GitHub: 
+
+https://github.com/mbjoseph/wildfire-extremes
+
+# Most extreme wildfires are predictable
+
+Fire counts were predicted with 99\% coverage, and fire sizes were predicted with 93\% coverage. 
+**Extreme events** were harder to predict, but the model achieved **75\% coverage**. 
+
+```{r, extreme-ribbons, fig.height=5, fig.width = 5}
+interval_df <- read_csv('../../data/processed/mev_intervals.csv')
+interval_df %>%
+  group_by(NA_L3NAME) %>%
+  mutate(total_n = sum(!is.na(empirical_max))) %>%
+  filter(total_n > 26) %>%
+  ggplot(aes(x = ym, group = NA_L3NAME)) +
+  geom_ribbon(aes(ymin = m_qlo * hectares_per_acre, ymax = m_qhi * hectares_per_acre),
+              color = NA,
+              fill = 'firebrick', alpha = .7) +
+  geom_ribbon(aes(ymin = m_qvlo * hectares_per_acre, ymax = m_qvhi * hectares_per_acre),
+              color = NA,
+              fill = 'firebrick', alpha = .3) +
+  scale_y_log10() +
+  theme_minimal() +
+  facet_wrap(~ fct_reorder(l3_er, rmin),
+             labeller = labeller(.rows = label_wrap_gen(23)), 
+             nrow = 4) +
+  geom_point(aes(y = empirical_max * hectares_per_acre), size = .5) +
+  xlab('') +
+  ylab('Maximum fire size (hectares)') +
+  theme(panel.grid.minor = element_blank(), 
+        axis.text.x = element_text(angle = 90))
 ```
 
 
-```{r, out.width='85%', fig.width=4.5, fig.height=4, fig.cap='Another typical plot using ggplot, this time with a different theme and r code chunk options for fig.width and fig.height.'}
+# Some extremes are hard to predict
 
-library(ggplot2)
-library(ggthemes)
+The model failed to predict the largest event in the held-out test period: 2011's Wallow Fire because of the discretization of space and time. 
+Treating space and time as **continuous** may improve performance in some cases. 
 
-ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width, colour = Species)) +
-  geom_point() +
-  theme_tufte() +
-  labs(x = "Sepal Length", y = "Sepeal Width") +
-  NULL
+# Find out more
 
-```
+This paper is currently accepted in Ecological Applications, but you can read our preprint today on bioRxiv by scanning this QR code with your phone. 
 
-
-```{r, out.width='80%', fig.width=4.5, fig.align='center', echo=TRUE, fig.height=5, fig.cap='Another figure showing how base R plots might look on this poster!'}
-
-# Here is some code for people
-# to look at and be in awe of!!!!
-library(ggplot2)
-library(ggthemes)
-
-ggplot(data=iris,
-       aes(x = Sepal.Width,
-           y = Sepal.Length,
-           colour = Species)) +
-  geom_point() +
-  theme_tufte() +
-  NULL
-
-```
-
-\lipsum[1]
-
-# The model worked well, but wasn't perfect
-
-There is still **A LOT** of work to do on this package which include (but are note limited to): 
-
-- Better softcoding for front end user options in YAML
-- Images in the title section for logo placement which is a common attribut to posters as far as I have come to know.
-- Figure out compatiability with `natbib` which wasn't working during the initial set up.
-- MUCH BETTER PACKAGE DOCUMENTATION. For example, there is nothing in the README...
-- Include References section only if initiated by the user like in RMarkdown.
-
-# TLDR
-
-\lipsum[1]
+\begin{figure}[H]
+ \centering
+ \includegraphics[width=6cm,height=6cm,keepaspectratio]{Figures/qr-code}
+\end{figure}
 
 <!--- Here you can set the size of the citation text as well as remove the "References" section if you choose not to have one for some reason :) -->
-\small\printbibliography
+\normalsize\printbibliography
