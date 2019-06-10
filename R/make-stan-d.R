@@ -72,7 +72,8 @@ cutoff_year <- 2010
 
 train_counts <- count_df %>%
   filter(year < cutoff_year) %>%
-  left_join(st_covs)
+  left_join(st_covs) %>%
+  arrange(ym, NA_L3NAME)
 
 train_burns <- mtbs %>%
   filter(FIRE_YEAR < cutoff_year) %>%
@@ -152,7 +153,10 @@ assert_that(eps_idx_train[length(eps_idx_train)] + 1 == eps_idx_future[1])
 # design matrix for training burn areas
 # is a subset of X, based on which unique rows are in train_burns
 train_burn_covs <- train_burns %>%
-  distinct(er_ym, .keep_all = TRUE)
+  as.data.frame() %>%
+  select(-geometry) %>%
+  distinct(er_ym, .keep_all = TRUE) %>%
+  as_tibble
 
 # train_burn_covs has no duplicate er_ym's: should be fewer rows than train_burns
 assert_that(nrow(train_burn_covs) < nrow(train_burns))

@@ -190,6 +190,7 @@ p
 ggsave('fig/figure_5.pdf', plot = p, width = 6, height = 4)
 
 
+write_csv(plot_data, 'data/processed/count_partial_effect_plot_data.csv')
 
 # Save numeric summaries for text -----------------------------------------
 

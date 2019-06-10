@@ -75,39 +75,48 @@ coefplot
 write_csv(x = beta_summary, path = 'data/processed/burn-area-beta.csv')
 
 # Partial effect plots ----------------------------------------------------
-which_var <- 'rmin'
+which_var <- c('rmin', 'tmmx', 'vs', 'prev_12mo_precip', 'log_housing_density')
 
-partial_effs <- list()
-n_iter <- length(post$lp__)
-unique_ers <- unique(st_covs$NA_L3NAME)
-pb <- txtProgressBar(max = length(unique_ers), style = 3)
-for (i in seq_along(unique_ers)) {
-  setTxtProgressBar(pb, i)
-  subdf <- st_covs %>%
-    filter(NA_L3NAME == unique_ers[i]) %>%
-    mutate(row_id = 1:n())
-  X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
-  cols <- grepl(which_var, colnames(X_sub))
-
-  effects <- array(dim = c(nrow(X_sub), 3)) # 3: med, lo, hi
-  for (j in 1:nrow(X_sub)) {  # month j
-    vals <- X_sub[j, cols] %*% t(post$beta[, 1, cols])
-    effects[j, 1] <- quantile(vals, .025)
-    effects[j, 2] <- median(vals)
-    effects[j, 3] <- quantile(vals, .975)
+partial_effs_each <- vector(mode = 'list', length = length(which_var))
+for (k in seq_along(which_var)) {
+  partial_effs <- list()
+  n_iter <- length(post$lp__)
+  unique_ers <- unique(st_covs$NA_L3NAME)
+  pb <- txtProgressBar(max = length(unique_ers), style = 3)
+  for (i in seq_along(unique_ers)) {
+    setTxtProgressBar(pb, i)
+    subdf <- st_covs %>%
+      filter(NA_L3NAME == unique_ers[i]) %>%
+      mutate(row_id = 1:n())
+    X_sub <- X[st_covs$NA_L3NAME == unique_ers[i], ]
+    cols <- grepl(which_var[k], colnames(X_sub))
+    
+    effects <- array(dim = c(nrow(X_sub), 3)) # 3: med, lo, hi
+    for (j in 1:nrow(X_sub)) {  # month j
+      vals <- X_sub[j, cols] %*% t(post$beta[, 1, cols])
+      effects[j, 1] <- quantile(vals, .025)
+      effects[j, 2] <- median(vals)
+      effects[j, 3] <- quantile(vals, .975)
+    }
+    partial_effs[[i]] <- effects %>%
+      reshape2::melt(varnames = c('row_id', 'quantity')) %>%
+      as_tibble %>%
+      mutate(quantity = case_when(.$quantity == 1 ~ 'lo',
+                                  .$quantity == 2 ~ 'med',
+                                  .$quantity == 3 ~ 'hi')) %>%
+      spread(quantity, value) %>%
+      left_join(select(subdf, row_id, NA_L3NAME, year, ym, housing_density))
   }
-  partial_effs[[i]] <- effects %>%
-    reshape2::melt(varnames = c('row_id', 'quantity')) %>%
-    as_tibble %>%
-    mutate(quantity = case_when(.$quantity == 1 ~ 'lo',
-                                .$quantity == 2 ~ 'med',
-                                .$quantity == 3 ~ 'hi')) %>%
-    spread(quantity, value) %>%
-    left_join(select(subdf, row_id, NA_L3NAME, year, ym, housing_density))
+  partial_effs_each[[k]] <- partial_effs
+  close(pb)
 }
-close(pb)
 
-burn_area_partials <- partial_effs %>%
+names(partial_effs_each) <- which_var
+
+write_rds(partial_effs_each, 'data/processed/burn_area_partial_all.rds')
+
+
+burn_area_partials <- partial_effs_each[['rmin']] %>%
   bind_rows %>%
   left_join(st_covs) %>%
   mutate(NA_L1NAME = tolower(NA_L1NAME),
