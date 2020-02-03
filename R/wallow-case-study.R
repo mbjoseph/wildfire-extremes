@@ -12,7 +12,7 @@ if (!file.exists('data/raw/mtbs_perimeter_data.zip')) {
   unzip('data/raw/mtbs_perimeter_data.zip', exdir = 'data/raw/mtbs_perimeters/')
 }
 
-perimeters <- st_read('data/raw/mtbs_perimeters/mtbs_perims_DD.shp')
+perimeters <- st_read('data/raw/mtbs_perimeters/mtbs_perimeter_data/mtbs_perims_DD.shp')
 
 wallow_perim <- perimeters %>%
   filter(Fire_Name == 'WALLOW', Year == 2011)

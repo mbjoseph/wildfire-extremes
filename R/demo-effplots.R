@@ -30,7 +30,7 @@ covs_to_plot <- c('tmmx', 'rmin')
 
 ba_df <- ba_partials %>%
   filter(covariate %in% covs_to_plot) %>%
-  mutate(covariate_value = ifelse(covariate == 'tmmx', tmmx, rmin), 
+  mutate(covariate_value = ifelse(covariate == 'tmmx', tmmx-273.15, rmin), 
          response = 'Burned area') %>%
   select(covariate_value, med, NA_L3NAME, response, covariate) %>%
   left_join(distinct(c_partials, covariate, fancy_name))
@@ -43,7 +43,8 @@ margin_size <- unit(c(rep(.01, 4)), "cm")
 p1 <- ba_df %>%
   ggplot(aes(covariate_value, y = med)) +
   theme_minimal() +
-  geom_line(aes(group = NA_L3NAME), alpha = .2) +
+  scale_color_manual(values = c("#ff802b", "#37abc8")) +
+  geom_line(aes(group = NA_L3NAME, color = fancy_name), alpha = .2) +
   ylab('Partial effect') +
   facet_wrap(~fancy_name, scales = 'free_x', strip.position = 'bottom', nrow = 1) +
   xlab('') +
@@ -52,13 +53,15 @@ p1 <- ba_df %>%
   scale_y_continuous(limits = c(-.1, 1.5)) + 
   ggtitle('Wildfire Burn Area') + 
   theme(plot.title = element_text(size=title_size), 
-        plot.margin = margin_size)
+        plot.margin = margin_size,
+        legend.position = "none")
 
 p2 <- c_partials %>%
   filter(covariate %in% covs_to_plot) %>%
   ggplot(aes(covariate_value, y = med)) +
-  theme_minimal() +
-  geom_line(aes(group = NA_L3NAME), alpha = .2) +
+  theme_minimal() + 
+  scale_color_manual(values = c("#ff802b", "#37abc8")) +
+  geom_line(aes(group = NA_L3NAME, color = fancy_name), alpha = .2) +
   ylab('Partial effect') +
   facet_wrap(~fancy_name, scales = 'free_x', strip.position = 'bottom', nrow = 1) +
   xlab('') +
@@ -67,6 +70,9 @@ p2 <- c_partials %>%
   scale_y_continuous(breaks = c(-3, 0, 3)) + 
   ggtitle("Wildfire Count") + 
   theme(plot.title = element_text(size=title_size), 
-        plot.margin = margin_size)
+        plot.margin = margin_size,
+        legend.position = "none")
 
 p1 / p2
+ggsave(filename = "fig/demo-effplot-color.pdf", width = 6, height = 4)
+ggsave(filename = "fig/demo-effplot-color.png", width = 6, height = 4)

@@ -21,12 +21,15 @@ ecoregions <- ecoregions %>%
 
 # Read fire data ----------------------
 mtbs <- st_read('data/raw/mtbs_fod_pts_data/mtbs_fod_pts_data/mtbs_fod_pts_DD.shp') %>%
-  filter(Lat < 49.38, Lat > 24.39, Long > -124.849, Long < -66.88, 
-         Acres > 1e3, Fire_Type == 'WF') %>%
+  filter(Lat < 49.38, Lat > 24.39, 
+         Long > -124.849, Long < -66.88, 
+         Acres > 1e3, 
+         Fire_Type == 'Wildfire') %>%
   st_transform(st_crs(ecoregions)) %>%
   mutate(ym = as.yearmon(Ig_Date), 
          FIRE_YEAR = year(Ig_Date), 
-         FIRE_MON = month(Ig_Date))
+         FIRE_MON = month(Ig_Date)) %>%
+  filter(FIRE_YEAR < 2017)
 
 
 # match each ignition to an ecoregion
